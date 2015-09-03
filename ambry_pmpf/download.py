@@ -1,0 +1,272 @@
+# -*- coding: utf-8 -*-
+"""
+
+Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
+Revised BSD License, included in this distribution as LICENSE.txt
+"""
+
+from importers import *
+from os.path import splitext, join
+from . import DelayedOpen
+
+# noinspection PyUnresolvedReferences
+from six.moves.urllib.parse import urlparse
+# noinspection PyUnresolvedReferences
+from six.moves.urllib.request import urlopen
+
+from fs.zipfs import ZipFS
+
+def get_source(url, cache_fs, segment=None, header_lines=None, urltype=None, filetype=None, encoding=None,
+               account_accessor=None):
+    """
+
+    :param url:
+    :param cache_fs: A pyfilesystem filesystem to use for caching downloaded files.
+    :param segment:
+    :param header_lines:
+    :param urltype:
+    :param filetype:
+    :param encoding:
+    :param account_accessor: A callable to return the username and password to use for access FTP and S3 URLs.
+
+    :return: a SourceFile object.
+    """
+
+    cache_path = download(url, cache_fs, account_accessor)
+
+    url_type = get_urltype(url, urltype)
+
+    if url_type == 'zip':
+        fstor = extract_file_from_zip(cache_fs, cache_path, url)
+
+    elif url_type == 'gs':
+        raise NotImplementedError
+        fstor = get_gs(url, segment, account_accessor)
+
+    else:
+        fstor = DelayedOpen(cache_fs, cache_path, 'rb')
+
+    file_type = get_filetype(fstor.path, filetype)
+
+    # FIXME SHould use a dict
+    if file_type == 'gs':
+        return GoogleSource(fstor)
+    elif file_type == 'csv':
+        return CsvSource(fstor)
+    elif file_type == 'tsv':
+        return TsvSource(fstor)
+    elif file_type == 'fixed' or file_type == 'txt':
+        return FixedSource(fstor)
+    elif file_type == 'xls':
+        return ExcelSource(fstor)
+    elif file_type == 'xlsx':
+        return ExcelSource(fstor)
+    elif file_type == 'partition':
+        return PartitionSource(fstor)
+    else:
+        raise SourceError("Failed to determine file type for source '{}' ".format(url))
+
+
+def extract_file_from_zip(cache_fs, cache_path, url):
+    """
+    For a zip archive, return the first file if no file_name is specified as a fragment in the url,
+     or if a file_name is specified, use it as a regex to find a file in the archive
+
+    :param cache_fs:
+    :param cache_path:
+    :param url:
+    :return:
+    """
+    import re
+
+    fs = ZipFS(cache_fs.open(cache_path, 'rb'))
+
+    def walk_all(fs):
+        return [join(e[0], x) for e in fs.walk() for x in e[1]]
+
+    if not '#' in url:
+        first = walk_all(fs)[0]
+        fstor = DelayedOpen(fs, first, 'rU', None)
+
+    else:
+        _, fn_pattern = url.split('#')
+
+        for file_name in walk_all(fs):
+
+            if '_MACOSX' in file_name:
+                continue
+
+            if re.search(fn_pattern, file_name):
+                fstor = DelayedOpen(fs, file_name, 'rb')
+
+                break
+
+        if not fstor:
+            from ambry.dbexceptions import ConfigurationError
+
+            raise ConfigurationError('Failed to get file {} from archive {}'.format(file_name, fs))
+
+    return fstor
+
+def get_filetype(file_path, filetype):
+    """Determine the format of the source file, by reporting the file extension"""
+
+    # The filetype is explicitly specified
+    if filetype:
+        return filetype.lower()
+
+    root, ext = splitext(file_path)
+
+    return ext[1:].lower()
+
+
+
+def get_urltype(url, urltype):
+    from os.path import splitext
+
+    if urltype:
+        return urltype
+
+    if url and url.startswith('gs://'):
+        return 'gs'  # Google spreadsheet
+
+    if url:
+
+        if '#' in url:
+            url, frag = url.split('#')
+
+        root, ext = splitext(url)
+        return ext[1:]
+
+    return None
+
+
+
+def download(url, cache_fs, account_accessor=None):
+    """
+    Download a URL and store it in the cache.
+
+    :param url:
+    :param cache_fs:
+    :param account_accessor:
+    :return:
+    """
+    import os.path
+    import requests
+    from ambry.util.flo import copy_file_or_flo
+    from ambry.util import parse_url_to_dict
+    import filelock
+
+    parsed = urlparse(str(url))
+
+    # Create a name for the file in the cache, based on the URL
+    cache_path = os.path.join(parsed.netloc, parsed.path.strip('/'))
+
+    # If there is a query, hash it and add it to the path
+    if parsed.query:
+        import hashlib
+        hash = hashlib.sha224(parsed.query).hexdigest()
+        cache_path = os.path.join(cache_path, hash)
+
+    if not cache_fs.exists(cache_path):
+
+        cache_fs.makedir(os.path.dirname(cache_path), recursive=True, allow_recreate=True)
+
+        lock_file = cache_fs.getsyspath(cache_path + '.lock')
+
+        # Use a file lock, in case two processes try to download the file at the same time.
+        with filelock.FileLock(lock_file):
+
+            try:
+
+                if url.startswith('s3:'):
+                    s3 = get_s3(url, account_accessor)
+                    pd = parse_url_to_dict(url)
+
+                    with cache_fs.open(cache_path, 'wb') as fout:
+                        with s3.open(pd['path'], 'rb') as fin:
+                            copy_file_or_flo(fin, fout)
+
+                elif url.startswith('ftp:'):
+                    import shutil
+                    from contextlib import closing
+
+                    with closing(urlopen(url)) as fin:
+                        with cache_fs.open(cache_path, 'wb') as fout:
+                            shutil.copyfileobj(fin, fout)
+                else:
+
+                    r = requests.get(url, stream=True)
+
+                    with cache_fs.open(cache_path, 'wb') as f:
+                        copy_file_or_flo(r.raw, f)
+
+            except KeyboardInterrupt:
+                # This is really important -- its really bad to have partly downloaded
+                # files being confused with fully downloaded ones.
+                # FIXME. SHould also handle signals. deleteing partly downloaded files is important.
+                # Maybe should have a sentinel file, or download to another name and move the
+                # file after done.
+                if cache_fs.exists(cache_path):
+                    cache_fs.remove(cache_path)
+                raise
+
+
+    return cache_path
+
+
+
+def get_s3(url, account_accessor):
+    # TODO: Hack the pyfilesystem fs.opener file to get credentials from a keychain
+    # The monkey patch fixes a bug: https://github.com/boto/boto/issues/2836
+    from fs.s3fs import S3FS
+    from ambry.util import parse_url_to_dict
+
+    import ssl
+
+    _old_match_hostname = ssl.match_hostname
+
+    # FIXME. This issue is possibly better handled with https://pypi.python.org/pypi/backports.ssl_match_hostname
+    def _new_match_hostname(cert, hostname):
+        if hostname.endswith('.s3.amazonaws.com'):
+            pos = hostname.find('.s3.amazonaws.com')
+            hostname = hostname[:pos].replace('.', '') + hostname[pos:]
+        return _old_match_hostname(cert, hostname)
+
+    ssl.match_hostname = _new_match_hostname
+
+    pd = parse_url_to_dict(url)
+
+    account = account_accessor(pd['netloc'])
+
+    s3 = S3FS(
+        bucket=pd['netloc'],
+        #prefix=pd['path'],
+        aws_access_key=account['access'],
+        aws_secret_key=account['secret'],
+    )
+
+    # ssl.match_hostname = _old_match_hostname
+
+    return s3
+
+def get_gs(url, segment, account_acessor):
+
+    import gspread
+    from oauth2client.client import SignedJwtAssertionCredentials
+
+    json_key = account_acessor('google_spreadsheets')
+
+    scope = ['https://spreadsheets.google.com/feeds']
+
+    credentials = SignedJwtAssertionCredentials(json_key['client_email'], json_key['private_key'], scope)
+
+    spreadsheet_key = url.replace('gs://', '')
+
+    gc = gspread.authorize(credentials)
+
+    sh = gc.open_by_key(spreadsheet_key)
+
+    return sh.worksheet(segment)
+
+

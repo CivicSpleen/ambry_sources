@@ -9,7 +9,7 @@ try:
 except ImportError:
     from distutils.core import setup
 
-import skeleton
+import ambry_pmpf
 
 
 if sys.argv[-1] == 'publish':

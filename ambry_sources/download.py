@@ -5,9 +5,8 @@ Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
 Revised BSD License, included in this distribution as LICENSE.txt
 """
 
-from importers import *
+
 from os.path import splitext, join
-from . import DelayedOpen
 
 # noinspection PyUnresolvedReferences
 from six.moves.urllib.parse import urlparse
@@ -16,14 +15,17 @@ from six.moves.urllib.request import urlopen
 
 from fs.zipfs import ZipFS
 
-def get_source(url, cache_fs, segment=None, header_lines=None, urltype=None, filetype=None, encoding=None,
-               account_accessor=None):
+from .sources import *
+
+
+def get_source(spec, cache_fs,  account_accessor=None):
     """
+    Download a file froma URL and return it wrapped in a row-generating acessor object.
 
     :param url:
     :param cache_fs: A pyfilesystem filesystem to use for caching downloaded files.
-    :param segment:
-    :param header_lines:
+    :param segment: A number to index which sheet to use in a multi-sheet spreadsheet.
+    :param header_lines: A list of line number to use for header lines.
     :param urltype:
     :param filetype:
     :param encoding:
@@ -32,39 +34,39 @@ def get_source(url, cache_fs, segment=None, header_lines=None, urltype=None, fil
     :return: a SourceFile object.
     """
 
-    cache_path = download(url, cache_fs, account_accessor)
+    cache_path = download(spec.url, cache_fs, account_accessor)
 
-    url_type = get_urltype(url, urltype)
+    url_type = get_urltype(spec.url, spec.urltype)
 
     if url_type == 'zip':
-        fstor = extract_file_from_zip(cache_fs, cache_path, url)
+        fstor = extract_file_from_zip(cache_fs, cache_path, spec.url)
 
     elif url_type == 'gs':
-        raise NotImplementedError
-        fstor = get_gs(url, segment, account_accessor)
+        raise NotImplementedError()
+        fstor = get_gs(url, spec.segment, account_accessor)
 
     else:
         fstor = DelayedOpen(cache_fs, cache_path, 'rb')
 
-    file_type = get_filetype(fstor.path, filetype)
+    file_type = get_filetype(fstor.path, spec.filetype)
 
     # FIXME SHould use a dict
     if file_type == 'gs':
-        return GoogleSource(fstor)
+        return GoogleSource(spec, fstor)
     elif file_type == 'csv':
-        return CsvSource(fstor)
+        return CsvSource(spec, fstor)
     elif file_type == 'tsv':
-        return TsvSource(fstor)
+        return TsvSource(spec, fstor)
     elif file_type == 'fixed' or file_type == 'txt':
-        return FixedSource(fstor)
+        return FixedSource(spec, fstor)
     elif file_type == 'xls':
-        return ExcelSource(fstor)
+        return ExcelSource(spec, fstor)
     elif file_type == 'xlsx':
-        return ExcelSource(fstor)
+        return ExcelSource(spec, fstor)
     elif file_type == 'partition':
-        return PartitionSource(fstor)
+        return PartitionSource(spec, fstor)
     else:
-        raise SourceError("Failed to determine file type for source '{}' ".format(url))
+        raise SourceError("Failed to determine file type for source '{}'; unknown type '{}' ".format(spec.name, file_type))
 
 
 def extract_file_from_zip(cache_fs, cache_path, url):
@@ -86,7 +88,7 @@ def extract_file_from_zip(cache_fs, cache_path, url):
 
     if not '#' in url:
         first = walk_all(fs)[0]
-        fstor = DelayedOpen(fs, first, 'rU', None)
+        fstor = DelayedOpen(fs, first, 'rU', container = (cache_fs,cache_path))
 
     else:
         _, fn_pattern = url.split('#')
@@ -97,7 +99,7 @@ def extract_file_from_zip(cache_fs, cache_path, url):
                 continue
 
             if re.search(fn_pattern, file_name):
-                fstor = DelayedOpen(fs, file_name, 'rb')
+                fstor = DelayedOpen(fs, file_name, 'rb', container = (cache_fs,cache_path))
 
                 break
 
@@ -118,7 +120,6 @@ def get_filetype(file_path, filetype):
     root, ext = splitext(file_path)
 
     return ext[1:].lower()
-
 
 
 def get_urltype(url, urltype):
@@ -155,6 +156,7 @@ def download(url, cache_fs, account_accessor=None):
     import requests
     from ambry.util.flo import copy_file_or_flo
     from ambry.util import parse_url_to_dict
+    from fs.errors import NoSysPathError
     import filelock
 
     parsed = urlparse(str(url))
@@ -172,10 +174,28 @@ def download(url, cache_fs, account_accessor=None):
 
         cache_fs.makedir(os.path.dirname(cache_path), recursive=True, allow_recreate=True)
 
-        lock_file = cache_fs.getsyspath(cache_path + '.lock')
+        try:
+            lock_file = cache_fs.getsyspath(cache_path + '.lock')
+            FileLock = filelock.FileLock
+
+        except NoSysPathError:
+            # mem: caches, and others, don't have sys paths.
+            class FileLock(object):
+
+                def __init__(self, lf):
+                    pass
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    if exc_val:
+                        raise exc_val
+
+            lock_file = None
 
         # Use a file lock, in case two processes try to download the file at the same time.
-        with filelock.FileLock(lock_file):
+        with FileLock(lock_file):
 
             try:
 

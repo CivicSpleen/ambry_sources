@@ -7,3 +7,4 @@ openpyxl==2.2.5
 xlrd==0.9.3
 unicodecsv==0.12.0
 fs==0.5.2
+livestats==1.0

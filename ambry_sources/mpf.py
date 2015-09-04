@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Writing data to a partition
+Writing data to a partition. The MPF file format is a conversion format that stores tabular data in rows and associates
+it with metadata
 
 Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
 Revised BSD License, included in this distribution as LICENSE.txt
@@ -27,9 +28,9 @@ def new_partition_data_file(fs, path, stats=None):
     if not ext:
         ext = '.msg'
 
-    return PartitionMsgpackDataFile(fs, path)
+    return MPRowsFile(fs, path)
 
-class PMDFError(Exception):
+class MPRError(Exception):
     pass
 
 class GzipFile(gzip.GzipFile):
@@ -48,9 +49,10 @@ class GzipFile(gzip.GzipFile):
             return super(GzipFile, self)._read(size)
 
 
-class PartitionMsgpackDataFile(object):
-    """A reader and writer for Partition files in MessagePack format, which is about 60%  faster than unicode
-     csv writing, and slightly faster than plain csv. """
+class MPRowsFile(object):
+    """The Message Pack Rows File format holds a collection of arrays, in message pack format, along with a
+    dictionary of values. The format is designed for holding tabular data in an efficient, compressed form,
+    and for associating it with metadata. """
 
     EXTENSION = '.msg'
     VERSION = 1
@@ -183,7 +185,7 @@ class PartitionMsgpackDataFile(object):
     @property
     def reader(self):
         if not self._reader:
-            self._reader = PMDFReader(self, self._fs.open(self.munged_path, mode='rb'), compress = self._compress)
+            self._reader = MPRReader(self, self._fs.open(self.munged_path, mode='rb'), compress = self._compress)
 
         return self._reader
 
@@ -195,20 +197,20 @@ class PartitionMsgpackDataFile(object):
             else:
                 mode = 'wb'
 
-            self._writer = PMDFWriter(self, self._fs.open(self.munged_path, mode=mode), compress = self._compress)
+            self._writer = MPRWriter(self, self._fs.open(self.munged_path, mode=mode), compress = self._compress)
 
         return self._writer
 
 
 
-class PMDFWriter(object):
+class MPRWriter(object):
 
-    MAGIC = PartitionMsgpackDataFile.MAGIC
-    VERSION = PartitionMsgpackDataFile.VERSION
-    FILE_HEADER_FORMAT = PartitionMsgpackDataFile.FILE_HEADER_FORMAT
-    FILE_HEADER_FORMAT_SIZE = PartitionMsgpackDataFile.FILE_HEADER_FORMAT.size
-    META_TEMPLATE = PartitionMsgpackDataFile.META_TEMPLATE
-    SCHEMA_TEMPLATE = PartitionMsgpackDataFile.SCHEMA_TEMPLATE
+    MAGIC = MPRowsFile.MAGIC
+    VERSION = MPRowsFile.VERSION
+    FILE_HEADER_FORMAT = MPRowsFile.FILE_HEADER_FORMAT
+    FILE_HEADER_FORMAT_SIZE = MPRowsFile.FILE_HEADER_FORMAT.size
+    META_TEMPLATE = MPRowsFile.META_TEMPLATE
+    SCHEMA_TEMPLATE = MPRowsFile.SCHEMA_TEMPLATE
 
     def __init__(self, parent, fh, compress = True):
 
@@ -302,7 +304,7 @@ class PMDFWriter(object):
         if self._i == 0:
 
             if not self.headers:
-                raise PMDFError("Must set row headers before inserting rows")
+                raise MPRError("Must set row headers before inserting rows")
 
             self.write_file_header()
 
@@ -314,7 +316,7 @@ class PMDFWriter(object):
                 self._zfh = self._fh
 
             self._row_writer = lambda row: self._zfh.write(
-                                msgpack.packb(row, default=PartitionMsgpackDataFile.encode_obj, encoding='utf-8'))
+                                msgpack.packb(row, default=MPRowsFile.encode_obj, encoding='utf-8'))
 
             # Row header is also the first row
             self._row_writer(self.headers)
@@ -346,14 +348,14 @@ class PMDFWriter(object):
             if self._parent:
                 self._parent._writer = None
 
-class PMDFReader(object):
+class MPRReader(object):
 
-    MAGIC = PartitionMsgpackDataFile.MAGIC
-    VERSION = PartitionMsgpackDataFile.VERSION
-    FILE_HEADER_FORMAT = PartitionMsgpackDataFile.FILE_HEADER_FORMAT
-    FILE_HEADER_FORMAT_SIZE = PartitionMsgpackDataFile.FILE_HEADER_FORMAT.size
-    META_TEMPLATE = PartitionMsgpackDataFile.META_TEMPLATE
-    SCHEMA_TEMPLATE = PartitionMsgpackDataFile.SCHEMA_TEMPLATE
+    MAGIC = MPRowsFile.MAGIC
+    VERSION = MPRowsFile.VERSION
+    FILE_HEADER_FORMAT = MPRowsFile.FILE_HEADER_FORMAT
+    FILE_HEADER_FORMAT_SIZE = MPRowsFile.FILE_HEADER_FORMAT.size
+    META_TEMPLATE = MPRowsFile.META_TEMPLATE
+    SCHEMA_TEMPLATE = MPRowsFile.SCHEMA_TEMPLATE
 
     def __init__(self, parent, fh, compress = True):
         """Reads the file_header and prepares for iterating over rows"""
@@ -374,7 +376,7 @@ class PMDFReader(object):
         else:
             self._zfh =self._fh
 
-        self.unpacker = msgpack.Unpacker(self._zfh, object_hook=PartitionMsgpackDataFile.decode_obj, encoding='utf-8')
+        self.unpacker = msgpack.Unpacker(self._zfh, object_hook=MPRowsFile.decode_obj, encoding='utf-8')
 
         self._meta = None
 
@@ -431,7 +433,7 @@ class PMDFReader(object):
 
     def __iter__(self):
         """Iterator for reading rows"""
-        from . import RowProxy
+        from ambry_sources.sources import RowProxy
 
         self._fh.seek(self.start_of_data)
 

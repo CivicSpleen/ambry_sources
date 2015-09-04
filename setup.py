@@ -9,7 +9,7 @@ try:
 except ImportError:
     from distutils.core import setup
 
-import ambry_pmpf
+import ambry_sources
 
 
 if sys.argv[-1] == 'publish':
@@ -45,13 +45,13 @@ classifiers = [
 
 setup(
     name='ambry-pmpf',
-    version=ambry_pmpf.__version__,
+    version=ambry_sources.__version__,
     description='Ampy Partition Message Pack File',
     long_description=readme,
     packages=packages,
     package_data=package_data,
     install_requires=requires,
-    author=ambry_pmpf.__author__,
+    author=ambry_sources.__author__,
     author_email='eric@civicknowledge.com',
     url='https://github.com/streeter/python-skeleton',
     license='MIT',

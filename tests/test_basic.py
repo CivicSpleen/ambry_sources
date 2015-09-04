@@ -107,8 +107,8 @@ class BasicTestSuite(unittest.TestCase):
         for source_name, spec in sources.items():
             s = get_source(spec, cache_fs)
 
-            if source_name != 'capital_input':
-                continue
+            #if source_name != 'capital_input':
+            #    continue
 
             print spec.name, spec.url, '------------------'
 

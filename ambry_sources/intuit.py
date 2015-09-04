@@ -516,7 +516,7 @@ class ClusterHeaders(object):
 
 class RowIntuiter(object):
 
-    START_ROWS = 50
+    START_ROWS = 40
     MID_ROWS = 100
 
     type_map = { unicode: str, float: int }
@@ -577,7 +577,9 @@ class RowIntuiter(object):
 
         pattern_source = ''.join( "(?:{})".format('|'.join(s)) for s in patterns )
 
-        pattern = re.compile(''.join( "(?:{})".format('|'.join(s)) for s in patterns ))
+        #print pattern_source
+
+        pattern = re.compile(pattern_source)
 
         return pattern
 

@@ -27,8 +27,6 @@ class DelayedOpen(object):
     def syspath(self):
         return self._fs.getsyspath(self._path)
 
-    def source_pipe(self):
-        return self._source.row_gen()
 
     def sub_cache(self):
         """Return a fs directory associated with this file """
@@ -62,7 +60,7 @@ class DelayedOpen(object):
         try:
             return self.syspath()
         except NoSysPathError:
-            return "Delayed Open: source = {}; {}; {} ".format(self._source.name, str(self._fs),str(self._path))
+            return "Delayed Open: {}; {} ".format(str(self._fs),str(self._path))
 
 
 class SourceFile(object):
@@ -263,8 +261,12 @@ class ExcelSource(SourceFile):
 
             values = []
 
-            for col in range(s.ncols):
-                values.append(s.cell(row_num, col).value)
+            try:
+                for col in range(s.ncols):
+                    values.append(s.cell(row_num, col).value)
+            except:
+                print '!!!!', row_num
+                raise
 
             return values
 

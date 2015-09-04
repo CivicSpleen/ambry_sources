@@ -218,6 +218,14 @@ def download(url, cache_fs, account_accessor=None):
 
                     r = requests.get(url, stream=True)
 
+                    # Requests will auto decode gzip responses, but not when streaming. This following
+                    # monkey patch is recommended by a core developer at https://github.com/kennethreitz/requests/issues/2155
+                    if r.headers.get('content-encoding') == 'gzip':
+                        import functools
+                        r.raw.read = functools.partial(r.raw.read, decode_content=True)
+
+
+
                     with cache_fs.open(cache_path, 'wb') as f:
                         copy_file_or_flo(r.raw, f)
 

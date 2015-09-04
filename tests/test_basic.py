@@ -62,6 +62,9 @@ class BasicTestSuite(unittest.TestCase):
 
                 ss = SourceSpec(**row)
 
+                ss.expect_headers = row['expect_headers']
+                ss.expect_start = int(row['expect_start'])
+
                 sources[ss.name] = ss
 
         return sources
@@ -101,23 +104,27 @@ class BasicTestSuite(unittest.TestCase):
         from ambry_sources.intuit import RowIntuiter
 
         cache_fs = fsopendir('temp://')
+        #cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
             s = get_source(spec, cache_fs)
 
-            #if source_name != 'capital_input':
-            #    continue
+            #if source_name != 'birth_profiles': continue
 
-            print spec.name, spec.url, '------------------'
+            print spec.name, spec.url
 
             ri = RowIntuiter(s)
 
             for row in ri:
                 pass
 
-            print ri.header_lines, ri.start_line, ri.headers
+            #print ri.header_lines, ri.start_line
+            #print ri.headers[:5]
+
+            self.assertEqual(spec.expect_headers,','.join(str(e) for e in ri.header_lines) )
+            self.assertEqual(spec.expect_start, ri.start_line)
 
 
 

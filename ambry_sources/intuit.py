@@ -543,12 +543,29 @@ class RowIntuiter(object):
         """Create a simplified character representation of the data row, which can be pattern matched
         with a regex """
 
-        t = '_Xn'
+        template = '_Xn'
         types = (type(None), str, int)
 
+        def guess_type(v):
+
+            v = unicode(v).strip()
+
+            if not bool(v):
+                return type(None)
+
+            for t in (float, int, str, unicode):
+                try:
+                    return type(t(v))
+                except:
+                    pass
+
         def p(e):
-            e = e if bool(str(e).strip()) else None
-            return t[types.index(self.type_map.get(type(e), type(e)))]
+            try:
+                t = guess_type(e)
+                tm = self.type_map.get(t,t)
+                return template[types.index(tm)]
+            except ValueError:
+                raise ValueError("Type '{}'/'{}' not in the types list: {}".format(t, tm, types))
 
         return ''.join( p(e) for e in row)
 
@@ -576,8 +593,6 @@ class RowIntuiter(object):
                 patterns[i].add(c)
 
         pattern_source = ''.join( "(?:{})".format('|'.join(s)) for s in patterns )
-
-        #print pattern_source
 
         pattern = re.compile(pattern_source)
 
@@ -643,7 +658,7 @@ class RowIntuiter(object):
 
                 header_lines[0] = hl1
 
-            headers = [' '.join(str(col_val).strip() if col_val else '' for col_val in col_set)
+            headers = [' '.join(unicode(col_val).strip() if col_val else '' for col_val in col_set)
                        for col_set in zip(*header_lines)]
 
             headers = [h.strip() for h in headers]

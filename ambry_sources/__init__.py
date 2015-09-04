@@ -6,6 +6,7 @@ Revised BSD License, included in this distribution as LICENSE.txt
 """
 
 __version__ = '0.0.1'
+__author__ = 'eric@civicknowledge.com'
 
 # noinspection PyUnresolvedReferences
 from six.moves.urllib.parse import urlparse

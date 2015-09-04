@@ -21,7 +21,7 @@ with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as f:
     readme = f.read()
 
 packages = [
-    'ambry-pmpf',
+    'ambry-sources',
 ]
 
 package_data = {
@@ -44,7 +44,7 @@ classifiers = [
 ]
 
 setup(
-    name='ambry-pmpf',
+    name='ambry-sources',
     version=ambry_sources.__version__,
     description='Ampy Partition Message Pack File',
     long_description=readme,

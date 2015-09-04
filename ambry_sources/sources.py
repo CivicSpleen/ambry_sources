@@ -396,7 +396,10 @@ class SourceSpec(object):
             self.header_lines = [ int(e) for e in self.header_lines]
 
             if self.start_line is None:
-                self.start_line = max(*self.header_lines) + 1
+                if len(self.header_lines) > 1:
+                    self.start_line = max(*self.header_lines) + 1
+                else:
+                    self.start_line = self.header_lines[0] + 1
 
         elif self.header_lines is None or self.header_lines is False or self.header_lines.lower() == 'none':
             # None or False means that there is no header

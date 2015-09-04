@@ -34,7 +34,7 @@ class BasicTestSuite(unittest.TestCase):
 
         return XlsSource()
 
-    def load_sources(self):
+    def load_sources(self, file_name = 'sources.csv'):
         import tests
         import csv
         from os.path import join, dirname
@@ -52,7 +52,7 @@ class BasicTestSuite(unittest.TestCase):
 
         fw_columns = [ColumnSpec(**dict(zip('name start width'.split(), e))) for e in fixed_widths]
 
-        with test_data.open('sources.csv') as f:
+        with test_data.open(file_name) as f:
             r = csv.DictReader(f)
 
             for row in r:
@@ -84,21 +84,40 @@ class BasicTestSuite(unittest.TestCase):
                     break
 
 
-    def test_row_intuit(self):
+    def test_row_intuit_ch(self):
         from ambry_sources.intuit import RowIntuiter
 
-        tf = self.get_header_test_file('two_comments_two_headers_300_data_rows.xls')
+        tf = self.get_header_test_file('crazy_body.xls')
 
         ri = RowIntuiter(tf)
 
         for row in ri:
             pass
 
-        print ri.headers
-        print ri.comments
+    def test_row_intuit(self):
+        """Just check that all of the sources can be downloaded without exceptions"""
 
+        from ambry_sources import get_source
+        from ambry_sources.intuit import RowIntuiter
 
+        cache_fs = fsopendir('temp://')
 
+        sources = self.load_sources('sources-non-std-headers.csv')
+
+        for source_name, spec in sources.items():
+            s = get_source(spec, cache_fs)
+
+            if source_name != 'capital_input':
+                continue
+
+            print spec.name, spec.url, '------------------'
+
+            ri = RowIntuiter(s)
+
+            for row in ri:
+                pass
+
+            print ri.header_lines, ri.start_line, ri.headers
 
 
 

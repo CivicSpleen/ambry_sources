@@ -427,283 +427,6 @@ class TypeIntuiter(object):
             yield d
 
 
-class RowIntuiter(object):
-    """ Separates rows to the comments, header and data.
-
-    Note: Assuming None means empty value in the cell. Empty strings (xlrd case) have to be replaced
-        with None to match header and comment patterns. # FIXME: Consult Eric.
-    """
-
-    header = None
-    comments = None
-    errors = {}
-    FIRST_ROWS = 20  # How many rows to keep in the top rows slice while looking for the comments and header.
-    LAST_ROWS = 20  # How many rows to keep in the last rows slice while looking for the last row with data.
-    CHUNK_DATA_SIZE = 100  # Size of the data in the chunk.
-    CHUNK_FOOTER_SIZE = 20  # Size of the header in the chunk.
-    DATA_SAMPLE_SIZE = 1000  # How many rows with data to include to the sample to find patterns
-
-    def __init__(self, source):
-        self._source = source
-
-    def _matches(self, row, pattern):
-        """ Returns True if given row matches given patter.
-
-        Args:
-            row (list):
-            pattern (list of sets):
-
-        Returns:
-            bool: True if row matches pattern. False otherwise.
-
-        """
-        for i, e in enumerate(row):
-            if self._get_type(e) not in pattern[i]:
-                return False
-        return True
-
-    def _find_first_match_idx(self, rows, pattern):
-        """ Finds index of a first row with data.
-
-        Note: Assuming len(rows) == len(data_pattern)
-
-        Args:
-            rows (list):
-            data_pattern (list of sets):
-
-        Returns:
-            int: index of a first row with data.
-
-        Raises:
-            NoMatchError: if match was not found.
-        """
-
-        first_rows = rows[:self.FIRST_ROWS]  # The first 20 lines ( Header section )
-        first_line = None
-
-        # iterate header to find first line with data.
-        for i, row in enumerate(first_rows):
-            if self._matches(row, pattern):
-                first_line = i
-                break
-
-        if first_line is None:
-            raise NoMatchError
-        return first_line
-
-    def _find_last_match_idx(self, rows, pattern):
-        """ Finds index of a last row with data
-
-        Note: Assuming len(rows) == len(data_pattern)
-
-        Args:
-            rows (list):
-            data_pattern (list of sets):
-
-        Returns:
-            int: index of a last row with data.
-
-        Raises:
-            NoMatchError: if match was not found.
-
-        """
-
-        last_rows = rows[-self.LAST_ROWS:]  # The last 20 lines ( Footer section )
-        last_line = None
-
-        # iterate footer from the end to find last row with data.
-        for i, row in enumerate(reversed(last_rows)):
-            if self._matches(row, pattern):
-                last_line = len(rows) - i - 1
-                break
-
-        if last_line is None:
-            raise NoMatchError
-        return last_line
-
-    def _find_header(self, first_rows, header_pattern):
-
-        MATCH_THRESHOLD = 0.4  # Ratio of the strings in the row to consider it as header.
-
-        for row in first_rows:
-            if self._matches(row, header_pattern):
-
-                str_matches = 0
-                for elem in row:
-                    if isinstance(elem, string_types):
-                        str_matches += 1
-                if float(str_matches) / float(len(row)) >= MATCH_THRESHOLD:
-                    yield row
-
-        self.errors['no-header'] = 'Header row was not found.'
-
-    def _find_comments(self, rows, comments_pattern):
-        """ Finds comments in the rows using comments pattern.
-
-        Args:
-            rows: rows where to look for comments.
-            comments_pattern: pattern to match against to.
-
-        Returns:
-            list: list with comments or empty list if no comments found.
-        """
-        comments = []
-        for row in rows:
-            if self._matches(row, comments_pattern):
-                comment = ' '.join([x for x in row if x])
-                if comment:
-                    comments.append(comment)
-        return comments
-
-    def _get_patterns(self, rows):
-        """ Finds comments, header and data patterns in the rows.
-
-        Args:
-            row (list):
-
-        Returns:
-            tuple of comments_pattern, header_pattern, data_pattern.
-
-        """
-        assert len(rows) > self.FIRST_ROWS + self.LAST_ROWS, 'Number of rows is not enough to recognize pattern.'
-        data_sample = rows[self.FIRST_ROWS:-self.LAST_ROWS]
-        data_pattern = [set() for x in range(len(data_sample[0]))]
-
-        for row in data_sample:
-            for i, column in enumerate(row):
-                data_pattern[i].add(self._get_type(column))
-
-        #
-        # Comments pattern - first two columns are string or None, other columns are None.
-        #
-        comments_pattern = [set([None]) for x in range(len(rows[0]))]
-        comments_pattern[0].add(str)
-        comments_pattern[1].add(str)
-
-        #
-        # Header pattern.
-        #
-
-        header_pattern = [set([str, None]) for x in data_pattern]
-        return comments_pattern, header_pattern, data_pattern
-
-    def _is_float(self, value):
-        """ Returns True if value contains float number.
-
-        """
-        ret = False
-        if isinstance(value, float):
-            ret = True
-        if isinstance(value, string_types) and value.count('.') == 1 and value.replace('.', '1').isdigit():
-            ret = True
-        logger.debug(
-            'Determining float: value: {}, type: {}, is_float: {}'.format(value, type(value), ret))
-        return ret
-
-    def _is_int(self, value):
-        """ Returns True if value contains int. Otherwise returns False.
-
-        """
-        ret = False
-        if isinstance(value, int):
-            ret = True
-        if isinstance(value, string_types):
-            ret = value.isdigit()
-        logger.debug(
-            'Determining int: value: {}, type: {}, is_int: {}'.format(value, type(value), ret))
-        return ret
-
-    def _get_type(self, value):
-        """ Determines and returns type of the value.
-
-        Args:
-            value (any):
-
-        Returns:
-            type: int or float or str or unicode.
-        """
-        if self._is_float(value):
-            return float
-        if self._is_int(value):
-            return int
-        if test_string(value):
-            return str
-
-    def __iter__(self):
-        """ Finds rows with data and generates them.
-
-        Note:
-            All rows from the source should never be stored in the memory.
-
-        Yields:
-            list
-
-        """
-        first_rows = []
-
-        rows_iter = iter(self._source)
-
-        for i in range(self.FIRST_ROWS + self.DATA_SAMPLE_SIZE + self.LAST_ROWS):
-            try:
-                first_rows.append(rows_iter.next())
-            except StopIteration:
-                pass
-
-        comments_pattern, header_pattern, data_pattern = self._get_patterns(first_rows)
-
-        # save comments
-        self.comments = self._find_comments(first_rows[:self.FIRST_ROWS], comments_pattern)
-
-        self.header = self._find_header(first_rows[:self.FIRST_ROWS], header_pattern)
-
-        # Determine data borders.
-        first_data_index = self._find_first_match_idx(first_rows, data_pattern)
-        last_data_index = self._find_last_match_idx(first_rows, data_pattern)
-
-        # First generate rows with data from the header.
-        for row in first_rows[first_data_index:last_data_index + 1]:
-            yield row
-
-        # Now read all remaining rows from source pipe.
-        # We need to collect them by chunks to properly handle footer.
-        chunk = deque(maxlen=self.CHUNK_DATA_SIZE + self.CHUNK_FOOTER_SIZE)
-
-        while True:
-            # collect rows to chunk.
-            for i in range(self.CHUNK_DATA_SIZE + self.CHUNK_FOOTER_SIZE - len(chunk)):
-                try:
-                    chunk.append(rows_iter.next())
-                except StopIteration:
-                    break
-
-            is_last_chunk = len(chunk) < self.CHUNK_DATA_SIZE + self.CHUNK_FOOTER_SIZE
-            if is_last_chunk:
-                # find last rows with data
-                try:
-                    last_line_idx = self._find_last_match_idx(list(chunk), data_pattern)
-                except NoMatchError:
-                    # chunk does not have any data rows
-                    break
-
-                # generate rows with data from chunk.
-                for i, row in enumerate(chunk):
-                    if i > last_line_idx:
-                        # Rows with data finished. Next line is footer.
-                        break
-                    yield row
-                # All data rows generated. Drop footer.
-                chunk.clear()
-            else:
-                # It is not obvious has chunk header or not. Return first part of the chunk. Next
-                # iteration will care about remaining rows.
-                for i in range(self.CHUNK_DATA_SIZE):
-                    yield chunk.popleft()
-
-            if is_last_chunk:
-                # all rows generated.
-                break
-
-
 class ClusterHeaders(object):
     """Using Source table headers, cluster the source tables into destination tables"""
 
@@ -791,15 +514,169 @@ class ClusterHeaders(object):
 
         return d
 
+class RowIntuiter(object):
+
+    START_ROWS = 50
+    MID_ROWS = 100
+
+    type_map = { unicode: str, float: int }
+
+    def __init__(self, source):
+        import re
+        self._source = iter(source)
+
+        self.comment_lines = []
+        self.header_lines = []
+        self.start_line = 0
+        self.end_line = 0
+
+        self.patterns = (
+            ('B', re.compile(r'^_+$')),
+            ('C', re.compile(r'^XX_+$')),
+            ('C', re.compile(r'^X_+$')),
+            ('H', re.compile(r'^X+$')),
+            ('H', re.compile(r"(?:X_)")),
+
+        )
+
+    def picture(self, row):
+        """Create a simplified character representation of the data row, which can be pattern matched
+        with a regex """
+
+        t = '_Xn'
+        types = (type(None), str, int)
+
+        def p(e):
+            e = e if bool(str(e).strip()) else None
+            return t[types.index(self.type_map.get(type(e), type(e)))]
+
+        return ''.join( p(e) for e in row)
 
 
+    def data_pattern(self, rows):
+        import re
+
+        l = 0
+
+        for row in rows:
+            l = max(l, len(self.picture(row)))
+
+        patterns = [ set() for _ in range(l)]
+
+        for j, row in enumerate(rows):
+
+            changes = sum( 1 for i,c in enumerate(self.picture(row)) if c not in patterns[i] )
+
+            # The pattern should stabilize quickly, with new rows not changing many cells. If there is
+            # a large change, ignore it, as it may be spurious
+            if (j > 5 and changes > 5):
+                continue
+
+            for i,c in enumerate(self.picture(row)):
+                patterns[i].add(c)
+
+        pattern_source = ''.join( "(?:{})".format('|'.join(s)) for s in patterns )
+
+        pattern = re.compile(''.join( "(?:{})".format('|'.join(s)) for s in patterns ))
+
+        return pattern
+
+    def classify(self, rows, data_rows):
+
+        from itertools import imap
+
+        header_rows = []
+        found_header = False
+
+        patterns = [('D',self.data_pattern(data_rows))] + list(self.patterns)
+
+        def match(picture):
+            for l, r in patterns:
+                if r.search(picture):
+                    return l
+
+            return False
+
+        for i, row in enumerate(rows):
+
+            picture = self.picture(row)
+
+            label = match(picture)
+
+            if not found_header and label == 'H':
+                found_header == True
+
+            if label == False and not found_header:
+                # Could be a really wacky header
+                found_header == True
+                label = 'H'
+
+            #print label, picture, row
+
+            if label == 'C':
+                self.comment_lines.append(i)
+            elif label == 'H':
+                self.header_lines.append(i)
+                header_rows.append(row)
+
+            elif label == 'D':
+                self.start_line = i
+                self.headers = self.coalesce_headers(header_rows)
+                break
+
+    def coalesce_headers(self, header_lines):
+
+        if len(header_lines) > 1:
+
+            # If there are gaps in the values in the first header line, extend them forward
+            hl1 = []
+            last = None
+            for x in header_lines[0]:
+                if not x:
+                    x = last
+                else:
+                    last = x
+
+                hl1.append(x)
+
+                header_lines[0] = hl1
+
+            headers = [' '.join(str(col_val).strip() if col_val else '' for col_val in col_set)
+                       for col_set in zip(*header_lines)]
+
+            headers = [h.strip() for h in headers]
+
+            return headers
+
+        elif len(header_lines) > 0:
+            return header_lines[0]
+
+        else:
+            return []
 
 
+    def __iter__(self):
+
+        start_rows = []
+        mid_rows = []
+        try:
+            for i in range(self.START_ROWS+self.MID_ROWS):
+
+                row = self._source.next()
+                if i < self.START_ROWS:
+                    start_rows.append(row)
+                else:
+                    mid_rows.append(row)
+
+                yield row
+
+        finally:
+            self.classify(start_rows, mid_rows)
 
 
+        while True:
+            row = self._source.next()
+            if not row:
+                break
 
-
-
-
-
-
+            yield row

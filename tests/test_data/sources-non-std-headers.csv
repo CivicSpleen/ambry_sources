@@ -1,0 +1,5 @@
+"name","segment","urltype","filetype","encoding","url"
+"oshpd_facilities",4,,,,"http://ds.civicknowledge.org.s3.amazonaws.com/calqualitycare.org/Public%20Reports%202014Q3.xlsx"
+"usda_prices",,,,,"http://www.ers.usda.gov/datafiles/Agricultural_Productivity_in_the_US/StateLevel_Tables_Price_Indicies_and_Implicit_Quantities/StatePriceIndicesAndQ.xls"
+"capital_input",,,,,"http://www.ers.usda.gov/datafiles/Agricultural_Productivity_in_the_US/StateLevel_Tables_Relative_Level_Indices_and_Growth_19602004Inputs/table08.xls"
+"birth_profiles",,,,,"http://www.cdph.ca.gov/data/statistics/Documents/birthzip1989.xls"

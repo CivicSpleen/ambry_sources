@@ -98,7 +98,8 @@ class BasicTestSuite(unittest.TestCase):
             pass
 
     def test_row_intuit(self):
-        """Just check that all of the sources can be downloaded without exceptions"""
+        """Check that the soruces can be loaded and analyzed without exceptions and that the
+        guesses for headers and start are as expected"""
 
         from ambry_sources import get_source
         from ambry_sources.intuit import RowIntuiter
@@ -115,17 +116,278 @@ class BasicTestSuite(unittest.TestCase):
 
             print spec.name, spec.url
 
-            ri = RowIntuiter(s)
+            ri = RowIntuiter(s).run()
 
-            for row in ri:
-                pass
+            print ri.header_lines, ri.start_line
 
-            #print ri.header_lines, ri.start_line
-            #print ri.headers[:5]
 
             self.assertEqual(spec.expect_headers,','.join(str(e) for e in ri.header_lines) )
             self.assertEqual(spec.expect_start, ri.start_line)
 
+    def test_row_load_intuit(self):
+        """Check that the soruces can be loaded and analyzed without exceptions and that the
+        guesses for headers and start are as expected"""
+
+        from ambry_sources import get_source
+        from ambry_sources.intuit import RowIntuiter
+        from ambry_sources.mpf import MPRowsFile
+        from itertools import islice
+
+        #cache_fs = fsopendir('temp://')
+        cache_fs = fsopendir('/tmp/ritest/')
+
+        sources = self.load_sources('sources-non-std-headers.csv')
+
+        for source_name, spec in sources.items():
+            s = get_source(spec, cache_fs)
+
+            f = MPRowsFile('mem://sh')
+            w = f.writer
+
+            for row in s:
+                w.insert_row(row)
+
+            w.intuit_rows()
+
+            r = f.reader
+            print '------'
+            print source_name
+            print r.info
+            print r.headers[:5]
+            print
+            print '\n'.join(str(i)+' '+str(e[:5]) for i, e in enumerate(islice(r.rows, 4),1))
+
+
+
+    def test_datafile_read_write(self):
+        from ambry_sources.mpf import MPRowsFile
+        from fs.opener import fsopendir
+        import time
+        import datetime
+        from random import randint, random
+        from contexttimer import Timer
+        from uuid import uuid4
+
+        fs = fsopendir('mem://')
+
+        # fs = fsopendir('/tmp/pmpf')
+
+        N = 50000
+
+        # Basic read/ write tests.
+
+        row = lambda: [None, 1, random(), str(uuid4()),
+                       datetime.date(randint(2000, 2015), randint(1, 12), 10),
+                       datetime.date(randint(2000, 2015), randint(1, 12), 10)]
+        headers = list('abcdefghi')[:len(row())]
+
+        rows = [row() for i in range(N)]
+
+        with Timer() as t:
+            df = MPRowsFile(fs, 'foobar')
+            w = df.writer
+
+            w.headers = headers
+
+            w.meta['source']['url'] = 'blah blah'
+
+            for i in range(N):
+                w.insert_row(rows[i])
+
+            w.close()
+
+        print "MSGPack write ", float(N) / t.elapsed, w.n_rows
+
+        with Timer() as t:
+            count = 0
+            i = 0
+            s = 0
+
+            r = df.reader
+
+            for i, row in enumerate(r):
+                count += 1
+
+            r.close()
+
+        print "MSGPack read  ", float(N) / t.elapsed, i, count, s
+
+        with Timer() as t:
+            count = 0
+
+            r = df.reader
+
+            for row in r.rows:
+                count += 1
+
+            r.close()
+
+        print "MSGPack rows   ", float(N) / t.elapsed
+
+        with Timer() as t:
+            count = 0
+
+            r = df.reader
+
+            for row in r.raw:
+                count += 1
+
+            r.close()
+
+        print "MSGPack raw   ", float(N) / t.elapsed
+
+
+    def x_test_mpr_meta(self):
+
+        # Saving code for later.
+        r = None
+        df = None
+
+        self.assertEqual('blah blah', r.meta['source']['url'])
+
+        w = df.writer
+
+        w.meta['source']['url'] = 'bingo'
+
+        w.close()
+
+        r = df.reader
+
+        self.assertEqual('bingo', r.meta['source']['url'])
+
+    def generate_rows(self, N):
+
+        import time
+        import datetime
+        from random import randint, random
+        from uuid import uuid4
+
+        row = lambda x: [x, x*2, random(), str(uuid4()),
+                       datetime.date(randint(2000, 2015), randint(1, 12), 10),
+                       datetime.date(randint(2000, 2015), randint(1, 12), 10)]
+
+        headers = list('abcdefghi')[:len(row(0))]
+
+        rows = [row(i) for i in range(1,N)]
+
+        return rows, headers
+
+    def test_datafile(self):
+        """
+        Test Loading and interating over data files, exercising the three header cases, and the use
+        of data start and end lines.
+
+        :return:
+        """
+        from ambry_sources.mpf import MPRowsFile
+        from ambry_sources.sources import ColumnSpec
+        from itertools import islice
+
+        N = 500
+
+        rows, headers = self.generate_rows(N)
+
+
+        def first_row_header(data_start_row=None, data_end_row = None):
+
+            # Normal Headers
+            f = MPRowsFile('mem://frh')
+            w = f.writer
+
+            w.insert_headers(headers)
+
+            for row in rows:
+                w.insert_row(row)
+
+            if data_start_row is not None:
+                w.data_start_row = data_start_row
+
+            if data_end_row is not None:
+                w.data_end_row = data_end_row
+
+            w.close()
+
+            self.assertEquals([u'a', u'b', u'c', u'd', u'e', u'f'], w.parent.reader.headers)
+
+            w.parent.reader.close()
+
+            return f
+
+        def no_header(data_start_row=None, data_end_row = None):
+
+            # No header, column labels.
+            f = MPRowsFile('mem://nh')
+            w = f.writer
+
+            for row in rows:
+                w.insert_row(row)
+
+            if data_start_row is not None:
+                w.data_start_row = data_start_row
+
+            if data_end_row is not None:
+                w.data_end_row = data_end_row
+
+            w.close()
+
+            self.assertEquals(['col0', 'col1', 'col2', 'col3', 'col4', 'col5'], w.parent.reader.headers)
+
+            w.parent.reader.close()
+
+            return f
+
+        def schema_header(data_start_row=None, data_end_row = None):
+            # Set the schema
+            f = MPRowsFile('mem://sh')
+            w = f.writer
+
+            w.meta['schema'] = [dict(name = 'x'+str(e)) for e in range(len(headers))]
+
+            for row in rows:
+                w.insert_row(row)
+
+            if data_start_row is not None:
+                w.data_start_row = data_start_row
+
+            if data_end_row is not None:
+                w.data_end_row = data_end_row
+
+            w.close()
+
+            self.assertEquals([u'x0', u'x1', u'x2', u'x3', u'x4', u'x5'], w.parent.reader.headers)
+
+            w.parent.reader.close()
+
+            return f
+
+        # Try a few header start / data start values.
+
+        for ff in ( first_row_header, schema_header, no_header):
+            print '===', ff
+            f = ff()
+            r = f.reader
+
+            # Check that the first row value starts at one and goes up from there.
+            map(lambda f: self.assertEqual(f[0], f[1][0]), enumerate(list(r.rows)[:5],1) )
+
+            r.close()
+
+        for ff in (first_row_header, schema_header, no_header):
+            print '===', ff
+            data_start_row = 5
+            data_end_row = 15
+            f = ff(data_start_row, data_end_row)
+            r = f.reader
+
+            #print '\n'.join(str((i, row)) for i, row in enumerate(list(r.rows)[:20], data_start_row))
+
+            #Check that the first row value starts at one and goes up from there.
+            map(lambda f: self.assertEqual(f[0], f[1][0]), enumerate(list(r.rows)[:5], data_start_row))
+
+            r.close()
+
+            r = f.reader
+            self.assertEquals(data_end_row, list(r.rows)[-1][0])
 
 
 if __name__ == '__main__':

@@ -157,6 +157,15 @@ class SourceFile(object):
 
         self.finish()
 
+    def raw_iter(self):
+
+        self.start()
+
+        for row in self._get_row_gen():
+            yield row
+
+        self.finish()
+
     def _get_row_gen(self):
         pass
 

@@ -14,7 +14,7 @@ import gzip
 import msgpack
 import struct
 
-def new_partition_data_file(fs, path, stats=None):
+def new_mpr(fs, path, stats=None):
     from os.path import split, splitext
 
     assert bool(fs)
@@ -58,12 +58,17 @@ class MPRowsFile(object):
     VERSION = 1
     MAGIC = 'AMBRMPDF'
 
-    # 8s: Magic Number, H: Version,  I: Number of rows, Q: End of row / Start of meta
-    FILE_HEADER_FORMAT = struct.Struct('>8sHIQ')
+    # 8s: Magic Number, H: Version,  I: Number of rows, I: number of columns
+    # Q: Position of end of rows / Start of meta,
+    # i: Header row, I: Data start row, I: Data end row
+    FILE_HEADER_FORMAT = struct.Struct('>8sHIIQiII')
+    FILE_HEADER_FORMAT_SIZE = FILE_HEADER_FORMAT.size
 
     META_TEMPLATE = {
 
         'schema': {},
+        'stats': {},
+        'types': {},
         'geo':{
             'srs': None,
             'bb': None
@@ -79,17 +84,14 @@ class MPRowsFile(object):
             'inner_file': None
         },
         'row_spec':{
-            'header__lines': 0,
-            'start_line': None,
-            'end_lines': None
+            'header_rows': 0,
+            'start_row': None,
+            'end_row': None,
+            'data_pattern': None
         },
         'comments':{
             'header': None,
             'footer': None
-        },
-        'stats': {
-            'columns': None,
-            'rows': None
         }
     }
 
@@ -100,15 +102,20 @@ class MPRowsFile(object):
         'description': None
     }
 
-    def __init__(self, fs, path):
+    def __init__(self,  url_or_fs, path=None):
+        """
 
-        assert bool(fs)
+        :param url_or_fs:
+        :param path:
+        :return:
+        """
 
-        self._fs = fs
+        from fs.opener import opener
 
-        assert bool(self._fs)
-
-        self._path = path
+        if path:
+            self._fs, self._path = url_or_fs, path
+        else:
+            self._fs, self._path = opener.parse(url_or_fs)
 
         self._writer = None
         self._reader = None
@@ -119,26 +126,6 @@ class MPRowsFile(object):
     @property
     def path(self):
         return self._path
-
-    @property
-    def syspath(self):
-        return self._fs.getsyspath(self.munged_path, allow_none=True)
-
-    def open (self, *args, **kwargs):
-        return self._fs.open(self.munged_path, *args, **kwargs)
-
-    def delete(self):
-        from fs.errors import ResourceNotFoundError
-
-        try:
-            self._fs.remove(self.munged_path)
-        except ResourceNotFoundError:
-            pass
-
-    @property
-    def size(self):
-        """Return the size of the file, in data rows"""
-        return self._fs.getsize(self.munged_path)
 
     @property
     def munged_path(self):
@@ -182,6 +169,70 @@ class MPRowsFile(object):
 
         return obj
 
+    @classmethod
+    def read_file_header(cls, o, fh):
+        o.magic, o.version, o.n_rows, o.n_cols, o.meta_start, o.header_row, o.data_start_row, o.data_end_row = \
+            cls.FILE_HEADER_FORMAT.unpack(fh.read(cls.FILE_HEADER_FORMAT_SIZE))
+
+    @classmethod
+    def write_file_header(cls, o, fh):
+        """Write the magic number, version and the file_header dictionary.  """
+
+        hdf = cls.FILE_HEADER_FORMAT.pack(cls.MAGIC, cls.VERSION, o.n_rows, o.n_cols, o.meta_start,
+                                          o.header_row, o.data_start_row, o.data_end_row)
+
+        assert len(hdf) == cls.FILE_HEADER_FORMAT_SIZE
+
+        fh.seek(0)
+
+        fh.write(hdf)
+
+        assert fh.tell() == cls.FILE_HEADER_FORMAT_SIZE, (fh.tell(), cls.FILE_HEADER_FORMAT_SIZE)
+
+    @classmethod
+    def read_meta(cls,o,fh):
+
+        pos = fh.tell()
+
+        fh.seek(o.meta_start)
+
+        # Using the _fh b/c I suspect that the GzipFile attached to self._zfh has state that would
+        # get screwed up if you read from a new position
+
+        data = fh.read()
+
+        if data:
+
+            meta = msgpack.unpackb(data.decode('zlib'), encoding='utf-8')
+
+        else:
+            meta = {}
+
+        fh.seek(pos)
+
+        return meta
+
+    @classmethod
+    def write_meta(cls, o, fh):
+
+        fh.seek(o.meta_start)  # Should probably already be there.
+
+        fhb = msgpack.packb(o.meta, encoding='utf-8').encode('zlib')
+        fh.write(fhb)
+
+    @classmethod
+    def info(self, o):
+
+        return dict(
+            version=o.version,
+            rows=o.n_rows,
+            cols=o.n_cols,
+            header_row = o.header_row,
+            data_start_row = o.data_start_row,
+            data_end_row=o.data_end_row,
+            data_start_pos = o.data_start,
+            meta_start_pos = o.meta_start)
+
     @property
     def reader(self):
         if not self._reader:
@@ -202,7 +253,6 @@ class MPRowsFile(object):
         return self._writer
 
 
-
 class MPRWriter(object):
 
     MAGIC = MPRowsFile.MAGIC
@@ -218,113 +268,90 @@ class MPRWriter(object):
 
         assert fh
 
-        self._parent = parent
+        self.parent = parent
         self._fh = fh
         self._compress = compress
 
         self._zfh = None # Compressor for writing rows
-        self._data_start = self.FILE_HEADER_FORMAT_SIZE
+        self.version = self.VERSION
+        self.magic = self.MAGIC
+        self.data_start = self.FILE_HEADER_FORMAT_SIZE
+        self.meta_start = 0
+        self.header_row = -1 # -1 means  no header
+        self.data_start_row = 0
+        self.data_end_row = 0
+
+        self.n_rows = 0
+        self.n_cols = 0
 
         self._row_writer = None
 
         try:
-            self.magic, self.version, self._i, self._data_end = \
-                self.FILE_HEADER_FORMAT.unpack(self._fh.read(self.FILE_HEADER_FORMAT_SIZE))
 
-            self._fh.seek(self._data_end)
+            MPRowsFile.read_file_header(self, self._fh)
+
+            self._fh.seek(self.meta_start)
 
             data = self._fh.read()
 
             self.meta = msgpack.unpackb(data.decode('zlib'), encoding='utf-8')
 
-            self._fh.seek(self._data_end)
+            self._fh.seek(self.meta_start)
 
         except IOError:
             self._fh.seek(0)
 
-            self._data_end = self._data_start
-
-            self._i = 0
+            self.meta_start = self.data_start
 
             self.meta = deepcopy(self.META_TEMPLATE)
 
-    @property
-    def headers(self):
-        return [c['name'] for c in self.meta['schema']]
+            self.write_file_header() # Get moved to the start of row data.
 
-    @headers.setter
-    def headers(self, headers):
-        self.set_row_header(headers)
+        # Creating the GzipFile object will also write the Gzip header, about 21 bytes of data.
+        if self._compress:
+            self._zfh = GzipFile(fileobj=self._fh)  # Compressor for writing rows
+        else:
+            self._zfh = self._fh
+
+        self._row_writer = lambda row: self._zfh.write(
+            msgpack.packb(row, default=MPRowsFile.encode_obj, encoding='utf-8'))
 
     @property
     def info(self):
+        return MPRowsFile.info(self)
 
-        return dict(
-            version=self.version,
-            rows=self._i,
-            start_of_data=self._data_start,
-            end_of_data=self._data_end
-        )
-
-    def set_row_header(self, headers):
+    def set_schema(self, headers):
         from copy import deepcopy
 
         schema = []
 
         for i, h in enumerate(headers):
             d = deepcopy(self.SCHEMA_TEMPLATE)
-            d['pos'] = i
-            d['name'] = h
-            schema.append(d)
+
+            if isinstance(h, dict):
+                d = dict(h.items())
+                d['pos'] = i
+                schema.append(d)
+            else:
+                d['pos'] = i
+                d['name'] = h
+                schema.append(d)
 
         self.meta['schema'] = schema
 
-    def write_file_header(self):
-        """Write the magic number, version and the file_header dictionary.  """
-
-        hdf = self.FILE_HEADER_FORMAT.pack(self.MAGIC,self.VERSION,self._i,self._data_end)
-
-        assert len(hdf) == self.FILE_HEADER_FORMAT_SIZE
-
-        self._fh.seek(0)
-
-        self._fh.write(hdf)
-
-        assert self._fh.tell() == self.FILE_HEADER_FORMAT_SIZE, (self._fh.tell(), self.FILE_HEADER_FORMAT_SIZE)
-
-    def write_meta(self):
-
-        self._fh.seek(self._data_end) # Should probably already be there.
-
-        fhb = msgpack.packb(self.meta, encoding='utf-8').encode('zlib')
-        self._fh.write(fhb)
+    def insert_headers(self, headers):
+        self.set_schema(headers)
+        self.header_row = 0
+        self.data_start_row = 1
+        self._row_writer([ c['name'] for c in self.meta['schema']] )
 
     def insert_row(self, row):
 
-        if self._i == 0:
-
-            if not self.headers:
-                raise MPRError("Must set row headers before inserting rows")
-
-            self.write_file_header()
-
-            # Creating the GzipFile object will also write the Gzip header, about 21 bytes of data.
-
-            if self._compress:
-                self._zfh = GzipFile(fileobj=self._fh)  # Compressor for writing rows
-            else:
-                self._zfh = self._fh
-
-            self._row_writer = lambda row: self._zfh.write(
-                                msgpack.packb(row, default=MPRowsFile.encode_obj, encoding='utf-8'))
-
-            # Row header is also the first row
-            self._row_writer(self.headers)
-
-        self._i += 1
+        self.n_rows += 1
+        self.n_cols = max(self.n_cols, len(row))
+        self.data_end_row = self.n_rows
 
         self._row_writer(row)
-
 
     def close(self):
 
@@ -334,22 +361,88 @@ class MPRWriter(object):
             if self._compress and self._zfh:
                 self._zfh.close()
 
-            self._data_end = self._fh.tell()
             self._zfh = None
 
+            self.meta_start = self._fh.tell()
+
             self.write_file_header()
-            self._fh.seek(self._data_end)
+            self._fh.seek(self.meta_start)
 
             self.write_meta()
 
             self._fh.close()
             self._fh = None
 
-            if self._parent:
-                self._parent._writer = None
+            if self.parent:
+                self.parent._writer = None
+
+    def intuit_rows(self):
+        from itertools import islice
+        from ambry_sources.intuit import RowIntuiter
+        import re
+
+        self.close()
+
+        r = self.parent.reader
+
+        ri = RowIntuiter(r.raw).run()
+
+        r.close()
+
+        if ri.start_line != 1:
+            w = self.parent.writer
+
+            # FIXME; there is a 1-off issue somewhere.
+            w.data_start_row = ri.start_line + 1
+
+            w.meta['row_spec']['header_lines'] = ri.header_lines
+            w.meta['row_spec']['start_row'] = ri.start_line
+            w.meta['row_spec']['end_row'] = ri.end_line
+            w.meta['row_spec']['data_pattern'] = ri.data_pattern_source
+
+            mangler = lambda name: re.sub('_+', '_', re.sub('[^\w_]', '_', name).lower()).rstrip('_')
+
+            schema = []
+            for i, h in enumerate(ri.headers):
+                d = dict(
+                    pos=i,
+                    name=mangler(h),
+                    description=h
+                )
+
+                schema.append(d)
+
+            w.meta['schema'] = schema
+            w.close()
+
+        # Now, look for the end line.
+        if False:
+            # FIXME: Maybe later ...
+            r = self.parent.reader
+            # Look at the last 100 rows, but don't start before the start row.
+            test_rows = 100
+            start = max(r.data_start_row, r.data_end_row-test_rows)
+
+            end_rows = list(islice(r.raw,start,None))
+
+            ri.find_end(end_rows)
+
+
+
+
+    def write_file_header(self):
+        """Write the magic number, version and the file_header dictionary.  """
+        MPRowsFile.write_file_header(self, self._fh)
+
+    def write_meta(self):
+        MPRowsFile.write_meta(self, self._fh)
 
 class MPRReader(object):
+    """
+    Read an MPR file
 
+
+    """
     MAGIC = MPRowsFile.MAGIC
     VERSION = MPRowsFile.VERSION
     FILE_HEADER_FORMAT = MPRowsFile.FILE_HEADER_FORMAT
@@ -360,19 +453,31 @@ class MPRReader(object):
     def __init__(self, parent, fh, compress = True):
         """Reads the file_header and prepares for iterating over rows"""
 
-        self._parent = parent
+        self.parent = parent
         self._fh = fh
         self._compress = compress
+        self._headers = None
+        self.data_start = 0
+        self.meta_start = 0
+        self.header_row = -1  # -1 means no header, 0 == first row.
+        self.data_start_row = 0
+        self.data_end_row = 0
 
-        self.magic, self.version, self.rows, self.end_of_data = \
-            self.FILE_HEADER_FORMAT.unpack(self._fh.read(self.FILE_HEADER_FORMAT_SIZE))
+        self.pos = 1 # Row position for next read, starts at 1, since header is always 0
 
-        self.start_of_data = int(self._fh.tell())
+        self.n_rows = 0
+        self.n_cols = 0
 
-        assert self.start_of_data == self.FILE_HEADER_FORMAT_SIZE
+        self._in_iteration = False
+
+        MPRowsFile.read_file_header(self, self._fh)
+
+        self.data_start = int(self._fh.tell())
+
+        assert self.data_start == self.FILE_HEADER_FORMAT_SIZE
 
         if self._compress:
-            self._zfh = GzipFile(fileobj=self._fh, end_of_data=self.end_of_data)
+            self._zfh = GzipFile(fileobj=self._fh, end_of_data=self.meta_start)
         else:
             self._zfh =self._fh
 
@@ -380,76 +485,160 @@ class MPRReader(object):
 
         self._meta = None
 
-        self._i = 0
-
     @property
     def info(self):
-
-        return dict(
-            version = self.version,
-            rows = self.rows,
-            start_of_data = self.start_of_data,
-            end_of_data = self.end_of_data
-        )
+        return MPRowsFile.info(self)
 
     @property
     def meta(self):
 
         if self._meta is None:
-            pos = self._fh.tell()
-
-            self._fh.seek(self.end_of_data)
 
             # Using the _fh b/c I suspect that the GzipFile attached to self._zfh has state that would
             # get screwed up if you read from a new position
-
-            data = self._fh.read()
-
-            if data:
-
-                self._meta = msgpack.unpackb(data.decode('zlib'), encoding='utf-8')
-
-            else:
-                self._meta = {}
-
-            self._fh.seek(pos)
+            self._meta = MPRowsFile.read_meta(self, self._fh)
 
         return self._meta
 
     @property
+    def headers(self):
+        """Return the headers row, which can come from one of three locations.
+
+        - Normally, the header is the first row in the data
+        - The header row may be specified as a later row with ``header_row``, in which case all of the rows before
+            it are considered comments and are not returned.
+        - If it is not specified as the first row, it can be given in the metadata schema
+        - If there is no first row and no schema, a header is generated from column numbers
+
+        The header always exists, and it is always returned as row 0, except when using the raw iterator.
+
+        """
+        from itertools import islice
+
+        if not self._headers:
+
+            if self._in_iteration:
+                raise MPRError("Can't get header because iteration has already started")
+
+
+            assert self.pos == 1
+
+            assert self.header_row == 0 or self.header_row == -1, self.header_row
+
+            if self.header_row == 0:
+                self._headers = self.unpacker.next()
+
+            elif self.meta['schema']:
+                # No header row exists, so try to get one from the schema
+                self._headers = [c['name'] for c in self.meta['schema']]
+
+            else:
+                # No schema, so just return numbered columns
+                self._headers = [ 'col'+str(e) for e in range(0,self.n_cols)]
+
+        return self._headers
+
+    def consume_to_data(self):
+        """Read and discard rows until we get to the data start row"""
+        from itertools import islice
+
+        if not self.data_start_row > self.pos:
+            return
+
+        if self.data_start_row - self.pos - 1 <= 0:
+            return
+
+        next(islice(self.unpacker, self.data_start_row - self.pos - 1 , None), None)
+
+        self.pos = self.data_start_row
+
+    @property
     def dict_rows(self):
-        """Generate rows from the file"""
+        """Generate rows from the file, as dictionaries"""
 
-        self._fh.seek(self.start_of_data)
+        self._fh.seek(self.data_start)
 
-        self.headers = self.unpacker.next()
+        headers = self.headers
+
+        self.consume_to_data()
 
         try:
+            self._in_iteration = True
             for row in self.unpacker:
-                yield dict(list(zip(self.headers, row)))
+
+                self.pos += 1
+                yield dict(list(zip(headers, row)))
 
         finally:
             self.close()
+            self._in_iteration = False
 
-    def __iter__(self):
-        """Iterator for reading rows"""
+    @property
+    def raw(self):
+        """A raw iterator, which ignores the data start and stop rows and returns all rows, as rows"""
         from ambry_sources.sources import RowProxy
 
-        self._fh.seek(self.start_of_data)
+        self._fh.seek(self.data_start)
 
-        self.headers = self.unpacker.next()
+        try:
+            self._in_iteration = True
+            for i, row in enumerate(self.unpacker, 1):
+                yield row
+                self.pos = i
+
+        finally:
+            self._in_iteration = False
+            self.close()
+
+
+
+    @property
+    def rows(self):
+        """Iterator for reading rows as RowProxy objects"""
+        from ambry_sources.sources import RowProxy
+
+        self._fh.seek(self.data_start)
+
+        _ = self.headers # Get the header, but don't return it.
+
+        self.consume_to_data()
+
+        try:
+            self._in_iteration = True
+
+            for i in range(self.data_start_row, self.data_end_row+1):
+                yield next(self.unpacker)
+                self.pos+=1
+
+        except:
+            self._in_iteration = False
+
+    def __iter__(self):
+        """Iterator for reading rows as RowProxy objects"""
+        from ambry_sources.sources import RowProxy
+
+        self._fh.seek(self.data_start)
 
         rp = RowProxy(self.headers)
 
-        for i, row in enumerate(self.unpacker):
-            yield rp.set_row(row)
+        self.consume_to_data()
 
+        try:
+            self._in_iteration = True
+            for i in range(self.data_start_row, self.data_end_row + 1):
+                yield rp.set_row(next(self.unpacker))
+                self.pos += 1
+
+        except:
+            self._in_iteration = False
 
     def close(self):
         if self._fh:
             self.meta # In case caller wants to read mea after close.
             self._fh.close()
             self._fh = None
-            if self._parent:
-                self._parent._reader = None
+            if self.parent:
+                self.parent._reader = None
+
+
 

@@ -516,19 +516,21 @@ class ClusterHeaders(object):
 
 class RowIntuiter(object):
 
-    START_ROWS = 40
-    MID_ROWS = 100
+    N_TEST_ROWS = 150
 
     type_map = { unicode: str, float: int }
 
     def __init__(self, source):
         import re
+
         self._source = iter(source)
 
         self.comment_lines = []
         self.header_lines = []
         self.start_line = 0
         self.end_line = 0
+
+        self.data_pattern_source = None
 
         self.patterns = (
             ('B', re.compile(r'^_+$')),
@@ -538,6 +540,8 @@ class RowIntuiter(object):
             ('H', re.compile(r"(?:X_)")),
 
         )
+
+        self.test_rows = []
 
     def picture(self, row):
         """Create a simplified character representation of the data row, which can be pattern matched
@@ -569,43 +573,69 @@ class RowIntuiter(object):
 
         return ''.join( p(e) for e in row)
 
+    def _data_pattern_source(self, rows, change_limit = 5):
+
+        l = max(len(row) for row in rows)  # Length of longest row
+
+        patterns = [set() for _ in range(l)]
+
+        contributors = 0 # Number  of rows that contributed to pattern.
+
+        for j, row in enumerate(rows):
+
+            changes = sum(1 for i, c in enumerate(self.picture(row)) if c not in patterns[i])
+
+            # The pattern should stabilize quickly, with new rows not changing many cells. If there is
+            # a large change, ignore it, as it may be spurious
+            if j > 0 and changes > change_limit:
+                continue
+
+            contributors += 1
+
+            for i, c in enumerate(self.picture(row)):
+                patterns[i].add(c)
+
+        pattern_source = ''.join("(?:{})".format('|'.join(s)) for s in patterns)
+
+        return pattern_source, contributors, l
 
     def data_pattern(self, rows):
         import re
 
-        l = 0
+        tests = 50
+        test_rows = 20
 
-        for row in rows:
-            l = max(l, len(self.picture(row)))
+        def try_tests(tests, test_rows, rows):
+            # Look for the first row where you can generate a data pattern that does not have a large number of changes
+            # in subsequent rows.
+            for i in range(tests):
 
-        patterns = [ set() for _ in range(l)]
+                pattern_source, contributors, l = self._data_pattern_source(rows[i:i+test_rows], len(rows[i+test_rows])/4)
 
-        for j, row in enumerate(rows):
+                if contributors > test_rows*.75:
+                    return pattern_source
 
-            changes = sum( 1 for i,c in enumerate(self.picture(row)) if c not in patterns[i] )
+        pattern_source = try_tests(tests, test_rows, rows)
 
-            # The pattern should stabilize quickly, with new rows not changing many cells. If there is
-            # a large change, ignore it, as it may be spurious
-            if (j > 5 and changes > 5):
-                continue
-
-            for i,c in enumerate(self.picture(row)):
-                patterns[i].add(c)
-
-        pattern_source = ''.join( "(?:{})".format('|'.join(s)) for s in patterns )
+        # FIXME. Need to gracefully handle case of not finding a patterm.
+        assert pattern_source
 
         pattern = re.compile(pattern_source)
 
-        return pattern
+        return pattern, pattern_source
 
-    def classify(self, rows, data_rows):
+    def classify(self, rows):
 
-        from itertools import imap
+        import re
 
         header_rows = []
         found_header = False
 
-        patterns = [('D',self.data_pattern(data_rows))] + list(self.patterns)
+        data_pattern_skip_rows = 30
+
+        data_pattern, self.data_pattern_source = self.data_pattern(rows[data_pattern_skip_rows:])
+
+        patterns = [('D',data_pattern)] + list(self.patterns)
 
         def match(picture):
             for l, r in patterns:
@@ -619,6 +649,12 @@ class RowIntuiter(object):
             picture = self.picture(row)
 
             label = match(picture)
+
+            try:
+                if label != 'B' and len(re.search('_+',picture).group(0)) > len(row)/2:
+                    label = 'C'
+            except AttributeError:
+                pass # re not matched
 
             if not found_header and label == 'H':
                 found_header == True
@@ -640,6 +676,37 @@ class RowIntuiter(object):
                 self.start_line = i
                 self.headers = self.coalesce_headers(header_rows)
                 break
+
+    def find_end(self, end_rows):
+
+        raise NotImplementedError()
+
+        import re
+        from itertools import dropwhile, ifilterfalse
+        from operator import itemgetter
+
+        pattern = re.compile(self.data_pattern_source)
+
+        # Return the first row where the pattern fails.
+        try:
+            pos, row = min(ifilterfalse(lambda row: pattern.match(self.picture(row)),
+                                        enumerate(end_rows)), key=itemgetter(1))
+
+            for row in end_rows:
+                print self.picture(row), bool(pattern.match(self.picture(row)))
+
+            rpos = pos - len(end_rows) - 1
+
+            try:
+                end_rows[rpos] # Check if rpos is in range
+                return rpos
+            except:
+                return None
+
+        except ValueError:
+            return -1 # Signal that the last element is the end row.
+
+
 
     def coalesce_headers(self, header_lines):
 
@@ -671,29 +738,13 @@ class RowIntuiter(object):
         else:
             return []
 
+    def run(self):
+        from itertools import islice
 
-    def __iter__(self):
+        self.test_rows = list(islice(self._source, self.N_TEST_ROWS))
 
-        start_rows = []
-        mid_rows = []
-        try:
-            for i in range(self.START_ROWS+self.MID_ROWS):
+        self.classify(self.test_rows )
 
-                row = self._source.next()
-                if i < self.START_ROWS:
-                    start_rows.append(row)
-                else:
-                    mid_rows.append(row)
-
-                yield row
-
-        finally:
-            self.classify(start_rows, mid_rows)
+        return self
 
 
-        while True:
-            row = self._source.next()
-            if not row:
-                break
-
-            yield row

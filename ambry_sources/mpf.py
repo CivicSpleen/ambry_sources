@@ -81,10 +81,12 @@ class MPRowsFile(object):
             'url': None,
             'fetch_time': None,
             'file_type': None,
+            'url_type': None,
             'inner_file': None
         },
         'row_spec':{
-            'header_rows': 0,
+            'header_rows': None,
+            'comment_rows': None,
             'start_row': None,
             'end_row': None,
             'data_pattern': None
@@ -353,6 +355,21 @@ class MPRWriter(object):
 
         self._row_writer(row)
 
+    def load_rows(self, source, first_is_header = False):
+        """Load rows from an iterator"""
+        from itertools import imap
+
+        itr = iter(source)
+
+        for i, row in enumerate(iter(source)):
+
+            if first_is_header and i == 0:
+                self.insert_headers(next(itr))
+                continue
+            else:
+                self.insert_row(next(itr))
+
+
     def close(self):
 
         if self._fh:
@@ -376,59 +393,6 @@ class MPRWriter(object):
             if self.parent:
                 self.parent._writer = None
 
-    def intuit_rows(self):
-        from itertools import islice
-        from ambry_sources.intuit import RowIntuiter
-        import re
-
-        self.close()
-
-        r = self.parent.reader
-
-        ri = RowIntuiter(r.raw).run()
-
-        r.close()
-
-        if ri.start_line != 1:
-            w = self.parent.writer
-
-            # FIXME; there is a 1-off issue somewhere.
-            w.data_start_row = ri.start_line + 1
-
-            w.meta['row_spec']['header_lines'] = ri.header_lines
-            w.meta['row_spec']['start_row'] = ri.start_line
-            w.meta['row_spec']['end_row'] = ri.end_line
-            w.meta['row_spec']['data_pattern'] = ri.data_pattern_source
-
-            mangler = lambda name: re.sub('_+', '_', re.sub('[^\w_]', '_', name).lower()).rstrip('_')
-
-            schema = []
-            for i, h in enumerate(ri.headers):
-                d = dict(
-                    pos=i,
-                    name=mangler(h),
-                    description=h
-                )
-
-                schema.append(d)
-
-            w.meta['schema'] = schema
-            w.close()
-
-        # Now, look for the end line.
-        if False:
-            # FIXME: Maybe later ...
-            r = self.parent.reader
-            # Look at the last 100 rows, but don't start before the start row.
-            test_rows = 100
-            start = max(r.data_start_row, r.data_end_row-test_rows)
-
-            end_rows = list(islice(r.raw,start,None))
-
-            ri.find_end(end_rows)
-
-
-
 
     def write_file_header(self):
         """Write the magic number, version and the file_header dictionary.  """
@@ -436,6 +400,82 @@ class MPRWriter(object):
 
     def write_meta(self):
         MPRowsFile.write_meta(self, self._fh)
+
+    def set_source_spec(self, spec):
+
+        ms = self.meta['source']
+
+        ms['url']= spec.url
+        ms['fetch_time']= spec.download_time
+        ms['file_type']= spec.filetype
+        ms['url_type'] = spec.urltype
+
+        me = self.meta['excel']
+        me['workbook'] = spec.segment
+
+        rs = self.meta['row_spec']
+
+        if spec.header_lines:
+            rs['header_rows'] = spec.header_lines
+
+        if spec.start_line is not None and spec.start_line != '':
+            rs['start_row'] = spec.start_line
+
+        if spec.end_line is not None and spec.end_line != '':
+            rs['end_row'] = spec.end_line
+
+    def set_row_spec(self, ri):
+        """Set the row spec and schema from a RowIntuiter object"""
+        from itertools import islice
+        from ambry_sources.intuit import RowIntuiter
+        import re
+
+        w = self.parent.writer
+
+        w.data_start_row = ri.start_line
+
+        w.meta['row_spec']['header_rows'] = ri.header_lines
+        w.meta['row_spec']['comment_rows'] = ri.comment_lines
+        w.meta['row_spec']['start_row'] = ri.start_line
+        w.meta['row_spec']['end_row'] = ri.end_line
+        w.meta['row_spec']['data_pattern'] = ri.data_pattern_source
+
+        mangler = lambda name: re.sub('_+', '_', re.sub('[^\w_]', '_', name).lower()).rstrip('_')
+
+        schema = []
+        for i, h in enumerate(ri.headers):
+            d = dict(
+                pos=i,
+                name=mangler(h),
+                description=h
+            )
+
+            schema.append(d)
+
+        w.meta['schema'] = schema
+        w.close()
+
+        # Now, look for the end line.
+        if False:
+            # FIXME: Maybe later ...
+            r = self.parent.reader
+            # Look at the last 100 rows, but don't start before the start row.
+            test_rows = 100
+            start = max(r.data_start_row, r.data_end_row - test_rows)
+
+            end_rows = list(islice(r.raw, start, None))
+
+            ri.find_end(end_rows)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+        if exc_val:
+            raise exc_val
+
 
 class MPRReader(object):
     """
@@ -463,7 +503,7 @@ class MPRReader(object):
         self.data_start_row = 0
         self.data_end_row = 0
 
-        self.pos = 1 # Row position for next read, starts at 1, since header is always 0
+        self.pos = 0 # Row position for next read, starts at 1, since header is always 0
 
         self.n_rows = 0
         self.n_cols = 0
@@ -520,13 +560,13 @@ class MPRReader(object):
             if self._in_iteration:
                 raise MPRError("Can't get header because iteration has already started")
 
-
-            assert self.pos == 1
+            assert self.pos == 0
 
             assert self.header_row == 0 or self.header_row == -1, self.header_row
 
             if self.header_row == 0:
                 self._headers = self.unpacker.next()
+                self.pos += 1
 
             elif self.meta['schema']:
                 # No header row exists, so try to get one from the schema
@@ -542,36 +582,15 @@ class MPRReader(object):
         """Read and discard rows until we get to the data start row"""
         from itertools import islice
 
-        if not self.data_start_row > self.pos:
+        if  self.pos >= self.data_start_row:
             return
 
-        if self.data_start_row - self.pos - 1 <= 0:
-            return
+        while self.pos != self.data_start_row:
+            next(self.unpacker)
+            self.pos += 1
 
-        next(islice(self.unpacker, self.data_start_row - self.pos - 1 , None), None)
+        return
 
-        self.pos = self.data_start_row
-
-    @property
-    def dict_rows(self):
-        """Generate rows from the file, as dictionaries"""
-
-        self._fh.seek(self.data_start)
-
-        headers = self.headers
-
-        self.consume_to_data()
-
-        try:
-            self._in_iteration = True
-            for row in self.unpacker:
-
-                self.pos += 1
-                yield dict(list(zip(headers, row)))
-
-        finally:
-            self.close()
-            self._in_iteration = False
 
     @property
     def raw(self):
@@ -582,19 +601,44 @@ class MPRReader(object):
 
         try:
             self._in_iteration = True
-            for i, row in enumerate(self.unpacker, 1):
+
+            for i, row in enumerate(self.unpacker):
                 yield row
-                self.pos = i
+                self.pos += 1
 
         finally:
             self._in_iteration = False
             self.close()
 
+    @property
+    def meta_raw(self):
+        import sys
+        """self self.raw interator, but returns a tuple with the rows classified"""
+
+        rs = self.meta['row_spec']
+
+        hr = rs['header_rows'] or []
+        cr = rs['comment_rows'] or []
+        sr = rs['start_row'] or self.data_start_row
+        er = rs['end_row'] or self.data_end_row
+
+        for i, row in enumerate(self.raw):
+
+            if i in hr:
+                label = 'H'
+            elif i in cr:
+                label = 'C'
+            elif sr <= i <= er:
+                label = 'D'
+            else:
+                label = 'B'
+
+            yield (i, self.pos, label), row
 
 
     @property
     def rows(self):
-        """Iterator for reading rows as RowProxy objects"""
+        """Iterator for reading rows"""
         from ambry_sources.sources import RowProxy
 
         self._fh.seek(self.data_start)
@@ -612,6 +656,8 @@ class MPRReader(object):
 
         except:
             self._in_iteration = False
+
+
 
     def __iter__(self):
         """Iterator for reading rows as RowProxy objects"""
@@ -639,6 +685,15 @@ class MPRReader(object):
             self._fh = None
             if self.parent:
                 self.parent._reader = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+        if exc_val:
+            raise exc_val
 
 
 

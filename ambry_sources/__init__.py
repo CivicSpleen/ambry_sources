@@ -13,8 +13,12 @@ from six.moves.urllib.parse import urlparse
 # noinspection PyUnresolvedReferences
 from six.moves.urllib.request import urlopen
 
-from .download import get_source
+from .download import get_source, import_source
 
 import logging
 #FORMAT = '%(asctime)-15s %(clientip)s %(user)-8s %(message)s'
 logging.basicConfig()
+
+if __name__ == "__main__":
+    from .cli import main
+    main()

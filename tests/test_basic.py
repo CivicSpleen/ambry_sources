@@ -62,8 +62,9 @@ class BasicTestSuite(unittest.TestCase):
 
                 ss = SourceSpec(**row)
 
-                ss.expect_headers = row['expect_headers']
-                ss.expect_start = int(row['expect_start'])
+                if 'expect_headers' in row:
+                    ss.expect_headers = row['expect_headers']
+                    ss.expect_start = int(row['expect_start'])
 
                 sources[ss.name] = ss
 
@@ -85,17 +86,6 @@ class BasicTestSuite(unittest.TestCase):
             for i, row in enumerate(s):
                 if i > 10:
                     break
-
-
-    def test_row_intuit_ch(self):
-        from ambry_sources.intuit import RowIntuiter
-
-        tf = self.get_header_test_file('crazy_body.xls')
-
-        ri = RowIntuiter(tf)
-
-        for row in ri:
-            pass
 
     def test_row_intuit(self):
         """Check that the soruces can be loaded and analyzed without exceptions and that the
@@ -120,7 +110,6 @@ class BasicTestSuite(unittest.TestCase):
 
             print ri.header_lines, ri.start_line
 
-
             self.assertEqual(spec.expect_headers,','.join(str(e) for e in ri.header_lines) )
             self.assertEqual(spec.expect_start, ri.start_line)
 
@@ -128,36 +117,48 @@ class BasicTestSuite(unittest.TestCase):
         """Check that the soruces can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
 
-        from ambry_sources import get_source
+        from ambry_sources import get_source, import_source
         from ambry_sources.intuit import RowIntuiter
-        from ambry_sources.mpf import MPRowsFile
-        from itertools import islice
 
-        #cache_fs = fsopendir('temp://')
-        cache_fs = fsopendir('/tmp/ritest/')
+        from ambry_sources.mpf import MPRowsFile
+        from itertools import islice, ifilter
+
+        cache_fs = fsopendir('temp://')
+        cache_fs.makedir('/mpr')
+        #cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
+
             s = get_source(spec, cache_fs)
 
-            f = MPRowsFile('mem://sh')
-            w = f.writer
+            f = MPRowsFile(cache_fs, '/mpr/'+source_name)
 
-            for row in s:
-                w.insert_row(row)
+            with f.writer as w:
+                w.load_rows(s)
+                w.close()
 
-            w.intuit_rows()
+            with f.reader as r:
+                ri = RowIntuiter(r.raw).run()
 
-            r = f.reader
-            print '------'
-            print source_name
-            print r.info
-            print r.headers[:5]
-            print
-            print '\n'.join(str(i)+' '+str(e[:5]) for i, e in enumerate(islice(r.rows, 4),1))
+            with f.writer as w:
+                w.set_row_spec(ri)
 
+            with f.reader as r:
+                # First row, marked with metadata, that is marked as a data row
+                m1, row1 = next(ifilter(lambda e: e[0][2] == 'D', r.meta_raw))
 
+            with f.reader as r:
+                # First row
+                row2 = next(r.rows)
+
+            with f.reader as r:
+                # First row proxy
+                row3 = next(iter(r)).row
+
+            self.assertEquals(row1, row2)
+            self.assertEquals(row1, row3)
 
     def test_datafile_read_write(self):
         from ambry_sources.mpf import MPRowsFile
@@ -222,7 +223,7 @@ class BasicTestSuite(unittest.TestCase):
 
             r.close()
 
-        print "MSGPack rows   ", float(N) / t.elapsed
+        print "MSGPack rows  ", float(N) / t.elapsed
 
         with Timer() as t:
             count = 0
@@ -235,7 +236,6 @@ class BasicTestSuite(unittest.TestCase):
             r.close()
 
         print "MSGPack raw   ", float(N) / t.elapsed
-
 
     def x_test_mpr_meta(self):
 
@@ -268,7 +268,7 @@ class BasicTestSuite(unittest.TestCase):
 
         headers = list('abcdefghi')[:len(row(0))]
 
-        rows = [row(i) for i in range(1,N)]
+        rows = [row(i) for i in range(1,N+1)]
 
         return rows, headers
 
@@ -286,7 +286,6 @@ class BasicTestSuite(unittest.TestCase):
         N = 500
 
         rows, headers = self.generate_rows(N)
-
 
         def first_row_header(data_start_row=None, data_end_row = None):
 
@@ -365,29 +364,33 @@ class BasicTestSuite(unittest.TestCase):
         for ff in ( first_row_header, schema_header, no_header):
             print '===', ff
             f = ff()
-            r = f.reader
 
-            # Check that the first row value starts at one and goes up from there.
-            map(lambda f: self.assertEqual(f[0], f[1][0]), enumerate(list(r.rows)[:5],1) )
+            with f.reader as r:
+                self.assertEqual(N, len(list(r.rows)))
 
-            r.close()
+            with f.reader as r:
+                # Check that the first row value starts at one and goes up from there.
+                map(lambda f: self.assertEqual(f[0], f[1][0]), enumerate(islice(r.rows, 5),1))
 
         for ff in (first_row_header, schema_header, no_header):
             print '===', ff
             data_start_row = 5
             data_end_row = 15
             f = ff(data_start_row, data_end_row)
-            r = f.reader
 
-            #print '\n'.join(str((i, row)) for i, row in enumerate(list(r.rows)[:20], data_start_row))
+            with f.reader as r:
+                l = list(r.rows)
+                self.assertEqual(11, len(l))
 
-            #Check that the first row value starts at one and goes up from there.
-            map(lambda f: self.assertEqual(f[0], f[1][0]), enumerate(list(r.rows)[:5], data_start_row))
+            with f.reader as r:
+                #Check that the first row value starts at one and goes up from there.
+                # the - r.info['header_row'] bit accounts for the fact that sometimes the header is the first row,
+                # sometimes not.
+                map(lambda f: self.assertEqual(f[0], f[1][0]), enumerate(list(r.rows)[:5],
+                                                                         data_start_row - r.info['header_row'] ))
 
-            r.close()
-
-            r = f.reader
-            self.assertEquals(data_end_row, list(r.rows)[-1][0])
+            with f.reader as r:
+                self.assertEquals(data_end_row - r.info['header_row'], list(r.rows)[-1][0])
 
 
 if __name__ == '__main__':

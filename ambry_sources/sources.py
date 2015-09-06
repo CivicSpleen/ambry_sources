@@ -398,6 +398,8 @@ class SourceSpec(object):
         self.encoding = encoding
         self.columns = columns
 
+        self.download_time = None # Set externally
+
         self.encoding = self.encoding if self.encoding else None
 
         if self.header_lines:

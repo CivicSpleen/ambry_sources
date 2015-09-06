@@ -34,7 +34,9 @@ def get_source(spec, cache_fs,  account_accessor=None):
     :return: a SourceFile object.
     """
 
-    cache_path = download(spec.url, cache_fs, account_accessor)
+    cache_path, download_time = download(spec.url, cache_fs, account_accessor)
+
+    spec.download_time = download_time
 
     url_type = get_urltype(spec.url, spec.urltype)
 
@@ -49,6 +51,9 @@ def get_source(spec, cache_fs,  account_accessor=None):
         fstor = DelayedOpen(cache_fs, cache_path, 'rb')
 
     file_type = get_filetype(fstor.path, spec.filetype)
+
+    spec.filetype = file_type
+    spec.urltype = url_type
 
     # FIXME SHould use a dict
     if file_type == 'gs':
@@ -67,6 +72,28 @@ def get_source(spec, cache_fs,  account_accessor=None):
         return PartitionSource(spec, fstor)
     else:
         raise SourceError("Failed to determine file type for source '{}'; unknown type '{}' ".format(spec.name, file_type))
+
+def import_source(spec, cache_fs,  file_path=None, account_accessor=None):
+    """Download a source and load it into an MPR file. """
+
+    s = get_source(spec, cache_fs,  account_accessor)
+
+    from ambry_sources.mpf import MPRowsFile
+
+    if not file_path:
+        file_path = spec.name
+
+    f = MPRowsFile(cache_fs, file_path)
+    w = f.writer
+
+    w.set_spec(spec)
+
+    for row in s:
+        w.insert_row(row)
+
+    w.close()
+
+    return f
 
 
 def extract_file_from_zip(cache_fs, cache_path, url):
@@ -121,7 +148,6 @@ def get_filetype(file_path, filetype):
 
     return ext[1:].lower()
 
-
 def get_urltype(url, urltype):
     from os.path import splitext
 
@@ -142,7 +168,6 @@ def get_urltype(url, urltype):
     return None
 
 
-
 def download(url, cache_fs, account_accessor=None):
     """
     Download a URL and store it in the cache.
@@ -158,6 +183,7 @@ def download(url, cache_fs, account_accessor=None):
     from ambry.util import parse_url_to_dict
     from fs.errors import NoSysPathError
     import filelock
+    import time
 
     parsed = urlparse(str(url))
 
@@ -169,6 +195,8 @@ def download(url, cache_fs, account_accessor=None):
         import hashlib
         hash = hashlib.sha224(parsed.query).hexdigest()
         cache_path = os.path.join(cache_path, hash)
+
+    download_time = False
 
     if not cache_fs.exists(cache_path):
 
@@ -224,10 +252,10 @@ def download(url, cache_fs, account_accessor=None):
                         import functools
                         r.raw.read = functools.partial(r.raw.read, decode_content=True)
 
-
-
                     with cache_fs.open(cache_path, 'wb') as f:
                         copy_file_or_flo(r.raw, f)
+
+                downloadt_time = time.time()
 
             except KeyboardInterrupt:
                 # This is really important -- its really bad to have partly downloaded
@@ -239,8 +267,7 @@ def download(url, cache_fs, account_accessor=None):
                     cache_fs.remove(cache_path)
                 raise
 
-
-    return cache_path
+    return cache_path, download_time
 
 
 

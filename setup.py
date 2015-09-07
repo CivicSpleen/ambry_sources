@@ -21,7 +21,7 @@ with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as f:
     readme = f.read()
 
 packages = [
-    'ambry-sources',
+    'ambry_sources',
 ]
 
 package_data = {

@@ -235,9 +235,10 @@ class MPRowsFile(object):
             data_start_pos = o.data_start,
             meta_start_pos = o.meta_start)
 
-    def load_rows(self, source, intuit_rows = True, intuit_type = True):
+    def load_rows(self, source, intuit_rows = True, intuit_type = True, run_stats = True):
 
         from .intuit import RowIntuiter, TypeIntuiter
+        from .stats import Stats
 
         with self.writer as w:
             w.load_rows(source)
@@ -256,6 +257,14 @@ class MPRowsFile(object):
 
             with self.writer as w:
                 w.set_types(ti)
+
+        if run_stats:
+            with self.reader as r:
+                stats = Stats([(c['name'], c['type']) for c in r.meta['schema']]).run(r, sample_from = r.n_rows)
+
+            with self.writer as w:
+                w.set_stats(stats)
+
 
         return self
 
@@ -458,7 +467,6 @@ class MPRWriter(object):
                 assert result['header'] == row['name']
                 del result['position']
 
-
                 if not row.get('type'):
                     result['type'] = result['resolved_type']
 
@@ -477,7 +485,13 @@ class MPRWriter(object):
             self.meta['schema'] = schema
 
     def set_stats(self, stats):
-        pass
+        """Copy stats into the schema"""
+        import math
+
+
+        self.meta['stats'] = {name:{ k:v if not isinstance(v,float) or (not math.isinf(v) and not math.isnan(v)) else None
+                                     for k,v in stats.dict.items()}
+                                     for name, stats in stats.dict.items()}
 
     def set_row_spec(self, ri):
         """Set the row spec and schema from a RowIntuiter object"""
@@ -726,10 +740,13 @@ class MPRReader(object):
         try:
             self._in_iteration = True
             for i in range(self.data_start_row, self.data_end_row + 1):
-                yield rp.set_row(next(self.unpacker))
+                row = next(self.unpacker)
+                if not isinstance(row, list):
+                    print type(row), row
+                yield rp.set_row(row)
                 self.pos += 1
 
-        except:
+        finally:
             self._in_iteration = False
 
     def close(self):

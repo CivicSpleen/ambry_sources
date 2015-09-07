@@ -75,6 +75,8 @@ class StatSet(object):
             lom = StatSet.LOM.NOMINAL
         elif typ == int or type == float:
             lom = StatSet.LOM.INTERVAL
+        else:
+            lom = StatSet.LOM.NOMINAL
 
         self.column_name = name
 
@@ -90,6 +92,10 @@ class StatSet(object):
         self.bin_primer_count = 5000  # how many points to collect before creating hist bins
         self.num_bins = 16
         self.bins = [0] * self.num_bins
+
+    @property
+    def is_numeric(self):
+        return self.lom == self.LOM.INTERVAL or self.lom == self.LOM.RATIO
 
     def add(self, v):
         from math import sqrt
@@ -109,7 +115,7 @@ class StatSet(object):
             else:
                 self.counts[unival] += 1
 
-        elif self.lom == self.LOM.INTERVAL or self.lom == self.LOM.RATIO:
+        elif self.is_numeric:
 
             # To build the histogram, we need to collect counts, but would rather
             # not collect all of the values. So, collect the first 5K, then use that
@@ -157,16 +163,16 @@ class StatSet(object):
 
     @property
     def mean(self):
-        return self.stats.mean()
+        return self.stats.mean() if self.is_numeric else None
 
     @property
     def stddev(self):
         from math import sqrt
-        return sqrt(self.stats.variance())
+        return sqrt(self.stats.variance()) if self.is_numeric else None
 
     @property
     def min(self):
-        return self.stats.minimum()
+        return self.stats.minimum() if self.is_numeric else None
 
     @property
     def p25(self):
@@ -198,19 +204,19 @@ class StatSet(object):
 
     @property
     def max(self):
-        return self.stats.maximum()
+        return self.stats.maximum() if self.is_numeric else None
 
     @property
     def skewness(self):
-        return self.stats.skewness()
+        return self.stats.skewness() if self.is_numeric else None
 
     @property
     def kurtosis(self):
-        return self.stats.kurtosis()
+        return self.stats.kurtosis() if self.is_numeric else None
 
     @property
     def hist(self):
-        return text_hist(self.bins)
+        return text_hist(self.bins) if self.is_numeric else None
 
     @property
     def dict(self):
@@ -239,7 +245,9 @@ class StatSet(object):
             ('skewness', skewness),
             ('kurtosis', kurtosis),
             ('hist', self.bins),
-            ('uvalues', dict(self.counts.most_common(100)))]
+            ('text_hist',  text_hist(self.bins)),
+            ('uvalues', dict(self.counts.most_common(100)))
+        ]
         )
 
 
@@ -247,6 +255,7 @@ class Stats(object):
     """ Stats object reads rows from the input iterator, processes the row, and yields it back out"""
 
     def __init__(self, schema):
+        from collections import OrderedDict
 
         self._stats = {}
         self._func = None
@@ -256,6 +265,10 @@ class Stats(object):
             self._stats[col_name] = StatSet(col_name, col_type)
 
         self._func, self._func_code = self.build()
+
+    @property
+    def dict(self):
+        return self._stats
 
     def build(self):
 
@@ -281,23 +294,45 @@ class Stats(object):
     def stats(self):
         return [(name, self._stats[name]) for name, stat in iteritems(self._stats)]
 
-    def run(self, source):
+    def run(self, source, sample_from = None):
         """
-        Run the stats. The source must yield Row proxies
+         Run the stats. The source must yield Row proxies
+
+        :param source:
+        :param sample_from: If not None, an integer givning the total number of rows. The run will sample 10,000 rows.
+        :return:
         """
+
+        from itertools import islice
 
         self._func, self._func_code = self.build()
 
-        for row in source:
-
+        def process_row(row):
             try:
                 self._func(self._stats, row)
             except TypeError as e:
-                print row
                 raise TypeError("Failed for '{}'; {}".format(self._func_code, e))
             except KeyError:
                 raise KeyError(
                     'Failed to find key in row. headers = "{}", code = "{}" '.format(row.keys(), self._func_code))
+
+        if sample_from is None:
+            for row in source:
+                process_row(row)
+        else:
+
+            SAMPLE_ROWS = 10000
+            average_skip = sample_from / SAMPLE_ROWS
+
+            if average_skip > 4:
+                for i, row in enumerate(source):
+
+                    if i % average_skip == 0:
+                        process_row(row)
+
+            else:
+                for row in source:
+                    process_row(row)
 
         return self
 

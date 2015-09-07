@@ -519,6 +519,7 @@ class RowIntuiter(object):
             ('C', re.compile(r'^XX_+$')),
             ('C', re.compile(r'^X_+$')),
             ('H', re.compile(r'^X+$')),
+            ('H', re.compile(r'^_{,6}X+$')), # A few starting blanks, the rest are strings.
             ('H', re.compile(r"(?:X_)")),
 
         )
@@ -635,6 +636,8 @@ class RowIntuiter(object):
             label = match(picture)
 
             try:
+                # If a header or data has more than half of the line is a continuous nulls,
+                # it's probably a comment.
                 if label != 'B' and len(re.search('_+',picture).group(0)) > len(row)/2:
                     label = 'C'
             except AttributeError:
@@ -643,12 +646,12 @@ class RowIntuiter(object):
             if not found_header and label == 'H':
                 found_header = True
 
-            if label == False and not found_header:
+            if label == False:
                 # Could be a really wacky header
                 found_header = True
                 label = 'H'
 
-            # print label, picture, row
+            #print label, picture, row
 
             if label == 'C':
                 self.comment_lines.append(i)

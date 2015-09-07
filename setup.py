@@ -46,7 +46,7 @@ classifiers = [
 setup(
     name='ambry-sources',
     version=ambry_sources.__version__,
-    description='Ampy Partition Message Pack File',
+    description='Ambry Partition Message Pack File',
     long_description=readme,
     packages=packages,
     package_data=package_data,

@@ -102,7 +102,7 @@ class BasicTestSuite(unittest.TestCase):
         for source_name, spec in sources.items():
             s = get_source(spec, cache_fs)
 
-            #if source_name != 'deaths': continue
+            #if source_name != 'birth_profiles': continue
 
             print spec.name, spec.url
 
@@ -269,29 +269,33 @@ class BasicTestSuite(unittest.TestCase):
 
         from ambry_sources.mpf import MPRowsFile
         from ambry_sources import get_source
-        from ambry_sources.stats import Stats
 
-        cache_fs = fsopendir('temp://')
+        from contexttimer import Timer
+
+        cache_fs = fsopendir('mem://')
         # cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
-            pass
 
-        spec = sources['food_bank']
-        s = get_source(spec, cache_fs)
+            s = get_source(spec, cache_fs)
 
-        #if source_name != 'food_bank': continue
+            #if source_name != 'active': continue
 
-        print spec.name, spec.url
+            print spec.name, spec.url
 
-        f = MPRowsFile(cache_fs, source_name).load_rows(s)
+            with Timer() as t:
+                f = MPRowsFile(cache_fs, source_name).load_rows(s, run_stats = True)
 
-        with f.reader as r:
-            stats = Stats([(c['name'], c['type']) for c in r.meta['schema']]).run(r)
+            with f.reader as r:
+                print "Loaded ", r.n_rows, float(r.n_rows)/ t.elapsed, 'rows/sec'
 
-        print stats
+            with f.reader as r:
+                stats = r.meta['stats']
+
+                #print [ sd['mean'] for col_name, sd in r.meta['stats'].items() ]
+
 
 
     def test_datafile(self):

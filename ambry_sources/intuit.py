@@ -281,26 +281,23 @@ class TypeIntuiter(object):
     header = None
     counts = None
 
-    def __init__(self, skip_rows=1):
+    def __init__(self):
         from collections import OrderedDict
 
         self._columns = OrderedDict()
-        self.skip_rows = skip_rows
+
+    def process_header(self, row):
+
+        header = row # Huh? Don't remember what this is for.
+        for i, value in enumerate(row):
+            if i not in header:
+                self._columns[i] = Column()
+                self._columns[i].position = i
+                self._columns[i].header = value
+
+        return self
 
     def process_row(self, n, row):
-
-        if n == 0:
-            header = row
-            for i, value in enumerate(row):
-                if i not in header:
-                    self._columns[i] = Column()
-                    self._columns[i].position = i
-                    self._columns[i].header = value
-
-            return
-
-        if n < self.skip_rows:
-            return
 
         for i, value in enumerate(row):
             try:
@@ -317,24 +314,11 @@ class TypeIntuiter(object):
                 pass
                 raise
 
-    def __iter__(self):
-        for i, row in enumerate(self.source_pipe):
+    def run(self, source):
+        for i, row in enumerate(iter(source)):
             self.process_row(i, row)
-            yield row
 
-    def iterate(self, row_gen, max_n=None):
-        """
-        :param row_gen:
-        :param max_n:
-        :return:
-        """
-
-        for n, row in enumerate(row_gen):
-
-            if max_n and n > max_n:
-                return
-
-            self.process_row(n, row)
+        return self
 
     @property
     def columns(self):
@@ -389,9 +373,9 @@ class TypeIntuiter(object):
         # Shorten a few of the header names
         header[0] = '#'
         header[2] = 'size'
-        header[4] = 'codes?'
+        header[4] = 'codes'
         header[9] = 'uni'
-        header[11] = 'd/t'
+        header[11] = 'dt'
 
         rows = list()
 
@@ -520,10 +504,8 @@ class RowIntuiter(object):
 
     type_map = { unicode: str, float: int }
 
-    def __init__(self, source):
+    def __init__(self):
         import re
-
-        self._source = iter(source)
 
         self.comment_lines = []
         self.header_lines = []
@@ -610,7 +592,9 @@ class RowIntuiter(object):
             # in subsequent rows.
             for i in range(tests):
 
-                pattern_source, contributors, l = self._data_pattern_source(rows[i:i+test_rows], len(rows[i+test_rows])/4)
+                max_changes = len(rows[0])/4
+
+                pattern_source, contributors, l = self._data_pattern_source(rows[i:i+test_rows], max_changes)
 
                 if contributors > test_rows*.75:
                     return pattern_source
@@ -631,7 +615,7 @@ class RowIntuiter(object):
         header_rows = []
         found_header = False
 
-        data_pattern_skip_rows = 30
+        data_pattern_skip_rows = min(30, len(rows)-10)
 
         data_pattern, self.data_pattern_source = self.data_pattern(rows[data_pattern_skip_rows:])
 
@@ -643,6 +627,7 @@ class RowIntuiter(object):
                     return l
 
             return False
+
 
         for i, row in enumerate(rows):
 
@@ -664,7 +649,7 @@ class RowIntuiter(object):
                 found_header == True
                 label = 'H'
 
-            #print label, picture, row
+            print label, picture, row
 
             if label == 'C':
                 self.comment_lines.append(i)
@@ -738,10 +723,10 @@ class RowIntuiter(object):
         else:
             return []
 
-    def run(self):
+    def run(self, source):
         from itertools import islice
 
-        self.test_rows = list(islice(self._source, self.N_TEST_ROWS))
+        self.test_rows = list(islice(iter(source), self.N_TEST_ROWS))
 
         self.classify(self.test_rows )
 

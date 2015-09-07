@@ -102,11 +102,11 @@ class BasicTestSuite(unittest.TestCase):
         for source_name, spec in sources.items():
             s = get_source(spec, cache_fs)
 
-            #if source_name != 'birth_profiles': continue
+            if source_name != 'deaths': continue
 
             print spec.name, spec.url
 
-            ri = RowIntuiter(s).run()
+            ri = RowIntuiter().run(s)
 
             print ri.header_lines, ri.start_line
 
@@ -118,7 +118,7 @@ class BasicTestSuite(unittest.TestCase):
         guesses for headers and start are as expected"""
 
         from ambry_sources import get_source, import_source
-        from ambry_sources.intuit import RowIntuiter
+        from ambry_sources.intuit import RowIntuiter, TypeIntuiter
 
         from ambry_sources.mpf import MPRowsFile
         from itertools import islice, ifilter
@@ -133,6 +133,11 @@ class BasicTestSuite(unittest.TestCase):
 
             s = get_source(spec, cache_fs)
 
+            #if source_name != 'wages':
+            #    continue
+
+            print source_name
+
             f = MPRowsFile(cache_fs, '/mpr/'+source_name)
 
             with f.writer as w:
@@ -140,10 +145,16 @@ class BasicTestSuite(unittest.TestCase):
                 w.close()
 
             with f.reader as r:
-                ri = RowIntuiter(r.raw).run()
+                ri = RowIntuiter().run(r.raw)
 
             with f.writer as w:
                 w.set_row_spec(ri)
+
+            with f.reader as r:
+                ti = TypeIntuiter().process_header(r.headers).run(r.rows)
+
+            with f.writer as w:
+                w.set_types(ti)
 
             with f.reader as r:
                 # First row, marked with metadata, that is marked as a data row

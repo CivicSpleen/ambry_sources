@@ -235,6 +235,28 @@ class MPRowsFile(object):
             data_start_pos = o.data_start,
             meta_start_pos = o.meta_start)
 
+    def load_rows(self, source, intuit_rows = True, intuit_type = True):
+
+        from .intuit import RowIntuiter, TypeIntuiter
+
+        with self.writer as w:
+            w.load_rows(source)
+            w.close()
+
+        if intuit_rows:
+            with self.reader as r:
+                ri = RowIntuiter().run(r.raw)
+
+            with self.writer as w:
+                w.set_row_spec(ri)
+
+        if intuit_type:
+            with self.reader as r:
+                ti = TypeIntuiter().process_header(r.headers).run(r.rows)
+
+            with self.writer as w:
+                w.set_types(ti)
+
     @property
     def reader(self):
         if not self._reader:
@@ -424,6 +446,28 @@ class MPRWriter(object):
         if spec.end_line is not None and spec.end_line != '':
             rs['end_row'] = spec.end_line
 
+    def set_types(self, ti):
+        """Set Types from a type intuiter object"""
+
+        if self.meta['schema']:
+            results = {r['position']: r for r in ti._dump()}
+            for i, row in enumerate(self.meta['schema']):
+                result = results[i]
+                assert result['header'] == row['name']
+                del result['position']
+                row.update(result)
+
+        else:
+            schema = []
+            for i, r in enumerate(ti._dump()):
+                r['pos'] = r['position']
+                r['name'] = r['header']
+                del r['position']
+                del r['header']
+                schema.append(r)
+
+            self.meta['schema'] = schema
+
     def set_row_spec(self, ri):
         """Set the row spec and schema from a RowIntuiter object"""
         from itertools import islice
@@ -474,13 +518,12 @@ class MPRWriter(object):
         self.close()
 
         if exc_val:
-            raise exc_val
+            return False
 
 
 class MPRReader(object):
     """
     Read an MPR file
-
 
     """
     MAGIC = MPRowsFile.MAGIC
@@ -693,7 +736,7 @@ class MPRReader(object):
         self.close()
 
         if exc_val:
-            raise exc_val
+            return False
 
 
 

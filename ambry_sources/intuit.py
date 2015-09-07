@@ -628,7 +628,6 @@ class RowIntuiter(object):
 
             return False
 
-
         for i, row in enumerate(rows):
 
             picture = self.picture(row)
@@ -642,17 +641,18 @@ class RowIntuiter(object):
                 pass # re not matched
 
             if not found_header and label == 'H':
-                found_header == True
+                found_header = True
 
             if label == False and not found_header:
                 # Could be a really wacky header
-                found_header == True
+                found_header = True
                 label = 'H'
 
-            print label, picture, row
+            # print label, picture, row
 
             if label == 'C':
                 self.comment_lines.append(i)
+
             elif label == 'H':
                 self.header_lines.append(i)
                 header_rows.append(row)

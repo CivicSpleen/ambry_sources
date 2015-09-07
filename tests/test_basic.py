@@ -102,7 +102,7 @@ class BasicTestSuite(unittest.TestCase):
         for source_name, spec in sources.items():
             s = get_source(spec, cache_fs)
 
-            if source_name != 'deaths': continue
+            #if source_name != 'deaths': continue
 
             print spec.name, spec.url
 
@@ -117,8 +117,7 @@ class BasicTestSuite(unittest.TestCase):
         """Check that the soruces can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
 
-        from ambry_sources import get_source, import_source
-        from ambry_sources.intuit import RowIntuiter, TypeIntuiter
+        from ambry_sources import get_source
 
         from ambry_sources.mpf import MPRowsFile
         from itertools import islice, ifilter
@@ -133,28 +132,9 @@ class BasicTestSuite(unittest.TestCase):
 
             s = get_source(spec, cache_fs)
 
-            #if source_name != 'wages':
-            #    continue
-
             print source_name
 
-            f = MPRowsFile(cache_fs, '/mpr/'+source_name)
-
-            with f.writer as w:
-                w.load_rows(s)
-                w.close()
-
-            with f.reader as r:
-                ri = RowIntuiter().run(r.raw)
-
-            with f.writer as w:
-                w.set_row_spec(ri)
-
-            with f.reader as r:
-                ti = TypeIntuiter().process_header(r.headers).run(r.rows)
-
-            with f.writer as w:
-                w.set_types(ti)
+            f = MPRowsFile(cache_fs, '/mpr/'+source_name).load_rows(s)
 
             with f.reader as r:
                 # First row, marked with metadata, that is marked as a data row
@@ -282,6 +262,37 @@ class BasicTestSuite(unittest.TestCase):
         rows = [row(i) for i in range(1,N+1)]
 
         return rows, headers
+
+    def test_stats(self):
+        """Check that the soruces can be loaded and analyzed without exceptions and that the
+        guesses for headers and start are as expected"""
+
+        from ambry_sources.mpf import MPRowsFile
+        from ambry_sources import get_source
+        from ambry_sources.stats import Stats
+
+        cache_fs = fsopendir('temp://')
+        # cache_fs = fsopendir('/tmp/ritest/')
+
+        sources = self.load_sources('sources-non-std-headers.csv')
+
+        for source_name, spec in sources.items():
+            pass
+
+        spec = sources['food_bank']
+        s = get_source(spec, cache_fs)
+
+        #if source_name != 'food_bank': continue
+
+        print spec.name, spec.url
+
+        f = MPRowsFile(cache_fs, source_name).load_rows(s)
+
+        with f.reader as r:
+            stats = Stats([(c['name'], c['type']) for c in r.meta['schema']]).run(r)
+
+        print stats
+
 
     def test_datafile(self):
         """

@@ -8,9 +8,10 @@ Revised BSD License, included in this distribution as LICENSE.txt
 """
 
 from collections import Counter
-
 from livestats import livestats
 from six import iteritems, iterkeys
+
+from .sources import SourceError
 
 
 def text_hist(nums, ascii=False):
@@ -47,33 +48,35 @@ class StatSet(object):
     LOM.INTERVAL = 'i'
     LOM.RATIO = 'r'
 
-    def __init__(self, column):
+    def __init__(self, name, typ):
 
-        try:
-            # Try using column as an orm.Column
-            self.is_gvid = bool("gvid" in column.name) # A special name in Ambry
-            self.is_year = bool("year" in column.name)
-            self.is_time = column.type_is_time()
-            self.is_date = column.type_is_date()
+        if isinstance(typ, basestring):
+            import datetime
+            m = dict(__builtins__.items() +
+                     datetime.__dict__.items())
+            if typ == 'unknown':
+                typ = str
+            else:
+                typ = m[typ]
 
-            # Tricky hack, indexing with a bool.
-            self.flags = " G"[self.is_gvid] + " Y"[self.is_year] + " T"[self.is_time] + " D"[self.is_date]
+        from datetime import date, time, datetime
 
-            if column.is_primary_key or self.is_year or self.is_time or self.is_date:
-                lom = StatSet.LOM.ORDINAL
-            elif column.type_is_text() or self.is_gvid:
-                lom = StatSet.LOM.NOMINAL
-            elif column.type_is_number():
-                lom = StatSet.LOM.INTERVAL
+        self.is_gvid = bool("gvid" in name) # A special name in Ambry
+        self.is_year = bool("year" in name)
+        self.is_time = typ == time
+        self.is_date = typ == date or typ == datetime
 
-            self.column_name = column.name
-        except AttributeError as e:
-            # Nope, assume it is a string
+        # Tricky hack, indexing with a bool.
+        self.flags = " G"[self.is_gvid] + " Y"[self.is_year] + " T"[self.is_time] + " D"[self.is_date]
 
-            self.is_gvid = self.is_year = self.is_time = self.is_date = False
+        if self.is_year or self.is_time or self.is_date:
             lom = StatSet.LOM.ORDINAL
-            self.column_name = column
-            self.flags = None
+        elif typ == str or typ == unicode:
+            lom = StatSet.LOM.NOMINAL
+        elif typ == int or type == float:
+            lom = StatSet.LOM.INTERVAL
+
+        self.column_name = name
 
         self.lom = lom
         self.n = 0
@@ -243,40 +246,16 @@ class StatSet(object):
 class Stats(object):
     """ Stats object reads rows from the input iterator, processes the row, and yields it back out"""
 
-    def __init__(self, table):
+    def __init__(self, schema):
 
-        self._table = table
         self._stats = {}
         self._func = None
         self._func_code = None
-        self.headers = None
 
-        for c in self._table.columns:
-            self.add(c, build=False)
+        for col_name, col_type in schema:
+            self._stats[col_name] = StatSet(col_name, col_type)
 
         self._func, self._func_code = self.build()
-
-    def add(self, column, build=True):
-        """Determine the LOM from a ORM Column"""
-
-        # Try it as an orm.column, otherwise try to look up in a table,
-        # otherwise, as a string
-        try:
-            column.name
-            self._stats[column.name] = StatSet(column)
-        except AttributeError:
-
-            if self.table:
-                column = self.table.column(column)
-
-                self._stats[column.name] = StatSet(column)
-            else:
-                self._stats[column] = StatSet(column)
-
-        # Doing it for every add() is less efficient, but it's insignificant time, and
-        # it means we don't have to remember to call the build phase before processing
-        if self.build:
-            self._func, self._func_code = self.build()
 
     def build(self):
 
@@ -289,7 +268,7 @@ class Stats(object):
         if not parts:
             error_msg = 'Did not get any stats variables for table {}. Was add() or init() called first?'\
                 .format(self.table.name)
-            raise PipelineError(error_msg)
+            raise SourceError(error_msg)
 
         code = 'def _process_row(stats, row):\n    {}'.format('\n    '.join(parts))
 
@@ -302,27 +281,25 @@ class Stats(object):
     def stats(self):
         return [(name, self._stats[name]) for name, stat in iteritems(self._stats)]
 
-    def process(self, row):
-        try:
-            self._func(self._stats, row)
-        except KeyError:
-            raise KeyError(
-                'Failed to find key in row. headers = "{}", code = "{}" '.format(self.headers, self._func_code))
+    def run(self, source):
+        """
+        Run the stats. The source must yield Row proxies
+        """
 
-        return row
+        self._func, self._func_code = self.build()
 
-    def process_header(self, row):
-        """ """
+        for row in source:
 
-        self.headers = row
+            try:
+                self._func(self._stats, row)
+            except TypeError as e:
+                print row
+                raise TypeError("Failed for '{}'; {}".format(self._func_code, e))
+            except KeyError:
+                raise KeyError(
+                    'Failed to find key in row. headers = "{}", code = "{}" '.format(row.keys(), self._func_code))
 
-        return row
-
-    def process_body(self, row):
-
-        self.process(dict(list(zip(self.headers, row))))
-
-        return row
+        return self
 
     def __str__(self):
         from tabulate import tabulate

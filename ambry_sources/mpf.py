@@ -257,6 +257,8 @@ class MPRowsFile(object):
             with self.writer as w:
                 w.set_types(ti)
 
+        return self
+
     @property
     def reader(self):
         if not self._reader:
@@ -455,6 +457,11 @@ class MPRWriter(object):
                 result = results[i]
                 assert result['header'] == row['name']
                 del result['position']
+
+
+                if not row.get('type'):
+                    result['type'] = result['resolved_type']
+
                 row.update(result)
 
         else:
@@ -462,11 +469,15 @@ class MPRWriter(object):
             for i, r in enumerate(ti._dump()):
                 r['pos'] = r['position']
                 r['name'] = r['header']
+                r['type'] = r['resolved_type']
                 del r['position']
                 del r['header']
                 schema.append(r)
 
             self.meta['schema'] = schema
+
+    def set_stats(self, stats):
+        pass
 
     def set_row_spec(self, ri):
         """Set the row spec and schema from a RowIntuiter object"""

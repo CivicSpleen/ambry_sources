@@ -106,6 +106,9 @@ class BasicTestSuite(unittest.TestCase):
 
             print spec.name, spec.url
 
+            #from itertools import islice
+            #print "\n".join(str(e) for e in islice(iter(s),20))
+
             ri = RowIntuiter().run(s)
 
             print ri.header_lines, ri.start_line
@@ -120,7 +123,7 @@ class BasicTestSuite(unittest.TestCase):
         from ambry_sources import get_source
 
         from ambry_sources.mpf import MPRowsFile
-        from itertools import islice, ifilter
+        from itertools import ifilter
 
         cache_fs = fsopendir('temp://')
         cache_fs.makedir('/mpr')
@@ -251,11 +254,13 @@ class BasicTestSuite(unittest.TestCase):
         import time
         import datetime
         from random import randint, random
-        from uuid import uuid4
+        import string
 
-        row = lambda x: [x, x*2, random(), str(uuid4()),
-                       datetime.date(randint(2000, 2015), randint(1, 12), 10),
-                       datetime.date(randint(2000, 2015), randint(1, 12), 10)]
+        rs = string.ascii_letters
+
+        row = lambda x: [x, x*2, x%17, rs[x%19:x%19+20],
+                       datetime.date(2000 + x%15, 1 + x%12, 10),
+                       datetime.date(2000 + (x+1)%15, 1 + (x+1)%12, 10)]
 
         headers = list('abcdefghi')[:len(row(0))]
 
@@ -272,8 +277,8 @@ class BasicTestSuite(unittest.TestCase):
 
         from contexttimer import Timer
 
-        cache_fs = fsopendir('mem://')
-        # cache_fs = fsopendir('/tmp/ritest/')
+        cache_fs = fsopendir('temp://')
+        #cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources-non-std-headers.csv')
 
@@ -295,7 +300,6 @@ class BasicTestSuite(unittest.TestCase):
                 stats = r.meta['stats']
 
                 #print [ sd['mean'] for col_name, sd in r.meta['stats'].items() ]
-
 
 
     def test_datafile(self):
@@ -417,6 +421,51 @@ class BasicTestSuite(unittest.TestCase):
 
             with f.reader as r:
                 self.assertEquals(data_end_row - r.info['header_row'], list(r.rows)[-1][0])
+
+    def test_spec_load(self):
+        """Test that setting a SourceSpec propertly sets the header_lines data start position"""
+
+        from ambry_sources.mpf import MPRowsFile
+        from ambry_sources.sources import SourceSpec
+        import string
+
+        rs = string.ascii_letters
+
+        n = 500
+
+        rows, headers = self.generate_rows(n)
+
+        blank = ['' for e in rows[0]]
+
+        # Append a complex header, to give the RowIntuiter something to do.
+        rows = [
+            ["Dataset Title"] + blank[1:],
+            blank,
+            blank,
+            [rs[i] for i,e in enumerate(rows[0])],
+            [rs[i+1] for i, e in enumerate(rows[0])],
+            [rs[i+2] for i, e in enumerate(rows[0])],
+        ] + rows
+
+        f = MPRowsFile('mem://frh').load_rows(rows)
+
+        d = f.info
+
+        self.assertEqual(6, d['data_start_row'])
+        self.assertEqual(506, d['data_end_row'])
+        self.assertEqual([3, 4, 5], d['header_rows'])
+        self.assertEqual([u'a_b_c', u'b_c_d', u'c_d_e', u'd_e_f', u'e_f_g', u'f_g_h'], d['headers'])
+
+        f = MPRowsFile('mem://frh').load_rows(rows, SourceSpec(None, header_lines=(3,4), start_line = 5))
+
+        d = f.info
+
+        self.assertEqual(5, d['data_start_row'])
+        self.assertEqual(506, d['data_end_row'])
+        self.assertEqual([3,4], d['header_rows'])
+        self.assertEqual([u'a_b', u'b_c', u'c_d', u'd_e', u'e_f', u'f_g'], d['headers'])
+
+
 
 
 if __name__ == '__main__':

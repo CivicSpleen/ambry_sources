@@ -66,7 +66,7 @@ class DelayedOpen(object):
 class SourceFile(object):
     """Base class for accessors that generate rows from a soruce file """
 
-    def __init__(self, spec, fstor):
+    def __init__(self, spec, fstor, use_row_spec = True):
         """
 
         :param flo: A File-like object for the file, already opened.
@@ -76,6 +76,7 @@ class SourceFile(object):
         self.spec = spec
         self._fstor = fstor
         self.headers = []
+        self.use_row_spec = use_row_spec
 
     def coalesce_headers(self, header_lines):
 
@@ -111,51 +112,62 @@ class SourceFile(object):
 
         rg = self._get_row_gen()
 
-        header_lines = self.spec.header_lines
-        start_line = self.spec.start_line
-        end_line = self.spec.end_line
-
-        headers = []
-        comments = []
-
-        # The loop is broken up into parts to remove as much of the logic as possible in the
-        # majority of cases. It's an easy, although small, optimization
-
         self.start()
 
-        # Wrap the rg to isolate it from the starting and stopping of the multiuple loops. The muti-loop
-        # situation isn't a problem for most generators, but the ones created by PETL will restart.
-        def wrap_rg():
+        if self.use_row_spec:
+            header_lines = self.spec.header_lines
+            start_line = self.spec.start_line
+            end_line = self.spec.end_line
+
+            headers = []
+            comments = []
+
+            # The loop is broken up into parts to remove as much of the logic as possible in the
+            # majority of cases. It's an easy, although small, optimization
+
+            # Wrap the rg to isolate it from the starting and stopping of the multiple loops. The muti-loop
+            # situation isn't a problem for most generators, but the ones created by PETL will restart.
+            def wrap_rg():
+                for row in rg:
+                    yield row
+
+            wrapped_rg = wrap_rg()
+
+            for i, row in enumerate(wrapped_rg):
+                if header_lines and i in header_lines:
+                    headers.append(row)
+
+                elif i == start_line:
+                    self.headers = self.coalesce_headers(headers)
+                    yield self.headers
+                    yield row
+                    break
+
+                else:
+                    comments.append(row)
+
+            if end_line:
+                for i, row in enumerate(wrapped_rg):
+
+                    if i == end_line:
+                        break
+
+                    yield row
+            else:
+                for i, row in enumerate(wrapped_rg):
+                    yield row
+
+        else:
+
             for row in rg:
                 yield row
 
-        wrapped_rg = wrap_rg()
-
-        for i, row in enumerate(wrapped_rg):
-            if header_lines and i in header_lines:
-                headers.append(row)
-
-            elif i == start_line:
-                self.headers = self.coalesce_headers(headers)
-                yield self.headers
-                yield row
-                break
-
-            else:
-                comments.append(row)
-
-        if end_line:
-            for i, row in enumerate(wrapped_rg):
-
-                if i == end_line:
-                    break
-
-                yield row
-        else:
-            for i, row in enumerate(wrapped_rg):
-                yield row
-
         self.finish()
+
+
+
+
+
 
     def raw_iter(self):
 
@@ -368,11 +380,17 @@ class ColumnSpec(object):
 class SourceSpec(object):
 
     def __init__(self, url, segment = None,
-                 header_lines = [0], start_line = None, end_line = None,
+                 header_lines = False, start_line = None, end_line = None,
                  urltype = None, filetype = None,
                  encoding = None,
                  columns = None, name = None, **kwargs):
         """
+
+        The ``header_lines`` can be a list of header lines, or one of a few special values:
+
+        * [0]. The header line is the first line in the dataset.
+        * False. The header line is not specified, so it should be intuited
+        * None or 'none'. There is no header line, and it should not be intuited.
 
         :param segment:
         :param header_lines: A list of lines that hold headers
@@ -381,7 +399,7 @@ class SourceSpec(object):
         :param urltype:
         :param filetype:
         :param encoding:
-        :param columns: A list or tuple of column specs
+        :param columns: A list or tuple of ColumnSpec objects, for FixedSource
         :param name: An optional name for the source
         :param kwargs: Unused. Provided to make it easy to load a record from a dict.
         :return:
@@ -398,36 +416,87 @@ class SourceSpec(object):
         self.encoding = encoding
         self.columns = columns
 
+        self._header_lines_specified = False
+
         self.download_time = None # Set externally
 
         self.encoding = self.encoding if self.encoding else None
 
-        if self.header_lines:
-            if isinstance(self.header_lines, basestring):
-                self.header_lines = self.header_lines.split(',')
+        if isinstance(self.header_lines, basestring) and self.header_lines != 'none':
+            self.header_lines = [ int(e) for e in self.header_lines.split(',') if e.strip() != '' ]
 
-            self.header_lines = [ int(e) for e in self.header_lines]
+        elif isinstance(self.header_lines, (list,tuple)):
+            self.header_lines = [int(e) for e in self.header_lines if str(e).strip() != '']
+
+        if self.header_lines == False:
+            # No header specified, so try to intuit
+            self._header_lines_specified = False
+            self.header_lines = None
+            self.start_line = 0
+            pass
+        elif self.header_lines == None or self.header_lines == 'none':
+            # No header, don't intuiit. There definitely isn't one
+            self._header_lines_specified = True
+            self.header_lines = None
+        else:
 
             if self.start_line is None:
                 if len(self.header_lines) > 1:
                     self.start_line = max(*self.header_lines) + 1
-                else:
+                elif len(self.header_lines) == 1:
                     self.start_line = self.header_lines[0] + 1
+                else:
+                    self.header_lines = None
+                    self.start_line = 0
 
-        elif self.header_lines is None or self.header_lines is False or self.header_lines.lower() == 'none':
-            # None or False means that there is no header
-            self.header_lines = None
-            self.start_line = 0
-
-        else:
-            # Other non-true values mean that the header was not specified, so it defaults to the
-            # first line
-            self.header_lines = [0]
-            self.start_line = 1
 
         if not self.name:
             import hashlib
-            self.name = hashlib.md5(self.url+str(self.segment))
+            self.name = hashlib.md5(str(self.url)+str(self.segment))
+
+    @property
+    def has_rowspec(self):
+        """Return True if the spec defines header lines or the data start line"""
+
+        if self.header_lines == [0] and self.start_line == 1:
+            return False
+        else:
+            return True
+
+
+
+    def get_filetype(self, file_path):
+        """Determine the format of the source file, by reporting the file extension"""
+        from os.path import splitext, join
+
+        # The filetype is explicitly specified
+        if self.filetype:
+            return self.filetype.lower()
+
+        root, ext = splitext(file_path)
+
+        return ext[1:].lower()
+
+    def get_urltype(self):
+        from os.path import splitext
+
+        if self.urltype:
+            return self.urltype
+
+        if self.url and self.url.startswith('gs://'):
+            return 'gs'  # Google spreadsheet
+
+        if self.url:
+
+            if '#' in self.url:
+                url, frag = self.url.split('#')
+            else:
+                url = self.url
+
+            root, ext = splitext(url)
+            return ext[1:]
+
+        return None
 
 
 class RowProxy(object):

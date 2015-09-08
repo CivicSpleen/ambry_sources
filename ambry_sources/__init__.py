@@ -14,6 +14,7 @@ from six.moves.urllib.parse import urlparse
 from six.moves.urllib.request import urlopen
 
 from .download import get_source, import_source
+from mpf import MPRowsFile
 
 import logging
 #FORMAT = '%(asctime)-15s %(clientip)s %(user)-8s %(message)s'

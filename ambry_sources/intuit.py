@@ -342,6 +342,20 @@ class TypeIntuiter(object):
         return "TypeIntuiter " + o
 
     @staticmethod
+    def normalize_type(typ):
+
+        if isinstance(typ, basestring):
+            import datetime
+
+            m = dict(__builtins__.items() + datetime.__dict__.items())
+            if typ == 'unknown':
+                typ = str
+            else:
+                typ = m[typ]
+
+        return typ
+
+    @staticmethod
     def promote_type(orig_type, new_type):
         """Given a table with an original type, decide whether a new determination of a new applicable type
         should overide the existing one"""
@@ -695,8 +709,10 @@ class RowIntuiter(object):
             return -1 # Signal that the last element is the end row.
 
 
+    @classmethod
+    def coalesce_headers(cls, header_lines):
 
-    def coalesce_headers(self, header_lines):
+        header_lines = [hl for hl in header_lines if bool(hl)]
 
         if len(header_lines) > 1:
 

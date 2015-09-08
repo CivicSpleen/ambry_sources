@@ -52,8 +52,7 @@ class StatSet(object):
 
         if isinstance(typ, basestring):
             import datetime
-            m = dict(__builtins__.items() +
-                     datetime.__dict__.items())
+            m = dict(__builtins__.items() + datetime.__dict__.items())
             if typ == 'unknown':
                 typ = str
             else:

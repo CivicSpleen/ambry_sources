@@ -18,27 +18,23 @@ from fs.zipfs import ZipFS
 from .sources import *
 
 
-def get_source(spec, cache_fs,  account_accessor=None):
+def get_source(spec, cache_fs,  account_accessor=None, clean = False):
     """
-    Download a file froma URL and return it wrapped in a row-generating acessor object.
+    Download a file from a URL and return it wrapped in a row-generating acessor object.
 
-    :param url:
+    :param spec: A SourceSpec that describes the source to fetch.
     :param cache_fs: A pyfilesystem filesystem to use for caching downloaded files.
-    :param segment: A number to index which sheet to use in a multi-sheet spreadsheet.
-    :param header_lines: A list of line number to use for header lines.
-    :param urltype:
-    :param filetype:
-    :param encoding:
     :param account_accessor: A callable to return the username and password to use for access FTP and S3 URLs.
+    :param clean: Delete files in cache and re-download.
 
     :return: a SourceFile object.
     """
 
-    cache_path, download_time = download(spec.url, cache_fs, account_accessor)
+    cache_path, download_time = download(spec.url, cache_fs, account_accessor, clean = clean)
 
     spec.download_time = download_time
 
-    url_type = get_urltype(spec.url, spec.urltype)
+    url_type = spec.get_urltype()
 
     if url_type == 'zip':
         fstor = extract_file_from_zip(cache_fs, cache_path, spec.url)
@@ -50,28 +46,30 @@ def get_source(spec, cache_fs,  account_accessor=None):
     else:
         fstor = DelayedOpen(cache_fs, cache_path, 'rb')
 
-    file_type = get_filetype(fstor.path, spec.filetype)
+    file_type = spec.get_filetype(fstor.path)
 
     spec.filetype = file_type
-    spec.urltype = url_type
 
     # FIXME SHould use a dict
     if file_type == 'gs':
-        return GoogleSource(spec, fstor)
+        clz = GoogleSource
     elif file_type == 'csv':
-        return CsvSource(spec, fstor)
+        clz = CsvSource
     elif file_type == 'tsv':
-        return TsvSource(spec, fstor)
+        clz = TsvSource
     elif file_type == 'fixed' or file_type == 'txt':
-        return FixedSource(spec, fstor)
+        spec.filetype = 'fixed'
+        clz = FixedSource
     elif file_type == 'xls':
-        return ExcelSource(spec, fstor)
+        clz = ExcelSource
     elif file_type == 'xlsx':
-        return ExcelSource(spec, fstor)
+        clz = ExcelSource
     elif file_type == 'partition':
-        return PartitionSource(spec, fstor)
+        clz = PartitionSource
     else:
         raise SourceError("Failed to determine file type for source '{}'; unknown type '{}' ".format(spec.name, file_type))
+
+    return clz(spec, fstor, use_row_spec = False)
 
 def import_source(spec, cache_fs,  file_path=None, account_accessor=None):
     """Download a source and load it into an MPR file. """
@@ -137,44 +135,17 @@ def extract_file_from_zip(cache_fs, cache_path, url):
 
     return fstor
 
-def get_filetype(file_path, filetype):
-    """Determine the format of the source file, by reporting the file extension"""
-
-    # The filetype is explicitly specified
-    if filetype:
-        return filetype.lower()
-
-    root, ext = splitext(file_path)
-
-    return ext[1:].lower()
-
-def get_urltype(url, urltype):
-    from os.path import splitext
-
-    if urltype:
-        return urltype
-
-    if url and url.startswith('gs://'):
-        return 'gs'  # Google spreadsheet
-
-    if url:
-
-        if '#' in url:
-            url, frag = url.split('#')
-
-        root, ext = splitext(url)
-        return ext[1:]
-
-    return None
 
 
-def download(url, cache_fs, account_accessor=None):
+
+def download(url, cache_fs, account_accessor=None, clean = False):
     """
     Download a URL and store it in the cache.
 
     :param url:
     :param cache_fs:
     :param account_accessor:
+    :param clean: Remove files from cache and re-download
     :return:
     """
     import os.path
@@ -197,6 +168,9 @@ def download(url, cache_fs, account_accessor=None):
         cache_path = os.path.join(cache_path, hash)
 
     download_time = False
+
+    if clean and cache_fs.exists(cache_path):
+        cache_fs.remove(cache_path)
 
     if not cache_fs.exists(cache_path):
 

@@ -124,6 +124,9 @@ class MPRowsFile(object):
 
         self._compress = True
 
+        self._process = None # Process name for report_progress
+        self._start_time = None
+
 
     @property
     def path(self):
@@ -150,7 +153,6 @@ class MPRowsFile(object):
             return str(obj)
         else:
             raise Exception("Unknown type on encode: {}, {}".format(type(obj), obj))
-
 
     @staticmethod
     def decode_obj(obj):
@@ -222,49 +224,125 @@ class MPRowsFile(object):
         fhb = msgpack.packb(o.meta, encoding='utf-8').encode('zlib')
         fh.write(fhb)
 
+    @property
+    def info(self):
+        return self._info(self.reader)
+
     @classmethod
-    def info(self, o):
+    def _info(cls, o):
 
         return dict(
             version=o.version,
+            data_start_pos=o.data_start,
+            meta_start_pos=o.meta_start,
             rows=o.n_rows,
             cols=o.n_cols,
             header_row = o.header_row,
+            header_rows= o.meta['row_spec']['header_rows'],
             data_start_row = o.data_start_row,
             data_end_row=o.data_end_row,
-            data_start_pos = o.data_start,
-            meta_start_pos = o.meta_start)
+            comment_rows = o.meta['row_spec']['comment_rows'],
+            headers = o.headers
+        )
 
-    def load_rows(self, source, intuit_rows = True, intuit_type = True, run_stats = True):
+    @property
+    def exists(self):
+        return self._fs.exists(self.munged_path)
+
+    def remove(self):
+        if self.exists:
+            self._fs.remove(self.munged_path)
+
+    @property
+    def meta(self):
+
+        if not self.exists:
+            return None
+
+        with self.reader as r:
+            return r.meta
+
+    @property
+    def n_rows(self):
+
+        if not self.exists:
+            return None
+
+        with self.reader as r:
+            return r.n_rows
+
+    @property
+    def headers(self):
+
+        if not self.exists:
+            return None
+
+        with self.reader as r:
+            return r.headers
+
+    def load_rows(self, source, spec = None, intuit_rows = None, intuit_type = True, run_stats = True):
 
         from .intuit import RowIntuiter, TypeIntuiter
         from .stats import Stats
+        from time import time
 
-        with self.writer as w:
-            w.load_rows(source)
-            w.close()
+        if self.n_rows:
+            raise MPRError("Can't load_rows; rows already loaded")
 
-        if intuit_rows:
-            with self.reader as r:
-                ri = RowIntuiter().run(r.raw)
+        # None means to determine True or False from the existence of a row spec
+        if intuit_rows is None:
 
-            with self.writer as w:
-                w.set_row_spec(ri)
+            if spec is None:
+                intuit_rows = True
+            elif spec.has_rowspec:
+                intuit_rows = False
+            else:
+                intuit_rows = True
 
-        if intuit_type:
-            with self.reader as r:
-                ti = TypeIntuiter().process_header(r.headers).run(r.rows)
+        try:
 
-            with self.writer as w:
-                w.set_types(ti)
-
-        if run_stats:
-            with self.reader as r:
-                stats = Stats([(c['name'], c['type']) for c in r.meta['schema']]).run(r, sample_from = r.n_rows)
+            self._process = 'load_rows'
+            self._start_time = time()
 
             with self.writer as w:
-                w.set_stats(stats)
 
+                w.load_rows(source)
+                w.close()
+
+            if intuit_rows:
+                self._process = 'intuit_rows'
+                self._start_time = time()
+
+                with self.reader as r:
+                    ri = RowIntuiter().run(r.raw)
+
+                with self.writer as w:
+                    w.set_row_spec(ri)
+
+            elif spec:
+                with self.writer as w:
+                    w.set_row_spec(spec)
+
+            if intuit_type:
+                self._process = 'intuit_type'
+                self._start_time = time()
+                with self.reader as r:
+                    ti = TypeIntuiter().process_header(r.headers).run(r.rows)
+
+                with self.writer as w:
+                    w.set_types(ti)
+
+            if run_stats:
+                self._process = 'run_stats'
+                self._start_time = time()
+
+                with self.reader as r:
+                    stats = Stats([(c['name'], c['type']) for c in r.meta['schema']]).run(r, sample_from = r.n_rows)
+
+                with self.writer as w:
+                    w.set_stats(stats)
+        finally:
+            self._process = None
 
         return self
 
@@ -277,15 +355,47 @@ class MPRowsFile(object):
 
     @property
     def writer(self):
+        from os.path import dirname
         if not self._writer:
             if self._fs.exists(self.munged_path):
                 mode = 'r+b'
             else:
                 mode = 'wb'
 
+            if not self._fs.exists(dirname(self.munged_path)):
+                self._fs.makedir(dirname(self.munged_path), recursive = True)
+
             self._writer = MPRWriter(self, self._fs.open(self.munged_path, mode=mode), compress = self._compress)
 
         return self._writer
+
+    def report_progress(self):
+        """
+        This function can be called from a higher level to report progress. It is usually called from an alarm
+        signal handler which is installed just before starting a load_rows operation:
+
+        >>> import signal
+        >>> f = MPRowsFile('tmp://foobar')
+        >>> def handler(signum, frame):
+        >>>     print "Loading: %s, %s rows" % f.report_progress()
+        >>> f.load_rows( [i,i,i] for i in range(1000))
+
+        :return: Tuple: (process description, #records, #total records, #rate)
+        """
+
+        from time import time
+
+        rec = total = rate = 0
+
+        if self._process == 'load_rows' and self._writer:
+            rec = self._writer.data_end_row
+            rate = round(float(rec) / float(time()-self._start_time),2)
+        elif self._reader:
+            rec = self._reader.pos
+            total = self._reader.data_end_row
+            rate = round(float(rec) / float(time() - self._start_time), 2)
+
+        return (self._process, rec, total, rate )
 
 
 class MPRWriter(object):
@@ -300,6 +410,7 @@ class MPRWriter(object):
     def __init__(self, parent, fh, compress = True):
 
         from copy import deepcopy
+        import re
 
         assert fh
 
@@ -351,9 +462,11 @@ class MPRWriter(object):
         self._row_writer = lambda row: self._zfh.write(
             msgpack.packb(row, default=MPRowsFile.encode_obj, encoding='utf-8'))
 
+        self.header_mangler = lambda name: re.sub('_+', '_', re.sub('[^\w_]', '_', name).lower()).rstrip('_')
+
     @property
     def info(self):
-        return MPRowsFile.info(self)
+        return MPRowsFile._info(self)
 
     def set_schema(self, headers):
         from copy import deepcopy
@@ -401,7 +514,6 @@ class MPRWriter(object):
                 continue
             else:
                 self.insert_row(next(itr))
-
 
     def close(self):
 
@@ -493,36 +605,67 @@ class MPRWriter(object):
                                      for k,v in stats.dict.items()}
                                      for name, stats in stats.dict.items()}
 
-    def set_row_spec(self, ri):
-        """Set the row spec and schema from a RowIntuiter object"""
+    def set_row_spec(self, ri_or_ss):
+        """Set the row spec and schema from a RowIntuiter object or a SourceSpec"""
+
         from itertools import islice
+        from operator import itemgetter
         from ambry_sources.intuit import RowIntuiter
         import re
 
-        w = self.parent.writer
+        if isinstance(ri_or_ss, RowIntuiter):
+            ri = ri_or_ss
 
-        w.data_start_row = ri.start_line
+            with self.parent.writer as w:
 
-        w.meta['row_spec']['header_rows'] = ri.header_lines
-        w.meta['row_spec']['comment_rows'] = ri.comment_lines
-        w.meta['row_spec']['start_row'] = ri.start_line
-        w.meta['row_spec']['end_row'] = ri.end_line
-        w.meta['row_spec']['data_pattern'] = ri.data_pattern_source
+                w.data_start_row = ri.start_line
 
-        mangler = lambda name: re.sub('_+', '_', re.sub('[^\w_]', '_', name).lower()).rstrip('_')
+                w.meta['row_spec']['header_rows'] = ri.header_lines
+                w.meta['row_spec']['comment_rows'] = ri.comment_lines
+                w.meta['row_spec']['start_row'] = ri.start_line
+                w.meta['row_spec']['end_row'] = ri.end_line
+                w.meta['row_spec']['data_pattern'] = ri.data_pattern_source
 
-        schema = []
-        for i, h in enumerate(ri.headers):
-            d = dict(
-                pos=i,
-                name=mangler(h),
-                description=h
-            )
+                schema = []
+                for i, h in enumerate(ri.headers):
+                    d = dict(
+                        pos=i,
+                        name=self.header_mangler(h),
+                        description=h
+                    )
 
-            schema.append(d)
+                    schema.append(d)
 
-        w.meta['schema'] = schema
-        w.close()
+                w.meta['schema'] = schema
+
+        else:
+            ss = ri_or_ss
+
+            with self.parent.reader as r:
+                # If the header lines are specified, we need to also coalesce them ad
+                # set the header
+                if ss.header_lines:
+
+                    max_header_line = max(ss.header_lines)
+                    rows = list(islice(r.raw,max_header_line + 1 ))
+
+                    header_lines = itemgetter(*ss.header_lines)(rows)
+                else:
+                    header_lines = None
+
+            with self.parent.writer as w:
+
+                w.data_start_row = ss.start_line
+
+                w.meta['row_spec']['header_rows'] = ss.header_lines
+                w.meta['row_spec']['comment_rows'] = None
+                w.meta['row_spec']['start_row'] = ss.start_line
+                w.meta['row_spec']['end_row'] = ss.end_line
+                w.meta['row_spec']['data_pattern'] = None
+
+                if header_lines:
+                    w.set_schema(self.header_mangler(h) for h in RowIntuiter.coalesce_headers(header_lines))
+
 
         # Now, look for the end line.
         if False:
@@ -595,7 +738,7 @@ class MPRReader(object):
 
     @property
     def info(self):
-        return MPRowsFile.info(self)
+        return MPRowsFile._info(self)
 
     @property
     def meta(self):

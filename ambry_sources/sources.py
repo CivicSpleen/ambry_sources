@@ -422,23 +422,27 @@ class SourceSpec(object):
 
         self.encoding = self.encoding if self.encoding else None
 
+        #print '!!!', self.name, str(self.header_lines), type(self.header_lines)
+
+
         if isinstance(self.header_lines, basestring) and self.header_lines != 'none':
             self.header_lines = [ int(e) for e in self.header_lines.split(',') if e.strip() != '' ]
 
         elif isinstance(self.header_lines, (list,tuple)):
             self.header_lines = [int(e) for e in self.header_lines if str(e).strip() != '']
 
-        if self.header_lines == False:
+        if self.header_lines == False or self.header_lines == []:
             # No header specified, so try to intuit
             self._header_lines_specified = False
             self.header_lines = None
             self.start_line = 0
             pass
-        elif self.header_lines == None or self.header_lines == 'none':
+        elif self.header_lines == None or self.header_lines == 'none' or self.header_lines == [None]:
             # No header, don't intuiit. There definitely isn't one
             self._header_lines_specified = True
             self.header_lines = None
         else:
+            self._header_lines_specified = True
 
             if self.start_line is None:
                 if len(self.header_lines) > 1:
@@ -449,7 +453,6 @@ class SourceSpec(object):
                     self.header_lines = None
                     self.start_line = 0
 
-
         if not self.name:
             import hashlib
             self.name = hashlib.md5(str(self.url)+str(self.segment))
@@ -458,11 +461,7 @@ class SourceSpec(object):
     def has_rowspec(self):
         """Return True if the spec defines header lines or the data start line"""
 
-        if self.header_lines == [0] and self.start_line == 1:
-            return False
-        else:
-            return True
-
+        return self._header_lines_specified
 
 
     def get_filetype(self, file_path):
@@ -497,6 +496,9 @@ class SourceSpec(object):
             return ext[1:]
 
         return None
+
+    def __str__(self):
+        return str(self.__dict__)
 
 
 class RowProxy(object):

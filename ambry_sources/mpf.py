@@ -263,6 +263,16 @@ class MPRowsFile(object):
             return r.meta
 
     @property
+    def schema(self):
+
+        return (self.meta or {}).get('schema')
+
+    @property
+    def stats(self):
+
+        return (self.meta or {}).get('stats')
+
+    @property
     def n_rows(self):
 
         if not self.exists:
@@ -279,6 +289,60 @@ class MPRowsFile(object):
 
         with self.reader as r:
             return r.headers
+
+    def run_type_intuiter(self):
+        """Run the Type Intuiter and store the results back into the metadata"""
+        from time import time
+        from .intuit import TypeIntuiter
+
+        try:
+            self._process = 'intuit_type'
+            self._start_time = time()
+
+            with self.reader as r:
+                ti = TypeIntuiter().process_header(r.headers).run(r.rows)
+
+            with self.writer as w:
+                w.set_types(ti)
+        finally:
+            self._process = 'none'
+
+    def run_row_intuiter(self):
+        """Run the row intuiter and store the results back into the metadata"""
+        from time import time
+        from .intuit import RowIntuiter
+
+        try:
+            self._process = 'intuit_rows'
+            self._start_time = time()
+
+            with self.reader as r:
+                ri = RowIntuiter().run(r.raw)
+
+            with self.writer as w:
+                w.set_row_spec(ri)
+
+        finally:
+            self._process = 'none'
+
+    def run_stats(self):
+        """Run the stats process and store the results back in the metadata"""
+        from time import time
+        from .stats import Stats
+
+        try:
+
+            self._process = 'run_stats'
+            self._start_time = time()
+
+            with self.reader as r:
+                stats = Stats([(c['name'], c['type']) for c in r.meta['schema']]).run(r, sample_from=r.n_rows)
+
+            with self.writer as w:
+                w.set_stats(stats)
+
+        finally:
+            self._process = 'none'
 
     def load_rows(self, source, spec = None, intuit_rows = None, intuit_type = True, run_stats = True):
 
@@ -310,37 +374,20 @@ class MPRowsFile(object):
                 w.close()
 
             if intuit_rows:
-                self._process = 'intuit_rows'
-                self._start_time = time()
 
-                with self.reader as r:
-                    ri = RowIntuiter().run(r.raw)
-
-                with self.writer as w:
-                    w.set_row_spec(ri)
+                self.run_row_intuiter()
 
             elif spec:
+
                 with self.writer as w:
                     w.set_row_spec(spec)
 
             if intuit_type:
-                self._process = 'intuit_type'
-                self._start_time = time()
-                with self.reader as r:
-                    ti = TypeIntuiter().process_header(r.headers).run(r.rows)
-
-                with self.writer as w:
-                    w.set_types(ti)
+                self.run_type_intuiter()
 
             if run_stats:
-                self._process = 'run_stats'
-                self._start_time = time()
+                self.run_stats()
 
-                with self.reader as r:
-                    stats = Stats([(c['name'], c['type']) for c in r.meta['schema']]).run(r, sample_from = r.n_rows)
-
-                with self.writer as w:
-                    w.set_stats(stats)
         finally:
             self._process = None
 
@@ -357,6 +404,7 @@ class MPRowsFile(object):
     def writer(self):
         from os.path import dirname
         if not self._writer:
+            self._process = 'write'
             if self._fs.exists(self.munged_path):
                 mode = 'r+b'
             else:
@@ -515,6 +563,7 @@ class MPRWriter(object):
             else:
                 self.insert_row(next(itr))
 
+
     def close(self):
 
         if self._fh:
@@ -650,6 +699,10 @@ class MPRWriter(object):
                     rows = list(islice(r.raw,max_header_line + 1 ))
 
                     header_lines = itemgetter(*ss.header_lines)(rows)
+
+                    if not isinstance(header_lines[0], list):
+                        header_lines = [header_lines]
+
                 else:
                     header_lines = None
 
@@ -664,7 +717,7 @@ class MPRWriter(object):
                 w.meta['row_spec']['data_pattern'] = None
 
                 if header_lines:
-                    w.set_schema(self.header_mangler(h) for h in RowIntuiter.coalesce_headers(header_lines))
+                    w.set_schema([self.header_mangler(h) for h in RowIntuiter.coalesce_headers(header_lines)])
 
 
         # Now, look for the end line.
@@ -884,8 +937,7 @@ class MPRReader(object):
             self._in_iteration = True
             for i in range(self.data_start_row, self.data_end_row + 1):
                 row = next(self.unpacker)
-                if not isinstance(row, list):
-                    print type(row), row
+
                 yield rp.set_row(row)
                 self.pos += 1
 

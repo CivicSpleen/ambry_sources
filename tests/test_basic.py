@@ -278,7 +278,7 @@ class BasicTestSuite(unittest.TestCase):
         from contexttimer import Timer
 
         cache_fs = fsopendir('temp://')
-        #cache_fs = fsopendir('/tmp/ritest/')
+        cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources-non-std-headers.csv')
 
@@ -286,7 +286,7 @@ class BasicTestSuite(unittest.TestCase):
 
             s = get_source(spec, cache_fs)
 
-            #if source_name != 'active': continue
+            #if source_name != 'immunize': continue
 
             print spec.name, spec.url
 

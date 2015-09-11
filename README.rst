@@ -4,6 +4,17 @@ Ambry Partition Message Pack File
 This module supports the Ambry ETL framework by providing a file format for storing data and a collection
 of import routines for other file formats
 
+The message Pack Rows file format consists of a compressed collection of arrays, in message pack, followed by a
+dictionary of metadata, also in Message Pack. The format efficiently stores tabular data and associates it with
+metadata, with a few special features for use with data that can come from a variety of sources.
+
+For instance, data a Fixed Width text file may not have a the column titles -- headers -- in the first row, so the
+file can store a schema in metadata. Other files, such as those that originate in Excel, may not have their headers
+on the first so the MPR file can specify a later row to be the start of data.
+
+This module also includes classes for guessing the datatypes of each column, determining where the first row of data
+begins, and computing statistics.
+
 Source File Configuration
 -------------------------
 

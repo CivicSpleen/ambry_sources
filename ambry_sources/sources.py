@@ -164,11 +164,6 @@ class SourceFile(object):
 
         self.finish()
 
-
-
-
-
-
     def raw_iter(self):
 
         self.start()
@@ -186,6 +181,16 @@ class SourceFile(object):
 
     def finish(self):
         pass
+
+
+
+class GeneratorSource(SourceFile):
+    def __init__(self, spec, generator, use_row_spec=True):
+        super(GeneratorSource, self).__init__(spec, None, use_row_spec)
+        self.gen = generator
+
+    def _get_row_gen(self):
+        return self.gen
 
 class CsvSource(SourceFile):
     """Generate rows from a CSV source"""
@@ -254,6 +259,8 @@ class PartitionSource(SourceFile):
 
 class ExcelSource(SourceFile):
     """Generate rows from an excel file"""
+
+
     def _get_row_gen(self):
         from fs.errors import  NoSysPathError
 

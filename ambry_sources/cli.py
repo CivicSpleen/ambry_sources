@@ -34,30 +34,46 @@ parser.add_argument('path', nargs='?', type=str, help='File path')
 
 def main():
     from operator import itemgetter
+    from datetime import datetime
     args = parser.parse_args()
 
     f = MPRowsFile(args.path)
 
     r = f.reader
 
-    schema_fields = [u'pos',u'name', u'type',u'resolved_type', u'description']
+    schema_fields = ['pos','name', 'type','resolved_type', 'description']
     schema_getter = itemgetter(*schema_fields)
-    types_fields =  [u'header', u'count',u'length',  u'floats',  u'ints', u'unicode',  u'strs', u'dates',
-                     u'times', u'datetimes', u'nones', u'has_codes', u'strvals',  ]
+    types_fields =  ['header', 'count','length',  'floats',  'ints', 'unicode',  'strs', 'dates',
+                     'times', 'datetimes', 'nones', 'has_codes', 'strvals',  ]
 
-    stats_fields_all = [ u'name', u'count', u'nuniques' , u'mean', u'min', u'p25', u'p50', u'p75' , u'max', u'std',
-                    u'uvalues', u'lom',  u'skewness',u'kurtosis', u'flags', u'hist', u'text_hist']
+    stats_fields_all = [ 'name', 'count', 'nuniques' , 'mean', 'min', 'p25', 'p50', 'p75' , 'max', 'std',
+                    'uvalues', 'lom',  'skewness','kurtosis', 'flags', 'hist', 'text_hist']
 
-    stats_fields = [u'name', u'count', u'nuniques', u'mean', u'min', u'p25', u'p50', u'p75',
-                   u'max', u'std', u'text_hist']
+    stats_fields = ['name', 'lom', 'count', 'nuniques', 'mean', 'min', 'p25', 'p50', 'p75',
+                   'max', 'std', 'text_hist']
 
     stats_getter = itemgetter(*stats_fields)
 
-    print "MPR File: ",args.path
+    def pm(l,m):
+        """Print, maybe"""
+        if not m:
+            return
+        m = str(m).strip()
+        if m:
+            print "{:<10s}: {}".format(l,m)
+
+    pm("MPR File",args.path)
+    pm("Created", (r.meta['about']['create_time'] and datetime.fromtimestamp(r.meta['about']['create_time'])))
+
+    ss = r.meta['source']
+
+    pm("URL", ss['url'])
+    pm("encoding", ss['encoding'])
 
     if args.schema:
         print "\nSCHEMA"
-        print tabulate.tabulate((schema_getter(row) for row in r.meta['schema']), schema_fields)
+
+        print tabulate.tabulate((schema_getter(row) for row in f.schema), schema_fields)
 
 
     if args.stats:

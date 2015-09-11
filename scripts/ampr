@@ -1,0 +1,7 @@
+#!/bin/sh
+# Access program to list records from an MPR file and view metadata.
+
+# Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
+# Revised BSD License, included in this distribution as LICENSE.txt
+
+exec python -mambry_sources  $@

@@ -72,7 +72,7 @@ class StatSet(object):
             lom = StatSet.LOM.ORDINAL
         elif typ == str or typ == unicode:
             lom = StatSet.LOM.NOMINAL
-        elif typ == int or type == float:
+        elif typ == int or typ == float:
             lom = StatSet.LOM.INTERVAL
         else:
             lom = StatSet.LOM.NOMINAL

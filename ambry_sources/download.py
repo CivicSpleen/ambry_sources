@@ -31,8 +31,8 @@ def get_source(spec, cache_fs,  account_accessor=None, clean = False):
     """
 
     cache_path, download_time = download(spec.url, cache_fs, account_accessor, clean = clean)
-
     spec.download_time = download_time
+
 
     url_type = spec.get_urltype()
 
@@ -42,7 +42,6 @@ def get_source(spec, cache_fs,  account_accessor=None, clean = False):
     elif url_type == 'gs':
         raise NotImplementedError()
         fstor = get_gs(url, spec.segment, account_accessor)
-
     else:
         fstor = DelayedOpen(cache_fs, cache_path, 'rb')
 

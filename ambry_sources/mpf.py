@@ -68,7 +68,10 @@ class MPRowsFile(object):
 
         'schema': {},
         'stats': {},
-        'types': {},
+        'about': {
+            'create_time': None, # Timestamp when file was  created.
+            'load_time': None # Length of time MPRowsFile.load_rows ran, in seconds()
+        },
         'geo':{
             'srs': None,
             'bb': None
@@ -82,7 +85,8 @@ class MPRowsFile(object):
             'fetch_time': None,
             'file_type': None,
             'url_type': None,
-            'inner_file': None
+            'inner_file': None,
+            'encoding': None
         },
         'row_spec':{
             'header_rows': None,
@@ -101,6 +105,7 @@ class MPRowsFile(object):
         'pos': None,
         'name': None,
         'type': None,
+        'resolved_type': None,
         'description': None
     }
 
@@ -175,8 +180,11 @@ class MPRowsFile(object):
 
     @classmethod
     def read_file_header(cls, o, fh):
-        o.magic, o.version, o.n_rows, o.n_cols, o.meta_start, o.header_row, o.data_start_row, o.data_end_row = \
-            cls.FILE_HEADER_FORMAT.unpack(fh.read(cls.FILE_HEADER_FORMAT_SIZE))
+        try:
+            o.magic, o.version, o.n_rows, o.n_cols, o.meta_start, o.header_row, o.data_start_row, o.data_end_row = \
+                cls.FILE_HEADER_FORMAT.unpack(fh.read(cls.FILE_HEADER_FORMAT_SIZE))
+        except struct.error as e:
+            raise IOError("Failed to read file header; {}; path = {}".format(e, o.parent.munged_path))
 
     @classmethod
     def write_file_header(cls, o, fh):
@@ -264,12 +272,11 @@ class MPRowsFile(object):
 
     @property
     def schema(self):
+        return [ { k:r.get(k) for k in self.SCHEMA_TEMPLATE} for r in (self.meta or {}).get('schema', []) ]
 
-        return (self.meta or {}).get('schema')
 
     @property
     def stats(self):
-
         return (self.meta or {}).get('stats')
 
     @property
@@ -336,6 +343,7 @@ class MPRowsFile(object):
             self._start_time = time()
 
             with self.reader as r:
+
                 stats = Stats([(c['name'], c['type']) for c in r.meta['schema']]).run(r, sample_from=r.n_rows)
 
             with self.writer as w:
@@ -351,7 +359,7 @@ class MPRowsFile(object):
         from time import time
 
         if self.n_rows:
-            raise MPRError("Can't load_rows; rows already loaded")
+            raise MPRError("Can't load_rows; rows already loaded. n_rows = {}".format(self.n_rows))
 
         # None means to determine True or False from the existence of a row spec
         if intuit_rows is None:
@@ -371,6 +379,10 @@ class MPRowsFile(object):
             with self.writer as w:
 
                 w.load_rows(source)
+
+                if spec:
+                    w.set_source_spec(spec)
+
                 w.close()
 
             if intuit_rows:
@@ -478,8 +490,6 @@ class MPRWriter(object):
         self.n_rows = 0
         self.n_cols = 0
 
-        self._row_writer = None
-
         try:
 
             MPRowsFile.read_file_header(self, self._fh)
@@ -507,10 +517,17 @@ class MPRWriter(object):
         else:
             self._zfh = self._fh
 
-        self._row_writer = lambda row: self._zfh.write(
-            msgpack.packb(row, default=MPRowsFile.encode_obj, encoding='utf-8'))
-
         self.header_mangler = lambda name: re.sub('_+', '_', re.sub('[^\w_]', '_', name).lower()).rstrip('_')
+
+        if self.n_rows == 0:
+            from time import time
+            self.meta['about']['create_time'] = time()
+
+    def _row_writer(self, row):
+        try:
+            self._zfh.write(msgpack.packb(row, default=MPRowsFile.encode_obj, encoding='utf-8'))
+        except IOError as e:
+            raise IOError("Can't write row to file: {}".format(e))
 
     @property
     def info(self):
@@ -595,28 +612,6 @@ class MPRWriter(object):
     def write_meta(self):
         MPRowsFile.write_meta(self, self._fh)
 
-    def set_source_spec(self, spec):
-
-        ms = self.meta['source']
-
-        ms['url']= spec.url
-        ms['fetch_time']= spec.download_time
-        ms['file_type']= spec.filetype
-        ms['url_type'] = spec.urltype
-
-        me = self.meta['excel']
-        me['workbook'] = spec.segment
-
-        rs = self.meta['row_spec']
-
-        if spec.header_lines:
-            rs['header_rows'] = spec.header_lines
-
-        if spec.start_line is not None and spec.start_line != '':
-            rs['start_row'] = spec.start_line
-
-        if spec.end_line is not None and spec.end_line != '':
-            rs['end_row'] = spec.end_line
 
     def set_types(self, ti):
         """Set Types from a type intuiter object"""
@@ -653,6 +648,21 @@ class MPRWriter(object):
         self.meta['stats'] = {name:{ k:v if not isinstance(v,float) or (not math.isinf(v) and not math.isnan(v)) else None
                                      for k,v in stats.dict.items()}
                                      for name, stats in stats.dict.items()}
+
+    def set_source_spec(self, spec):
+        """Set the metadata coresponding to the SourceSpec, excluding the row spec parts. """
+
+        ms = self.meta['source']
+
+        ms['url'] = spec.url
+        ms['fetch_time'] = spec.download_time
+        ms['file_type'] = spec.filetype
+        ms['url_type'] = spec.urltype
+        ms['encoding'] = spec.encoding
+
+        me = self.meta['excel']
+        me['workbook'] = spec.segment
+
 
     def set_row_spec(self, ri_or_ss):
         """Set the row spec and schema from a RowIntuiter object or a SourceSpec"""

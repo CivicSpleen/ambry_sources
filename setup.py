@@ -51,6 +51,7 @@ setup(
     packages=packages,
     package_data=package_data,
     install_requires=requires,
+    scripts=['scripts/ampr'],
     author=ambry_sources.__author__,
     author_email='eric@civicknowledge.com',
     url='https://github.com/streeter/python-skeleton',

@@ -278,7 +278,7 @@ class BasicTestSuite(unittest.TestCase):
         from contexttimer import Timer
 
         cache_fs = fsopendir('temp://')
-        cache_fs = fsopendir('/tmp/ritest/')
+        #cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources-non-std-headers.csv')
 
@@ -291,7 +291,7 @@ class BasicTestSuite(unittest.TestCase):
             print spec.name, spec.url
 
             with Timer() as t:
-                f = MPRowsFile(cache_fs, source_name).load_rows(s, run_stats = True)
+                f = MPRowsFile(cache_fs, source_name).load_rows(s, spec, run_stats = True)
 
             with f.reader as r:
                 print "Loaded ", r.n_rows, float(r.n_rows)/ t.elapsed, 'rows/sec'

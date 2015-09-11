@@ -18,7 +18,7 @@ begins, and computing statistics.
 Command Line Interface
 ----------------------
 
-THe module installs a command line program ``ampr`` which can be used to inspect MPR files. Run ``ambry -h`` for help.
+The module installs a command line program ``ampr`` which can be used to inspect MPR files. Run ``ambry -h`` for help.
 
 Source File Configuration
 -------------------------

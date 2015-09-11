@@ -15,6 +15,11 @@ on the first so the MPR file can specify a later row to be the start of data.
 This module also includes classes for guessing the datatypes of each column, determining where the first row of data
 begins, and computing statistics.
 
+Command Line Interface
+----------------------
+
+THe module installs a command line program ``ampr`` which can be used to inspect MPR files. Run ``ambry -h`` for help.
+
 Source File Configuration
 -------------------------
 

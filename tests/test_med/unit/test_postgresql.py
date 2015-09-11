@@ -35,7 +35,6 @@ class Test(BaseMEDTest):
                     self.assertEqual(len(result), 100)
                     self.assertEqual(result[0], (0, 0, '0'))
                     self.assertEqual(result[-1], (99, 99, '99'))
-
             finally:
                 conn.close()
         finally:

@@ -4,11 +4,9 @@ from datetime import datetime, date
 import msgpack
 import gzip
 
-from sqlalchemy import Table as SATable, MetaData
-
 from apsw import MisuseError
 
-from ambry.etl.partition import PartitionMsgpackDataFileReader
+from ambry_sources.mpf import MPRowsFile
 
 # Documents used to implement module and function:
 # Module: http://apidoc.apsw.googlecode.com/hg/vtable.html
@@ -22,13 +20,25 @@ def get_module_class(partition):
         def Create(self, db, modulename, dbname, tablename, *args):
             columns_types = []
             column_names = []
-            for i, c in enumerate(partition.table.columns):
+            for i, column in enumerate(partition.table.columns):
                 if i == 0:
                     # First column is already reserved for rowid. This is current release constraint
                     # and will be removed when I discover real partitions data more deeply.
                     continue
-                columns_types.append('{} {}'.format(c.name, c.type.compile()))
-                column_names.append(c.name)
+
+                # FIXME: Need to know format of the columns in the partition file.
+                if column.type == 'int':
+                    columns_types.append('{} integer'.format(column.name))
+                elif column.type == 'str':
+                    columns_types.append('{} varchar'.format(column.name))
+                elif column.type == 'date':
+                    columns_types.append('{} DATE'.format(column.name))
+                elif column.type == 'datetime':
+                    columns_types.append('{} TIMESTAMP WITHOUT TIME ZONE'.format(column.name))
+                else:
+                    raise Exception('Do not know how to convert {} to sql column.'.format(column.type))
+
+                column_names.append(column.name)
             columns_types_str = ',\n'.join(columns_types)
             schema = 'CREATE TABLE {}({})'.format(tablename, columns_types_str)
             return schema, Table(column_names, partition.datafile.syspath)
@@ -63,7 +73,7 @@ class Cursor:
         self._f = open(table.filename, 'rb')
         self._msg_file = gzip.GzipFile(fileobj=self._f)
         self._unpacker = msgpack.Unpacker(
-            self._msg_file, object_hook=PartitionMsgpackDataFileReader.decode_obj)
+            self._msg_file, object_hook=MPRowsFile.decode_obj)
         self._header = next(self._unpacker)
         self._current_row = next(self._unpacker)
 
@@ -115,25 +125,6 @@ def add_partition(connection, partition):
     # create virtual table.
     cursor = connection.cursor()
     cursor.execute('CREATE VIRTUAL TABLE {} using {};'.format(_table_name(partition), module_name))
-
-
-def _as_orm(connection, partition):
-    """ Returns sqlalchemy model for partition rows.
-
-    Example:
-        PartitionRow = _as_orm(connection, partition)
-        print session.query(PartitionRow).all()
-
-    Returns:
-        Table:
-    """
-    # FIXME:
-    raise NotImplementedError(
-        'psqlite connection used by sqlalchemy does not see module created by apsw')
-    table_name = _table_name(partition)
-    metadata = MetaData(bind=connection.engine)
-    PartitionRow = SATable(table_name, metadata, *partition.table.columns)
-    return PartitionRow
 
 
 def _table_name(partition):

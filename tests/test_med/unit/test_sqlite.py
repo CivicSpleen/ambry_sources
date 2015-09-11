@@ -1,22 +1,17 @@
 # -*- coding: utf-8 -*-
-import os
-import unittest
 
 import apsw
 
 from six import u, b
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import create_session
+from ambry_sources.med.sqlite import add_partition, _table_name
 
-from ambry.warehouse.med.sqlite import add_partition, _as_orm, _table_name
-
-from test.test_warehouse.test_med.unit import BaseMEDTest
+from tests.test_med import BaseMEDTest
 
 
 class Test(BaseMEDTest):
 
-    def test_1creates_virtual_table(self):
+    def test_creates_virtual_table(self):
         partition_vid = 'vid1'
         partition = self._get_fake_partition(partition_vid)
         connection = apsw.Connection(':memory:')
@@ -75,33 +70,6 @@ class Test(BaseMEDTest):
             self.assertEqual(len(result), 100)
             self.assertEqual(result[0], (0, b('0')))
             self.assertEqual(result[-1], (99, b('99')))
-
-    @unittest.skip('sqlite module created by apsw is not visible by pysqlite.')
-    def test_partition_row_orm(self):
-        partition_vid = 'vid1'
-        partition = self._get_fake_partition(partition_vid)
-        # we can't use in memory database here because we are going to switch between backends and
-        # each backend will use it own in memory database.
-        # NOTE: I couldn't make shared in memory database to work.
-        #    Details: https://www.sqlite.org/inmemorydb.html, look for 'shared'.
-        DB_FILE = '/tmp/test_sqlite_vt1.sqlite'
-        try:
-            connection = apsw.Connection(DB_FILE)
-            add_partition(connection, partition)
-            connection.close()
-
-            # create ORM and test it
-            engine = create_engine('sqlite:///{}'.format(DB_FILE))
-            with engine.connect() as conn:
-                PartitionRow = _as_orm(conn, partition)
-                session = create_session(bind=engine)
-                all_rows = session.query(PartitionRow).all()
-                self.assertEqual(len(all_rows), 100)
-                self.assertEqual(all_rows[0].rowid, 0)
-                self.assertEqual(all_rows[0].col1, 0)
-                self.assertEqual(all_rows[0].col2, '0')
-        finally:
-            os.remove(DB_FILE)
 
     def test_date_and_datetime(self):
         partition_vid = 'vid1'

@@ -1,6 +1,6 @@
 msgpack-python==0.4.6
 six==1.9.0
-gspread
+gspread==0.2.5
 filelock==2.0.4
 petl==1.0.11
 openpyxl==2.2.5

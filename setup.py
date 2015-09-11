@@ -4,6 +4,9 @@
 import os
 import sys
 from setuptools.command.test import test as TestCommand
+import uuid
+
+from pip.req import parse_requirements
 
 try:
     from setuptools import setup
@@ -28,8 +31,7 @@ packages = [
 package_data = {
 }
 
-requires = [
-]
+requires = parse_requirements('requirements.txt', session=uuid.uuid1())
 
 classifiers = [
     'Development Status :: 4 - Beta',
@@ -75,7 +77,7 @@ setup(
     long_description=readme,
     packages=packages,
     package_data=package_data,
-    install_requires=requires,
+    install_requires=[x for x in reversed([str(x.req) for x in requires])],
     tests_require=['pytest'],
     scripts=['scripts/ampr'],
     author=ambry_sources.__author__,

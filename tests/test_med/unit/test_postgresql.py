@@ -75,17 +75,23 @@ class Test(BaseMEDTest):
 
         # testing.
         try:
-            postgres_test_db_dsn = PostgreSQLTestBase._create_postgres_test_db()['test_db_dsn']
-            engine = create_engine(postgres_test_db_dsn, poolclass=NullPool)
-            with engine.connect() as connection:
-                add_partition(connection, partition)
+            PostgreSQLTestBase._create_postgres_test_db()
+            conn = psycopg2.connect(**PostgreSQLTestBase.pg_test_db_data)
 
-                # select from virtual table.
-                table_name = _table_name(partition)
-                result = connection.execute('SELECT rowid, col1, col2 from {};'.format(table_name)).fetchall()
-                self.assertEqual(len(result), 100)
-                self.assertEqual(
-                    result[0],
-                    (0, date(2015, 8, 30), datetime(2015, 8, 30, 11, 41, 32, 977993)))
+            try:
+                with conn.cursor() as cursor:
+                    add_partition(cursor, partition)
+
+                with conn.cursor() as cursor:
+                    # select from FDW table.
+                    table_name = _table_name(partition)
+                    cursor.execute('SELECT rowid, col1, col2 from {};'.format(table_name))
+                    result = cursor.fetchall()
+                    self.assertEqual(len(result), 100)
+                    self.assertEqual(
+                        result[0],
+                        (0, date(2015, 8, 30), datetime(2015, 8, 30, 11, 41, 32, 977993)))
+            finally:
+                conn.close()
         finally:
             PostgreSQLTestBase._drop_postgres_test_db()

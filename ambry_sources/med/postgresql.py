@@ -15,11 +15,16 @@ def add_partition(cursor, partition):
     FOREIGN_SERVER_NAME = 'partition_server'
     _create_if_not_exists(cursor, FOREIGN_SERVER_NAME)
     columns = []
+    # FIXME: Need to know format of the columns in the partition file.
     for column in partition.table.columns:
         if column.type == 'int':
             columns.append('{} integer'.format(column.name))
         elif column.type == 'str':
             columns.append('{} varchar'.format(column.name))
+        elif column.type == 'date':
+            columns.append('{} DATE'.format(column.name))
+        elif column.type == 'datetime':
+            columns.append('{} TIMESTAMP WITHOUT TIME ZONE'.format(column.name))
         else:
             raise Exception('Do not know how to convert {} to sql column.'.format(column.type))
 

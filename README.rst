@@ -4,7 +4,7 @@ Ambry Partition Message Pack File
 This module supports the Ambry ETL framework by providing a file format for storing data and a collection
 of import routines for other file formats
 
-The message Pack Rows file format consists of a compressed collection of arrays, in message pack, followed by a
+The Message Pack Rows (MPR) file format consists of a compressed collection of arrays, in message pack, followed by a
 dictionary of metadata, also in Message Pack. The format efficiently stores tabular data and associates it with
 metadata, with a few special features for use with data that can come from a variety of sources.
 
@@ -20,6 +20,7 @@ Command Line Interface
 
 The module installs a command line program ``ampr`` which can be used to inspect MPR files. Run ``ambry -h`` for help.
 
+
 Source File Configuration
 -------------------------
 
@@ -32,4 +33,11 @@ Parameters that can be set on a source file.
 - filetype. A file extension to use for the file.
 - encoding. A python encoding name. If missing, defaults to 'ascii', and is most often set to 'utf8'
 
+Running tests
+-------------
+.. code-block:: bash
 
+    $ git clone git@github.com:CivicKnowledge/ambry_sources.git
+    $ cd ambry_sources
+    $ pip install -r requirements.txt
+    $ python setup.py test

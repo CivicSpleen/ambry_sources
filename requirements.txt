@@ -1,6 +1,9 @@
+apsw==3.8.11
+attrdict==2.0.0
+python-dateutil==2.4.2
 msgpack-python==0.4.6
 six==1.9.0
-gspread
+gspread==0.2.5
 filelock==2.0.4
 petl==1.0.11
 openpyxl==2.2.5
@@ -8,3 +11,4 @@ xlrd==0.9.3
 unicodecsv==0.12.0
 fs==0.5.2
 livestats==1.0
+psycopg2==2.6

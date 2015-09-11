@@ -1,3 +1,4 @@
+apsw==3.8.11
 attrdict==2.0.0
 msgpack-python==0.4.6
 six==1.9.0

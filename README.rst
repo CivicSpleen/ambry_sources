@@ -31,3 +31,12 @@ Parameters that can be set on a source file.
 - urltype. If zip, indicates that the URL is for a zip file, for zip file that don't end in a 'zip' extension.
 - filetype. A file extension to use for the file.
 - encoding. A python encoding name. If missing, defaults to 'ascii', and is most often set to 'utf8'
+
+Running tests
+-------------
+.. code-block:: bash
+
+    $ git clone git@github.com:CivicKnowledge/ambry_sources.git
+    $ cd ambry_sources
+    $ pip install -r requirements.txt
+    $ python setup.py test

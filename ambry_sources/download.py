@@ -15,10 +15,13 @@ from six.moves.urllib.request import urlopen
 
 from fs.zipfs import ZipFS
 
+from ambry_sources.util import copy_file_or_flo, parse_url_to_dict
+from ambry_sources.exceptions import ConfigurationError
+
 from .sources import *
 
 
-def get_source(spec, cache_fs,  account_accessor=None, clean = False):
+def get_source(spec, cache_fs,  account_accessor=None, clean=False):
     """
     Download a file from a URL and return it wrapped in a row-generating acessor object.
 
@@ -30,9 +33,8 @@ def get_source(spec, cache_fs,  account_accessor=None, clean = False):
     :return: a SourceFile object.
     """
 
-    cache_path, download_time = download(spec.url, cache_fs, account_accessor, clean = clean)
+    cache_path, download_time = download(spec.url, cache_fs, account_accessor, clean=clean)
     spec.download_time = download_time
-
 
     url_type = spec.get_urltype()
 
@@ -66,9 +68,11 @@ def get_source(spec, cache_fs,  account_accessor=None, clean = False):
     elif file_type == 'partition':
         clz = PartitionSource
     else:
-        raise SourceError("Failed to determine file type for source '{}'; unknown type '{}' ".format(spec.name, file_type))
+        raise SourceError(
+            "Failed to determine file type for source '{}'; unknown type '{}' ".format(spec.name, file_type))
 
-    return clz(spec, fstor, use_row_spec = False)
+    return clz(spec, fstor, use_row_spec=False)
+
 
 def import_source(spec, cache_fs,  file_path=None, account_accessor=None):
     """Download a source and load it into an MPR file. """
@@ -110,9 +114,9 @@ def extract_file_from_zip(cache_fs, cache_path, url):
     def walk_all(fs):
         return [join(e[0], x) for e in fs.walk() for x in e[1]]
 
-    if not '#' in url:
+    if '#' not in url:
         first = walk_all(fs)[0]
-        fstor = DelayedOpen(fs, first, 'rU', container = (cache_fs,cache_path))
+        fstor = DelayedOpen(fs, first, 'rU', container=(cache_fs, cache_path))
 
     else:
         _, fn_pattern = url.split('#')
@@ -123,21 +127,16 @@ def extract_file_from_zip(cache_fs, cache_path, url):
                 continue
 
             if re.search(fn_pattern, file_name):
-                fstor = DelayedOpen(fs, file_name, 'rb', container = (cache_fs,cache_path))
-
+                fstor = DelayedOpen(fs, file_name, 'rb', container=(cache_fs, cache_path))
                 break
 
         if not fstor:
-            from ambry.dbexceptions import ConfigurationError
-
             raise ConfigurationError('Failed to get file {} from archive {}'.format(file_name, fs))
 
     return fstor
 
 
-
-
-def download(url, cache_fs, account_accessor=None, clean = False):
+def download(url, cache_fs, account_accessor=None, clean=False):
     """
     Download a URL and store it in the cache.
 
@@ -149,8 +148,6 @@ def download(url, cache_fs, account_accessor=None, clean = False):
     """
     import os.path
     import requests
-    from ambry.util.flo import copy_file_or_flo
-    from ambry.util import parse_url_to_dict
     from fs.errors import NoSysPathError
     import filelock
     import time
@@ -228,7 +225,7 @@ def download(url, cache_fs, account_accessor=None, clean = False):
                     with cache_fs.open(cache_path, 'wb') as f:
                         copy_file_or_flo(r.raw, f)
 
-                downloadt_time = time.time()
+                download_time = time.time()
 
             except KeyboardInterrupt:
                 # This is really important -- its really bad to have partly downloaded
@@ -241,7 +238,6 @@ def download(url, cache_fs, account_accessor=None, clean = False):
                 raise
 
     return cache_path, download_time
-
 
 
 def get_s3(url, account_accessor):
@@ -269,7 +265,7 @@ def get_s3(url, account_accessor):
 
     s3 = S3FS(
         bucket=pd['netloc'],
-        #prefix=pd['path'],
+        # prefix=pd['path'],
         aws_access_key=account['access'],
         aws_secret_key=account['secret'],
     )
@@ -277,6 +273,7 @@ def get_s3(url, account_accessor):
     # ssl.match_hostname = _old_match_hostname
 
     return s3
+
 
 def get_gs(url, segment, account_acessor):
 
@@ -296,5 +293,3 @@ def get_gs(url, segment, account_acessor):
     sh = gc.open_by_key(spreadsheet_key)
 
     return sh.worksheet(segment)
-
-

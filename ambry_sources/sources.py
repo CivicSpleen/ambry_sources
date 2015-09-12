@@ -3,7 +3,8 @@ Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
 Revised BSD License, included in this distribution as LICENSE.txt
 """
 
-import logging
+from ambry_sources.util import copy_file_or_flo
+
 
 class SourceError(Exception):
     pass
@@ -269,7 +270,6 @@ class ExcelSource(SourceFile):
         except NoSysPathError:
             # There is no sys path when the file is in a ZipFile, or other non-traditional filesystem.
             from fs.opener import fsopendir
-            from ambry.util.flo import copy_file_or_flo
             from os.path import dirname, join
 
             sub_file = self._fstor.sub_cache()

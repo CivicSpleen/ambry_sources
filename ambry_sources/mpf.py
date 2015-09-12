@@ -14,6 +14,7 @@ import gzip
 import msgpack
 import struct
 
+
 def new_mpr(fs, path, stats=None):
     from os.path import split, splitext
 
@@ -30,8 +31,10 @@ def new_mpr(fs, path, stats=None):
 
     return MPRowsFile(fs, path)
 
+
 class MPRError(Exception):
     pass
+
 
 class GzipFile(gzip.GzipFile):
     """A Hacked GzipFile that will read only one gzip member and properly handle extra data afterward"""
@@ -44,7 +47,7 @@ class GzipFile(gzip.GzipFile):
         """Alters the _read method to stop reading new gzip members when we've reached the end of the row data. """
 
         if self._new_member and self._end_of_data and self.fileobj.tell() >= self._end_of_data:
-            raise EOFError, "Reached EOF"
+            raise EOFError('Reached EOF')
         else:
             return super(GzipFile, self)._read(size)
 
@@ -69,18 +72,18 @@ class MPRowsFile(object):
         'schema': {},
         'stats': {},
         'about': {
-            'create_time': None, # Timestamp when file was  created.
-            'load_time': None # Length of time MPRowsFile.load_rows ran, in seconds()
+            'create_time': None,  # Timestamp when file was  created.
+            'load_time': None  # Length of time MPRowsFile.load_rows ran, in seconds()
         },
-        'geo':{
+        'geo': {
             'srs': None,
             'bb': None
         },
-        'excel':{
+        'excel': {
             'datemode': None,
             'worksheet': None
         },
-        'source':{
+        'source': {
             'url': None,
             'fetch_time': None,
             'file_type': None,
@@ -88,14 +91,14 @@ class MPRowsFile(object):
             'inner_file': None,
             'encoding': None
         },
-        'row_spec':{
+        'row_spec': {
             'header_rows': None,
             'comment_rows': None,
             'start_row': None,
             'end_row': None,
             'data_pattern': None
         },
-        'comments':{
+        'comments': {
             'header': None,
             'footer': None
         }
@@ -129,9 +132,8 @@ class MPRowsFile(object):
 
         self._compress = True
 
-        self._process = None # Process name for report_progress
+        self._process = None  # Process name for report_progress
         self._start_time = None
-
 
     @property
     def path(self):
@@ -202,7 +204,7 @@ class MPRowsFile(object):
         assert fh.tell() == cls.FILE_HEADER_FORMAT_SIZE, (fh.tell(), cls.FILE_HEADER_FORMAT_SIZE)
 
     @classmethod
-    def read_meta(cls,o,fh):
+    def read_meta(cls, o, fh):
 
         pos = fh.tell()
 
@@ -245,12 +247,12 @@ class MPRowsFile(object):
             meta_start_pos=o.meta_start,
             rows=o.n_rows,
             cols=o.n_cols,
-            header_row = o.header_row,
-            header_rows= o.meta['row_spec']['header_rows'],
-            data_start_row = o.data_start_row,
+            header_row=o.header_row,
+            header_rows=o.meta['row_spec']['header_rows'],
+            data_start_row=o.data_start_row,
             data_end_row=o.data_end_row,
-            comment_rows = o.meta['row_spec']['comment_rows'],
-            headers = o.headers
+            comment_rows=o.meta['row_spec']['comment_rows'],
+            headers=o.headers
         )
 
     @property
@@ -272,8 +274,7 @@ class MPRowsFile(object):
 
     @property
     def schema(self):
-        return [ { k:r.get(k) for k in self.SCHEMA_TEMPLATE} for r in (self.meta or {}).get('schema', []) ]
-
+        return [{k: r.get(k) for k in self.SCHEMA_TEMPLATE} for r in (self.meta or {}).get('schema', [])]
 
     @property
     def stats(self):
@@ -299,12 +300,11 @@ class MPRowsFile(object):
 
     def run_type_intuiter(self):
         """Run the Type Intuiter and store the results back into the metadata"""
-        from time import time
         from .intuit import TypeIntuiter
 
         try:
             self._process = 'intuit_type'
-            self._start_time = time()
+            self._start_time = time.time()
 
             with self.reader as r:
                 ti = TypeIntuiter().process_header(r.headers).run(r.rows)
@@ -316,12 +316,11 @@ class MPRowsFile(object):
 
     def run_row_intuiter(self):
         """Run the row intuiter and store the results back into the metadata"""
-        from time import time
         from .intuit import RowIntuiter
 
         try:
             self._process = 'intuit_rows'
-            self._start_time = time()
+            self._start_time = time.time()
 
             with self.reader as r:
                 ri = RowIntuiter().run(r.raw)
@@ -334,13 +333,11 @@ class MPRowsFile(object):
 
     def run_stats(self):
         """Run the stats process and store the results back in the metadata"""
-        from time import time
         from .stats import Stats
 
         try:
-
             self._process = 'run_stats'
-            self._start_time = time()
+            self._start_time = time.time()
 
             with self.reader as r:
 
@@ -352,11 +349,7 @@ class MPRowsFile(object):
         finally:
             self._process = 'none'
 
-    def load_rows(self, source, spec = None, intuit_rows = None, intuit_type = True, run_stats = True):
-
-        from .intuit import RowIntuiter, TypeIntuiter
-        from .stats import Stats
-        from time import time
+    def load_rows(self, source, spec=None, intuit_rows=None, intuit_type=True, run_stats=True):
 
         if self.n_rows:
             raise MPRError("Can't load_rows; rows already loaded. n_rows = {}".format(self.n_rows))
@@ -374,7 +367,7 @@ class MPRowsFile(object):
         try:
 
             self._process = 'load_rows'
-            self._start_time = time()
+            self._start_time = time.time()
 
             with self.writer as w:
 
@@ -408,8 +401,7 @@ class MPRowsFile(object):
     @property
     def reader(self):
         if not self._reader:
-            self._reader = MPRReader(self, self._fs.open(self.munged_path, mode='rb'), compress = self._compress)
-
+            self._reader = MPRReader(self, self._fs.open(self.munged_path, mode='rb'), compress=self._compress)
         return self._reader
 
     @property
@@ -423,9 +415,9 @@ class MPRowsFile(object):
                 mode = 'wb'
 
             if not self._fs.exists(dirname(self.munged_path)):
-                self._fs.makedir(dirname(self.munged_path), recursive = True)
+                self._fs.makedir(dirname(self.munged_path), recursive=True)
 
-            self._writer = MPRWriter(self, self._fs.open(self.munged_path, mode=mode), compress = self._compress)
+            self._writer = MPRWriter(self, self._fs.open(self.munged_path, mode=mode), compress=self._compress)
 
         return self._writer
 
@@ -443,19 +435,17 @@ class MPRowsFile(object):
         :return: Tuple: (process description, #records, #total records, #rate)
         """
 
-        from time import time
-
         rec = total = rate = 0
 
         if self._process == 'load_rows' and self._writer:
             rec = self._writer.data_end_row
-            rate = round(float(rec) / float(time()-self._start_time),2)
+            rate = round(float(rec) / float(time.time() - self._start_time), 2)
         elif self._reader:
             rec = self._reader.pos
             total = self._reader.data_end_row
-            rate = round(float(rec) / float(time() - self._start_time), 2)
+            rate = round(float(rec) / float(time.time() - self._start_time), 2)
 
-        return (self._process, rec, total, rate )
+        return (self._process, rec, total, rate)
 
 
 class MPRWriter(object):
@@ -467,7 +457,7 @@ class MPRWriter(object):
     META_TEMPLATE = MPRowsFile.META_TEMPLATE
     SCHEMA_TEMPLATE = MPRowsFile.SCHEMA_TEMPLATE
 
-    def __init__(self, parent, fh, compress = True):
+    def __init__(self, parent, fh, compress=True):
 
         from copy import deepcopy
         import re
@@ -478,12 +468,12 @@ class MPRWriter(object):
         self._fh = fh
         self._compress = compress
 
-        self._zfh = None # Compressor for writing rows
+        self._zfh = None  # Compressor for writing rows
         self.version = self.VERSION
         self.magic = self.MAGIC
         self.data_start = self.FILE_HEADER_FORMAT_SIZE
         self.meta_start = 0
-        self.header_row = -1 # -1 means  no header
+        self.header_row = -1  # -1 means  no header
         self.data_start_row = 0
         self.data_end_row = 0
 
@@ -509,7 +499,7 @@ class MPRWriter(object):
 
             self.meta = deepcopy(self.META_TEMPLATE)
 
-            self.write_file_header() # Get moved to the start of row data.
+            self.write_file_header()  # Get moved to the start of row data.
 
         # Creating the GzipFile object will also write the Gzip header, about 21 bytes of data.
         if self._compress:
@@ -520,8 +510,7 @@ class MPRWriter(object):
         self.header_mangler = lambda name: re.sub('_+', '_', re.sub('[^\w_]', '_', name).lower()).rstrip('_')
 
         if self.n_rows == 0:
-            from time import time
-            self.meta['about']['create_time'] = time()
+            self.meta['about']['create_time'] = time.time()
 
     def _row_writer(self, row):
         try:
@@ -556,7 +545,7 @@ class MPRWriter(object):
         self.set_schema(headers)
         self.header_row = 0
         self.data_start_row = 1
-        self._row_writer([ c['name'] for c in self.meta['schema']] )
+        self._row_writer([c['name'] for c in self.meta['schema']])
 
     def insert_row(self, row):
 
@@ -566,9 +555,8 @@ class MPRWriter(object):
 
         self._row_writer(row)
 
-    def load_rows(self, source, first_is_header = False):
+    def load_rows(self, source, first_is_header=False):
         """Load rows from an iterator"""
-        from itertools import imap
 
         itr = iter(source)
 
@@ -579,7 +567,6 @@ class MPRWriter(object):
                 continue
             else:
                 self.insert_row(next(itr))
-
 
     def close(self):
 
@@ -604,14 +591,12 @@ class MPRWriter(object):
             if self.parent:
                 self.parent._writer = None
 
-
     def write_file_header(self):
         """Write the magic number, version and the file_header dictionary.  """
         MPRowsFile.write_file_header(self, self._fh)
 
     def write_meta(self):
         MPRowsFile.write_meta(self, self._fh)
-
 
     def set_types(self, ti):
         """Set Types from a type intuiter object"""
@@ -644,7 +629,6 @@ class MPRWriter(object):
         """Copy stats into the schema"""
         import math
 
-
         self.meta['stats'] = {name:{ k:v if not isinstance(v,float) or (not math.isinf(v) and not math.isnan(v)) else None
                                      for k,v in stats.dict.items()}
                                      for name, stats in stats.dict.items()}
@@ -663,14 +647,12 @@ class MPRWriter(object):
         me = self.meta['excel']
         me['workbook'] = spec.segment
 
-
     def set_row_spec(self, ri_or_ss):
         """Set the row spec and schema from a RowIntuiter object or a SourceSpec"""
 
         from itertools import islice
         from operator import itemgetter
         from ambry_sources.intuit import RowIntuiter
-        import re
 
         if isinstance(ri_or_ss, RowIntuiter):
             ri = ri_or_ss
@@ -706,7 +688,7 @@ class MPRWriter(object):
                 if ss.header_lines:
 
                     max_header_line = max(ss.header_lines)
-                    rows = list(islice(r.raw,max_header_line + 1 ))
+                    rows = list(islice(r.raw, max_header_line + 1))
 
                     header_lines = itemgetter(*ss.header_lines)(rows)
 
@@ -728,7 +710,6 @@ class MPRWriter(object):
 
                 if header_lines:
                     w.set_schema([self.header_mangler(h) for h in RowIntuiter.coalesce_headers(header_lines)])
-
 
         # Now, look for the end line.
         if False:
@@ -764,7 +745,7 @@ class MPRReader(object):
     META_TEMPLATE = MPRowsFile.META_TEMPLATE
     SCHEMA_TEMPLATE = MPRowsFile.SCHEMA_TEMPLATE
 
-    def __init__(self, parent, fh, compress = True):
+    def __init__(self, parent, fh, compress=True):
         """Reads the file_header and prepares for iterating over rows"""
 
         self.parent = parent
@@ -777,7 +758,7 @@ class MPRReader(object):
         self.data_start_row = 0
         self.data_end_row = 0
 
-        self.pos = 0 # Row position for next read, starts at 1, since header is always 0
+        self.pos = 0  # Row position for next read, starts at 1, since header is always 0
 
         self.n_rows = 0
         self.n_cols = 0
@@ -793,7 +774,7 @@ class MPRReader(object):
         if self._compress:
             self._zfh = GzipFile(fileobj=self._fh, end_of_data=self.meta_start)
         else:
-            self._zfh =self._fh
+            self._zfh = self._fh
 
         self.unpacker = msgpack.Unpacker(self._zfh, object_hook=MPRowsFile.decode_obj, encoding='utf-8')
 
@@ -827,7 +808,6 @@ class MPRReader(object):
         The header always exists, and it is always returned as row 0, except when using the raw iterator.
 
         """
-        from itertools import islice
 
         if not self._headers:
 
@@ -848,15 +828,14 @@ class MPRReader(object):
 
             else:
                 # No schema, so just return numbered columns
-                self._headers = [ 'col'+str(e) for e in range(0,self.n_cols)]
+                self._headers = ['col' + str(e) for e in range(0, self.n_cols)]
 
         return self._headers
 
     def consume_to_data(self):
         """Read and discard rows until we get to the data start row"""
-        from itertools import islice
 
-        if  self.pos >= self.data_start_row:
+        if self.pos >= self.data_start_row:
             return
 
         while self.pos != self.data_start_row:
@@ -865,11 +844,9 @@ class MPRReader(object):
 
         return
 
-
     @property
     def raw(self):
         """A raw iterator, which ignores the data start and stop rows and returns all rows, as rows"""
-        from ambry_sources.sources import RowProxy
 
         self._fh.seek(self.data_start)
 
@@ -886,7 +863,6 @@ class MPRReader(object):
 
     @property
     def meta_raw(self):
-        import sys
         """self self.raw interator, but returns a tuple with the rows classified"""
 
         rs = self.meta['row_spec']
@@ -909,15 +885,13 @@ class MPRReader(object):
 
             yield (i, self.pos, label), row
 
-
     @property
     def rows(self):
         """Iterator for reading rows"""
-        from ambry_sources.sources import RowProxy
 
         self._fh.seek(self.data_start)
 
-        _ = self.headers # Get the header, but don't return it.
+        _ = self.headers  # Get the header, but don't return it.
 
         self.consume_to_data()
 
@@ -926,12 +900,10 @@ class MPRReader(object):
 
             for i in range(self.data_start_row, self.data_end_row+1):
                 yield next(self.unpacker)
-                self.pos+=1
+                self.pos += 1
 
         except:
             self._in_iteration = False
-
-
 
     def __iter__(self):
         """Iterator for reading rows as RowProxy objects"""
@@ -956,7 +928,7 @@ class MPRReader(object):
 
     def close(self):
         if self._fh:
-            self.meta # In case caller wants to read mea after close.
+            self.meta  # In case caller wants to read mea after close.
             self._fh.close()
             self._fh = None
             if self.parent:
@@ -970,6 +942,3 @@ class MPRReader(object):
 
         if exc_val:
             return False
-
-
-

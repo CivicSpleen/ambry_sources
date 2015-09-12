@@ -744,11 +744,6 @@ class RowIntuiter(object):
 
     def run(self, source):
         from itertools import islice
-
         self.test_rows = list(islice(iter(source), self.N_TEST_ROWS))
-
-        self.classify(self.test_rows )
-
+        self.classify(self.test_rows)
         return self
-
-

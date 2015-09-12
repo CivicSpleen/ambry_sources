@@ -5,12 +5,9 @@ Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
 Revised BSD License, included in this distribution as LICENSE.txt
 """
 
+from os.path import join
 
-from os.path import splitext, join
-
-# noinspection PyUnresolvedReferences
 from six.moves.urllib.parse import urlparse
-# noinspection PyUnresolvedReferences
 from six.moves.urllib.request import urlopen
 
 from fs.zipfs import ZipFS
@@ -18,7 +15,8 @@ from fs.zipfs import ZipFS
 from ambry_sources.util import copy_file_or_flo, parse_url_to_dict
 from ambry_sources.exceptions import ConfigurationError
 
-from .sources import *
+from .sources import GoogleSource, CsvSource, TsvSource, FixedSource, ExcelSource, PartitionSource,\
+    SourceError, DelayedOpen
 
 
 def get_source(spec, cache_fs,  account_accessor=None, clean=False):
@@ -43,7 +41,7 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False):
 
     elif url_type == 'gs':
         raise NotImplementedError()
-        fstor = get_gs(url, spec.segment, account_accessor)
+        fstor = get_gs(spec.url, spec.segment, account_accessor)
     else:
         fstor = DelayedOpen(cache_fs, cache_path, 'rb')
 

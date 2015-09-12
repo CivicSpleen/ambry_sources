@@ -3,6 +3,8 @@ Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
 Revised BSD License, included in this distribution as LICENSE.txt
 """
 
+import petl
+
 from ambry_sources.util import copy_file_or_flo
 
 
@@ -14,7 +16,7 @@ class DelayedOpen(object):
     """A Lightweight wrapper to delay opening a PyFilesystem object until is it used. It is needed because
     The open() command on a filesystem directory, to produce the file object, also opens the file
     """
-    def __init__(self, fs, path, mode='r', container = None,  account_accessor=None):
+    def __init__(self, fs, path, mode='r', container=None,  account_accessor=None):
 
         self._fs = fs
         self._path = path
@@ -27,7 +29,6 @@ class DelayedOpen(object):
 
     def syspath(self):
         return self._fs.getsyspath(self._path)
-
 
     def sub_cache(self):
         """Return a fs directory associated with this file """
@@ -61,13 +62,13 @@ class DelayedOpen(object):
         try:
             return self.syspath()
         except NoSysPathError:
-            return "Delayed Open: {}; {} ".format(str(self._fs),str(self._path))
+            return "Delayed Open: {}; {} ".format(str(self._fs), str(self._path))
 
 
 class SourceFile(object):
     """Base class for accessors that generate rows from a soruce file """
 
-    def __init__(self, spec, fstor, use_row_spec = True):
+    def __init__(self, spec, fstor, use_row_spec=True):
         """
 
         :param flo: A File-like object for the file, already opened.
@@ -97,7 +98,7 @@ class SourceFile(object):
                 header_lines[0] = hl1
 
             headers = [' '.join(col_val.strip() if col_val else '' for col_val in col_set)
-                      for col_set in zip(*header_lines)]
+                       for col_set in zip(*header_lines)]
 
             headers = [h.strip() for h in headers]
 
@@ -184,7 +185,6 @@ class SourceFile(object):
         pass
 
 
-
 class GeneratorSource(SourceFile):
     def __init__(self, spec, generator, use_row_spec=True):
         super(GeneratorSource, self).__init__(spec, None, use_row_spec)
@@ -193,17 +193,18 @@ class GeneratorSource(SourceFile):
     def _get_row_gen(self):
         return self.gen
 
+
 class CsvSource(SourceFile):
     """Generate rows from a CSV source"""
     def _get_row_gen(self):
-        import petl
         return petl.io.csv.fromcsv(self._fstor, self.spec.encoding)
+
 
 class TsvSource(SourceFile):
     """Generate rows from a TSV ( Tab selerated value) source"""
     def _get_row_gen(self):
-        import petl
         return petl.io.csv.fromtsv(self._fstor, self.spec.encoding)
+
 
 class FixedSource(SourceFile):
     """Generate rows from a fixed-width source"""
@@ -222,14 +223,14 @@ class FixedSource(SourceFile):
                 int(c.width)
             except TypeError:
                 raise SourceError('Fixed width source {} must have start and width values for {} column '
-                                .format(self.spec.name, c.name))
+                                  .format(self.spec.name, c.name))
 
             parts.append('row[{}:{}]'  .format(c.start - 1, c.start + c.width - 1))
 
         return eval('lambda row: [{}]'.format(','.join(parts)))
 
     def headers(self):
-        return [ c.name if c.name else i for i, c in enumerate(self.spec.columns) ]
+        return [c.name if c.name else i for i, c in enumerate(self.spec.columns)]
 
     def _get_row_gen(self):
 
@@ -261,17 +262,13 @@ class PartitionSource(SourceFile):
 class ExcelSource(SourceFile):
     """Generate rows from an excel file"""
 
-
     def _get_row_gen(self):
-        from fs.errors import  NoSysPathError
+        from fs.errors import NoSysPathError
 
         try:
             return self.excel_iter(self._fstor.syspath(), self.spec.segment)
         except NoSysPathError:
             # There is no sys path when the file is in a ZipFile, or other non-traditional filesystem.
-            from fs.opener import fsopendir
-            from os.path import dirname, join
-
             sub_file = self._fstor.sub_cache()
 
             with self._fstor.open(mode='rb') as f_in, sub_file.open(self.spec.name, mode='wb') as f_out:
@@ -350,11 +347,12 @@ class GoogleSource(SourceFile):
 
     """
 
-
     def _get_row_gen(self):
+        """Iterate over the rows of a google spreadsheet.
 
-        """"Iterate over the rows of a goodl spreadsheet. The URL field of the source must start with gs:// followed by
-        the spreadsheet key. """
+        Note:
+            The URL field of the source must start with gs:// followed by the spreadsheet key.
+        """
 
         for row in self._fstor.get_all_values():
             yield row
@@ -362,7 +360,7 @@ class GoogleSource(SourceFile):
 
 class ColumnSpec(object):
 
-    def __init__(self, name, position = None, start=None, width = None):
+    def __init__(self, name, position=None, start=None, width=None):
         """
 
         :param name:
@@ -386,11 +384,11 @@ class ColumnSpec(object):
 
 class SourceSpec(object):
 
-    def __init__(self, url, segment = None,
-                 header_lines = False, start_line = None, end_line = None,
-                 urltype = None, filetype = None,
-                 encoding = None,
-                 columns = None, name = None, **kwargs):
+    def __init__(self, url, segment=None,
+                 header_lines=False, start_line=None, end_line=None,
+                 urltype=None, filetype=None,
+                 encoding=None,
+                 columns=None, name=None, **kwargs):
         """
 
         The ``header_lines`` can be a list of header lines, or one of a few special values:
@@ -425,26 +423,25 @@ class SourceSpec(object):
 
         self._header_lines_specified = False
 
-        self.download_time = None # Set externally
+        self.download_time = None  # Set externally
 
         self.encoding = self.encoding if self.encoding else None
 
-        #print '!!!', self.name, str(self.header_lines), type(self.header_lines)
-
+        # print '!!!', self.name, str(self.header_lines), type(self.header_lines)
 
         if isinstance(self.header_lines, basestring) and self.header_lines != 'none':
-            self.header_lines = [ int(e) for e in self.header_lines.split(',') if e.strip() != '' ]
+            self.header_lines = [int(e) for e in self.header_lines.split(',') if e.strip() != '']
 
-        elif isinstance(self.header_lines, (list,tuple)):
+        elif isinstance(self.header_lines, (list, tuple)):
             self.header_lines = [int(e) for e in self.header_lines if str(e).strip() != '']
 
-        if self.header_lines == False or self.header_lines == []:
+        if self.header_lines is False or self.header_lines == []:
             # No header specified, so try to intuit
             self._header_lines_specified = False
             self.header_lines = None
             self.start_line = 0
             pass
-        elif self.header_lines == None or self.header_lines == 'none' or self.header_lines == [None]:
+        elif self.header_lines is None or self.header_lines == 'none' or self.header_lines == [None]:
             # No header, don't intuiit. There definitely isn't one
             self._header_lines_specified = True
             self.header_lines = None
@@ -470,10 +467,9 @@ class SourceSpec(object):
 
         return self._header_lines_specified
 
-
     def get_filetype(self, file_path):
         """Determine the format of the source file, by reporting the file extension"""
-        from os.path import splitext, join
+        from os.path import splitext
 
         # The filetype is explicitly specified
         if self.filetype:
@@ -526,14 +522,14 @@ class RowProxy(object):
 
         self.__keys = keys
         self.__row = [None] * len(keys)
-        self.__pos_map = { e:i for i, e in enumerate(keys)}
+        self.__pos_map = {e: i for i, e in enumerate(keys)}
         self.__initialized = True
 
     @property
     def row(self):
         return object.__getattribute__(self, '_RowProxy__row')
 
-    def set_row(self,v):
+    def set_row(self, v):
 
         object.__setattr__(self, '_RowProxy__row', v)
         return self
@@ -556,7 +552,7 @@ class RowProxy(object):
 
     def __setattr__(self, key, value):
 
-        if not self.__dict__.has_key('_RowProxy__initialized'):
+        if '_RowProxy__initialized' not in self.__dict__:
             return object.__setattr__(self, key, value)
 
         else:

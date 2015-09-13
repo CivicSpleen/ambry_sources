@@ -34,7 +34,8 @@ class MPRError(Exception):
     pass
 
 class GzipFile(gzip.GzipFile):
-    """A Hacked GzipFile that will read only one gzip member and properly handle extra data afterward"""
+    """A Hacked GzipFile that will read only one gzip member and properly handle extra data afterward,
+    by ignoring it"""
 
     def __init__(self, filename=None, mode=None, compresslevel=9, fileobj=None, mtime=None, end_of_data=None):
         super(GzipFile, self).__init__(filename, mode, compresslevel, fileobj, mtime)
@@ -54,7 +55,7 @@ class MPRowsFile(object):
     dictionary of values. The format is designed for holding tabular data in an efficient, compressed form,
     and for associating it with metadata. """
 
-    EXTENSION = '.msg'
+    EXTENSION = '.mpr'
     VERSION = 1
     MAGIC = 'AMBRMPDF'
 
@@ -106,7 +107,9 @@ class MPRowsFile(object):
         'name': None,
         'type': None,
         'resolved_type': None,
-        'description': None
+        'description': None,
+        'start': None,
+        'width': None
     }
 
     def __init__(self,  url_or_fs, path=None):
@@ -132,17 +135,14 @@ class MPRowsFile(object):
         self._process = None # Process name for report_progress
         self._start_time = None
 
+        if not self._path.endswith(self.EXTENSION):
+            self._path = self._path + self.EXTENSION
+
 
     @property
     def path(self):
         return self._path
 
-    @property
-    def munged_path(self):
-        if self._path.endswith(self.EXTENSION):
-            return self._path
-        else:
-            return self._path + self.EXTENSION
 
     @staticmethod
     def encode_obj(obj):
@@ -184,7 +184,7 @@ class MPRowsFile(object):
             o.magic, o.version, o.n_rows, o.n_cols, o.meta_start, o.header_row, o.data_start_row, o.data_end_row = \
                 cls.FILE_HEADER_FORMAT.unpack(fh.read(cls.FILE_HEADER_FORMAT_SIZE))
         except struct.error as e:
-            raise IOError("Failed to read file header; {}; path = {}".format(e, o.parent.munged_path))
+            raise IOError("Failed to read file header; {}; path = {}".format(e, o.parent.path))
 
     @classmethod
     def write_file_header(cls, o, fh):
@@ -255,11 +255,11 @@ class MPRowsFile(object):
 
     @property
     def exists(self):
-        return self._fs.exists(self.munged_path)
+        return self._fs.exists(self.path)
 
     def remove(self):
         if self.exists:
-            self._fs.remove(self.munged_path)
+            self._fs.remove(self.path)
 
     @property
     def meta(self):
@@ -352,6 +352,8 @@ class MPRowsFile(object):
         finally:
             self._process = 'none'
 
+        return stats
+
     def load_rows(self, source, spec = None, intuit_rows = None, intuit_type = True, run_stats = True):
 
         from .intuit import RowIntuiter, TypeIntuiter
@@ -405,10 +407,13 @@ class MPRowsFile(object):
 
         return self
 
+    def open(self,  mode='rb'):
+        return self._fs.open(self.path, mode=mode)
+
     @property
     def reader(self):
         if not self._reader:
-            self._reader = MPRReader(self, self._fs.open(self.munged_path, mode='rb'), compress = self._compress)
+            self._reader = MPRReader(self, self._fs.open(self.path, mode='rb'), compress = self._compress)
 
         return self._reader
 
@@ -417,15 +422,15 @@ class MPRowsFile(object):
         from os.path import dirname
         if not self._writer:
             self._process = 'write'
-            if self._fs.exists(self.munged_path):
+            if self._fs.exists(self.path):
                 mode = 'r+b'
             else:
                 mode = 'wb'
 
-            if not self._fs.exists(dirname(self.munged_path)):
-                self._fs.makedir(dirname(self.munged_path), recursive = True)
+            if not self._fs.exists(dirname(self.path)):
+                self._fs.makedir(dirname(self.path), recursive = True)
 
-            self._writer = MPRWriter(self, self._fs.open(self.munged_path, mode=mode), compress = self._compress)
+            self._writer = MPRWriter(self, self._fs.open(self.path, mode=mode), compress = self._compress)
 
         return self._writer
 
@@ -662,6 +667,7 @@ class MPRWriter(object):
 
         me = self.meta['excel']
         me['workbook'] = spec.segment
+
 
 
     def set_row_spec(self, ri_or_ss):
@@ -953,6 +959,8 @@ class MPRReader(object):
 
         finally:
             self._in_iteration = False
+
+
 
     def close(self):
         if self._fh:

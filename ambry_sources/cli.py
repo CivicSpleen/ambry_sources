@@ -28,6 +28,8 @@ parser.add_argument('-r', '--sample', action='store_true',
                     help='Sample the first 10 records')
 parser.add_argument('-j', '--json', action='store_true',
                     help='Output the entire file as JSON')
+parser.add_argument('-c', '--csv', action='store_true',
+                    help='Output the entire file as CSV')
 
 parser.add_argument('path', nargs='?', type=str, help='File path')
 
@@ -41,7 +43,7 @@ def main():
 
     r = f.reader
 
-    schema_fields = ['pos','name', 'type','resolved_type', 'description']
+    schema_fields = ['pos','name', 'type','resolved_type', 'description', 'start','width']
     schema_getter = itemgetter(*schema_fields)
     types_fields =  ['header', 'count','length',  'floats',  'ints', 'unicode',  'strs', 'dates',
                      'times', 'datetimes', 'nones', 'has_codes', 'strvals',  ]
@@ -54,6 +56,18 @@ def main():
 
     stats_getter = itemgetter(*stats_fields)
 
+    if args.csv:
+        with f.reader as r:
+            import csv
+            import sys
+            w = csv.writer(sys.stdout)
+            w.writerow(r.headers)
+            for row in r.rows:
+                w.writerow(row)
+            sys.stdout.flush()
+
+        return
+
     def pm(l,m):
         """Print, maybe"""
         if not m:
@@ -62,40 +76,39 @@ def main():
         if m:
             print "{:<10s}: {}".format(l,m)
 
-    pm("MPR File",args.path)
-    pm("Created", (r.meta['about']['create_time'] and datetime.fromtimestamp(r.meta['about']['create_time'])))
-
-    ss = r.meta['source']
-
-    pm("URL", ss['url'])
-    pm("encoding", ss['encoding'])
+    with f.reader as r:
+        pm("MPR File",args.path)
+        pm("Created", (r.meta['about']['create_time'] and datetime.fromtimestamp(r.meta['about']['create_time'])))
+        pm("version", r.info['version'])
+        pm("rows", r.info['rows'])
+        pm("cols", r.info['cols'])
+        ss = r.meta['source']
+        pm("URL", ss['url'])
+        pm("encoding", ss['encoding'])
 
     if args.schema:
         print "\nSCHEMA"
 
         print tabulate.tabulate((schema_getter(row) for row in f.schema), schema_fields)
 
-
     if args.stats:
-        print "\nSTATS"
-        stats = [r.meta['stats'].get(row['name']) for row in r.meta['schema']]
-        print tabulate.tabulate((stats_getter(row) for row in stats), stats_fields)
-
+        with f.reader as r:
+            print "\nSTATS"
+            stats = [r.meta['stats'].get(row['name']) for row in r.meta['schema']]
+            print tabulate.tabulate((stats_getter(row) for row in stats if row), stats_fields)
 
     if args.sample:
-        print "\nSAMPLE"
-        MAX_LINE = 80
-        ll = 0
-        headers = []
-        for h in r.headers:
-            if len(' '.join(headers+[h])) > MAX_LINE:
-                break
-            headers.append(h)
+        with f.reader as r:
+            print "\nSAMPLE"
+            MAX_LINE = 80
+            ll = 0
+            headers = []
+            for h in r.headers:
+                if len(' '.join(headers+[h])) > MAX_LINE:
+                    break
+                headers.append(h)
 
-
-        print tabulate.tabulate(islice([ r[:len(headers)] for r in r.rows],10), headers)
-
-
+            print tabulate.tabulate(islice([ r[:len(headers)] for r in r.rows],10), headers)
 
 if __name__ == "__main__":
     main()

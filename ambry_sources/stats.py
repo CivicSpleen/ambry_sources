@@ -269,6 +269,12 @@ class Stats(object):
     def dict(self):
         return self._stats
 
+    def __getitem__(self, item):
+        return self._stats[item]
+
+    def __contains__(self, item):
+        return item in self._stats
+
     def build(self):
 
         parts = []
@@ -334,6 +340,8 @@ class Stats(object):
                     process_row(row)
 
         return self
+
+
 
     def __str__(self):
         from tabulate import tabulate

@@ -8,6 +8,17 @@ from fs.opener import fsopendir
 class BasicTestSuite(unittest.TestCase):
     """Basic test cases."""
 
+    def setup_temp_dir(self):
+        import shutil
+        import os
+        build_url = '/tmp/ampr-build-test'
+        if not os.path.exists(build_url):
+            os.makedirs(build_url)
+        shutil.rmtree(build_url)
+        os.makedirs(build_url)
+
+        return build_url
+
     def get_header_test_file(self, file_name):
         """ Creates source pipe from xls with given file name and returns it."""
         import os.path
@@ -87,6 +98,19 @@ class BasicTestSuite(unittest.TestCase):
                 if i > 10:
                     break
 
+    def test_fixed(self):
+        from ambry_sources import get_source
+        from ambry_sources.mpf import MPRowsFile
+        cache_fs = fsopendir(self.setup_temp_dir())
+
+        sources = self.load_sources()
+
+        spec = sources['simple_fixed']
+
+        s = get_source(spec, cache_fs)
+
+        f = MPRowsFile(cache_fs, spec.name).load_rows(s)
+
     def test_row_intuit(self):
         """Check that the soruces can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
@@ -102,12 +126,7 @@ class BasicTestSuite(unittest.TestCase):
         for source_name, spec in sources.items():
             s = get_source(spec, cache_fs)
 
-            #if source_name != 'birth_profiles': continue
-
             print spec.name, spec.url
-
-            #from itertools import islice
-            #print "\n".join(str(e) for e in islice(iter(s),20))
 
             ri = RowIntuiter().run(s)
 
@@ -132,6 +151,8 @@ class BasicTestSuite(unittest.TestCase):
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
+
+            #if source_name != '': continue
 
             s = get_source(spec, cache_fs)
 
@@ -300,7 +321,6 @@ class BasicTestSuite(unittest.TestCase):
                 stats = r.meta['stats']
 
                 #print [ sd['mean'] for col_name, sd in r.meta['stats'].items() ]
-
 
     def test_datafile(self):
         """

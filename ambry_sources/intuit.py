@@ -609,7 +609,12 @@ class RowIntuiter(object):
 
                 max_changes = len(rows[0])/4
 
-                pattern_source, contributors, l = self._data_pattern_source(rows[i:i+test_rows], max_changes)
+                test_rows_slice = rows[i:i+test_rows]
+
+                if not test_rows_slice:
+                    continue
+
+                pattern_source, contributors, l = self._data_pattern_source(test_rows_slice, max_changes)
 
                 if contributors > test_rows*.75:
                     return pattern_source

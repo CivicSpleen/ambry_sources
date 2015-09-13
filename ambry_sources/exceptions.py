@@ -3,3 +3,7 @@
 
 class ConfigurationError(Exception):
     pass
+
+class DownloadError(Exception):
+    pass
+

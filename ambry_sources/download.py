@@ -13,7 +13,7 @@ from six.moves.urllib.request import urlopen
 from fs.zipfs import ZipFS
 
 from ambry_sources.util import copy_file_or_flo, parse_url_to_dict
-from ambry_sources.exceptions import ConfigurationError
+from ambry_sources.exceptions import ConfigurationError, DownloadError
 
 from .sources import GoogleSource, CsvSource, TsvSource, FixedSource, ExcelSource, PartitionSource,\
     SourceError, DelayedOpen
@@ -31,9 +31,13 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False):
     :return: a SourceFile object.
     """
 
-    cache_path, download_time = download(spec.url, cache_fs, account_accessor, clean=clean)
-    spec.download_time = download_time
+    from requests import HTTPError
 
+    try:
+        cache_path, download_time = download(spec.url, cache_fs, account_accessor, clean=clean)
+        spec.download_time = download_time
+    except HTTPError as e:
+        raise DownloadError("Failed to download {}; {}".format(spec.url, e))
     url_type = spec.get_urltype()
 
     if url_type == 'zip':
@@ -67,7 +71,8 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False):
         clz = PartitionSource
     else:
         raise SourceError(
-            "Failed to determine file type for source '{}'; unknown type '{}' ".format(spec.name, file_type))
+            "Failed to determine file type for source '{}'; unknown type '{}' "
+                .format(spec.name, file_type))
 
     return clz(spec, fstor, use_row_spec=False)
 
@@ -213,6 +218,8 @@ def download(url, cache_fs, account_accessor=None, clean=False):
                 else:
 
                     r = requests.get(url, stream=True)
+
+                    r.raise_for_status()
 
                     # Requests will auto decode gzip responses, but not when streaming. This following
                     # monkey patch is recommended by a core developer at https://github.com/kennethreitz/requests/issues/2155

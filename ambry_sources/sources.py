@@ -227,7 +227,11 @@ class FixedSource(SourceFile):
 
             parts.append('row[{}:{}]'  .format(c.start - 1, c.start + c.width - 1))
 
-        return eval('lambda row: [{}]'.format(','.join(parts)))
+        code = 'lambda row: [{}]'.format(','.join(parts))
+
+        print code
+
+        return eval(code)
 
     def headers(self):
         return [c.name if c.name else i for i, c in enumerate(self.spec.columns)]
@@ -240,7 +244,7 @@ class FixedSource(SourceFile):
         yield self.headers
 
         for line in flo:
-            yield [e.strip() for e in parser(line.strip())]
+            yield [e.strip() for e in parser(line)]
 
     def __iter__(self):
         rg = self._get_row_gen()

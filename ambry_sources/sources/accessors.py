@@ -2,6 +2,9 @@
 Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
 Revised BSD License, included in this distribution as LICENSE.txt
 """
+import fiona
+from shapely.geometry import shape
+from shapely.wkt import dumps, loads
 
 import petl
 
@@ -19,7 +22,7 @@ class SourceFile(object):
     def __init__(self, spec, fstor, use_row_spec=True):
         """
 
-        :param flo: A File-like object for the file, already opened.
+        :param fstor: A File-like object for the file, already opened.
         :return:
         """
 
@@ -325,5 +328,20 @@ class ShapefileSource(GeoSourceBase):
             The last column is a string named geometry, which has the wkt value, the type is geometry_type.
 
         """
-        # TODO: Implement
-        pass
+
+        with fiona.drivers():
+            virtual_fs = self._fstor.system_path
+            layer_index = self.spec.segment or 0
+            with fiona.open('/', vfs=virtual_fs, layer=layer_index) as source:
+                geometry_type = source.schema['geometry']
+                property_schema = source.schema['properties']
+
+                for s in source:
+                    row_data = s['properties']
+                    shp = shape(s['geometry'])
+                    wkt = dumps(shp)
+                    row = ['idFIXME:']
+                    for col_name, elem in row_data.iteritems():
+                        row.append(elem)
+                    row.append(wkt)
+                    yield row

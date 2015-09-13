@@ -428,19 +428,19 @@ class TypeIntuiter(object):
 class ClusterHeaders(object):
     """Using Source table headers, cluster the source tables into destination tables"""
 
-    def __init__(self, bundle = None):
+    def __init__(self, bundle=None):
         self._bundle = bundle
         self._headers = {}
 
     def match_headers(self, a, b):
-        from difflib import SequenceMatcher, ndiff
+        from difflib import ndiff
         from collections import Counter
 
-        c =  Counter(e[0] for e in ndiff(a,b) if e[0] != '?')
+        c = Counter(e[0] for e in ndiff(a, b) if e[0] != '?')
 
-        same = c.get(' ',0)
-        remove = c.get('-',0)
-        add = c.get('+',0)
+        same = c.get(' ', 0)
+        remove = c.get('-', 0)
+        add = c.get('+', 0)
 
         return float(remove+add) / float(same)
 
@@ -448,7 +448,7 @@ class ClusterHeaders(object):
         from difflib import SequenceMatcher
 
         for i, ca in enumerate(a):
-            for j,cb in enumerate(b):
+            for j, cb in enumerate(b):
                 r = SequenceMatcher(None, ca, cb).ratio()
 
                 if r > .9:
@@ -459,10 +459,10 @@ class ClusterHeaders(object):
         self._headers[name] = headers
 
     def pairs(self):
-        return  set([ (name1, name2) for name1 in list(self._headers) for name2 in list(self._headers) if name2 > name1])
+        return set([ (name1, name2) for name1 in list(self._headers) for name2 in list(self._headers) if name2 > name1])
 
     @classmethod
-    def long_substr(cls,data):
+    def long_substr(cls, data):
         data = list(data)
         substr = ''
         if len(data) > 1 and len(data[0]) > 0:
@@ -473,7 +473,7 @@ class ClusterHeaders(object):
         return substr
 
     @classmethod
-    def is_substr(cls,find, data):
+    def is_substr(cls, find, data):
         if len(data) < 1 and len(find) < 1:
             return False
         for i in range(len(data)):
@@ -487,9 +487,9 @@ class ClusterHeaders(object):
 
         results = []
         for a, b in pairs:
-            results.append((round(self.match_headers(self._headers[a],self._headers[b]), 3), a, b))
+            results.append((round(self.match_headers(self._headers[a], self._headers[b]), 3), a, b))
 
-        results = sorted(results, key = lambda r: r[0])
+        results = sorted(results, key=lambda r: r[0])
 
         clusters = []
 
@@ -505,18 +505,19 @@ class ClusterHeaders(object):
                         allocated = True
                         break
                 if not allocated:
-                    ns = set([a,b])
+                    ns = set([a, b])
                     clusters.append(ns)
 
-        d = { self.long_substr(c).strip('_'):sorted(c) for c in clusters }
+        d = {self.long_substr(c).strip('_'): sorted(c) for c in clusters}
 
         return d
+
 
 class RowIntuiter(object):
 
     N_TEST_ROWS = 150
 
-    type_map = { unicode: str, float: int }
+    type_map = {unicode: str, float: int}
 
     def __init__(self):
         import re
@@ -533,7 +534,7 @@ class RowIntuiter(object):
             ('C', re.compile(r'^XX_+$')),
             ('C', re.compile(r'^X_+$')),
             ('H', re.compile(r'^X+$')),
-            ('H', re.compile(r'^_{,6}X+$')), # A few starting blanks, the rest are strings.
+            ('H', re.compile(r'^_{,6}X+$')),  # A few starting blanks, the rest are strings.
             ('H', re.compile(r"(?:X_)")),
 
         )
@@ -563,20 +564,20 @@ class RowIntuiter(object):
         def p(e):
             try:
                 t = guess_type(e)
-                tm = self.type_map.get(t,t)
+                tm = self.type_map.get(t, t)
                 return template[types.index(tm)]
             except ValueError:
                 raise ValueError("Type '{}'/'{}' not in the types list: {}".format(t, tm, types))
 
-        return ''.join( p(e) for e in row)
+        return ''.join(p(e) for e in row)
 
-    def _data_pattern_source(self, rows, change_limit = 5):
+    def _data_pattern_source(self, rows, change_limit=5):
 
         l = max(len(row) for row in rows)  # Length of longest row
 
         patterns = [set() for _ in range(l)]
 
-        contributors = 0 # Number  of rows that contributed to pattern.
+        contributors = 0  # Number  of rows that contributed to pattern.
 
         for j, row in enumerate(rows):
 
@@ -634,7 +635,7 @@ class RowIntuiter(object):
 
         data_pattern, self.data_pattern_source = self.data_pattern(rows[data_pattern_skip_rows:])
 
-        patterns = [('D',data_pattern)] + list(self.patterns)
+        patterns = [('D', data_pattern)] + list(self.patterns)
 
         def match(picture):
             for l, r in patterns:
@@ -652,15 +653,15 @@ class RowIntuiter(object):
             try:
                 # If a header or data has more than half of the line is a continuous nulls,
                 # it's probably a comment.
-                if label != 'B' and len(re.search('_+',picture).group(0)) > len(row)/2:
+                if label != 'B' and len(re.search('_+', picture).group(0)) > len(row)/2:
                     label = 'C'
             except AttributeError:
-                pass # re not matched
+                pass  # re not matched
 
             if not found_header and label == 'H':
                 found_header = True
 
-            if label == False:
+            if label is False:
                 # Could be a really wacky header
                 found_header = True
                 label = 'H'
@@ -684,7 +685,7 @@ class RowIntuiter(object):
         raise NotImplementedError()
 
         import re
-        from itertools import dropwhile, ifilterfalse
+        from itertools import ifilterfalse
         from operator import itemgetter
 
         pattern = re.compile(self.data_pattern_source)
@@ -700,14 +701,13 @@ class RowIntuiter(object):
             rpos = pos - len(end_rows) - 1
 
             try:
-                end_rows[rpos] # Check if rpos is in range
+                end_rows[rpos]  # Check if rpos is in range
                 return rpos
             except:
                 return None
 
         except ValueError:
-            return -1 # Signal that the last element is the end row.
-
+            return -1  # Signal that the last element is the end row.
 
     @classmethod
     def coalesce_headers(cls, header_lines):

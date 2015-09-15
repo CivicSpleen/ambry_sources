@@ -9,7 +9,7 @@ from tests import PostgreSQLTestBase
 from tests import TestBase
 
 
-class _Test(object): # is disabled because is broken
+class _Test(object): # is disabled because it is broken
 # class Test(TestBase):  # FIXME: uncomment and fix.
 
     def test_creates_table(self):

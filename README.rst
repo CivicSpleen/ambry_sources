@@ -41,3 +41,5 @@ Running tests
     $ cd ambry_sources
     $ pip install -r requirements.txt
     $ python setup.py test
+
+FIXME: Describe multicorn installation.

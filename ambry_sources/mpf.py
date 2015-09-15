@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Writing data to a partition. The MPF file format is a conversion format that stores tabular data in rows and associates
+Writing data to a partition. The MPR file format is a conversion format that stores tabular data in rows and associates
 it with metadata
 
 Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
@@ -141,11 +141,9 @@ class MPRowsFile(object):
         if not self._path.endswith(self.EXTENSION):
             self._path = self._path + self.EXTENSION
 
-
     @property
     def path(self):
         return self._path
-
 
     @staticmethod
     def encode_obj(obj):
@@ -408,7 +406,6 @@ class MPRowsFile(object):
     def reader(self):
         if not self._reader:
             self._reader = MPRReader(self, self._fs.open(self.path, mode='rb'), compress=self._compress)
-
         return self._reader
 
     @property
@@ -934,8 +931,6 @@ class MPRReader(object):
 
         finally:
             self._in_iteration = False
-
-
 
     def close(self):
         if self._fh:

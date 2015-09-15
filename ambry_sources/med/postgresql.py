@@ -1,41 +1,43 @@
 # -*- coding: utf-8 -*-
 import logging
-from gzip import GzipFile
-from datetime import datetime, time
 import operator
 import re
-
-import msgpack
+from fs.opener import fsopendir
+from ambry_sources.mpf import MPRowsFile
 
 from multicorn import ForeignDataWrapper
 from multicorn.utils import log_to_postgres, ERROR, WARNING
 
 POSTGRES_PARTITION_SCHEMA_NAME = 'partitions'
+FOREIGN_SERVER_NAME = 'partition_server'
 
 logger = logging.getLogger(__name__)
 
+# python type to sqlite type map.
+TYPE_MAP = {
+    'int': 'INTEGER',
+    'float': 'NUMERIC',
+    'str': 'TEXT',
+    'date': 'DATE',
+    'datetime': 'TIMESTAMP WITHOUT TIME ZONE'
+}
 
-def add_partition(cursor, partition):
-    """ Create foreign table for given partition.
+
+def _get_create_query(partition):
+    """ Returns query to create foreign table.
+
     Args:
         connection (sqlalchemy.engine.Connection)
-        partition (orm.Partition):
+
+    Returns:
+        str: sql query to craete foreign table.
     """
-    FOREIGN_SERVER_NAME = 'partition_server'
-    _create_if_not_exists(cursor, FOREIGN_SERVER_NAME)
     columns = []
-    # FIXME: Need to know format of the columns in the partition file.
-    for column in partition.table.columns:
-        if column.type == 'int':
-            columns.append('{} integer'.format(column.name))
-        elif column.type == 'str':
-            columns.append('{} varchar'.format(column.name))
-        elif column.type == 'date':
-            columns.append('{} DATE'.format(column.name))
-        elif column.type == 'datetime':
-            columns.append('{} TIMESTAMP WITHOUT TIME ZONE'.format(column.name))
-        else:
-            raise Exception('Do not know how to convert {} to sql column.'.format(column.type))
+    for column in sorted(partition.schema, key=lambda x: x['pos']):
+        postgres_type = TYPE_MAP.get(column['type'])
+        if not postgres_type:
+            raise Exception('Do not know how to convert {} to postgresql type.'.format(column['type']))
+        columns.append('{} {}'.format(column['name'], postgres_type))
 
     query = """
         CREATE FOREIGN TABLE {table_name} (
@@ -45,8 +47,21 @@ def add_partition(cursor, partition):
         );
     """.format(table_name=_table_name(partition),
                columns=',\n'.join(columns), server_name=FOREIGN_SERVER_NAME,
-               file_name=partition.datafile.syspath)
-    logging.debug('Create foreign table for {} partition. Query:\n{}.'.format(partition.vid, query))
+               filesystem='fs',  # FIXME: give valid filesystem.
+               path='path')  # FIXME: give valid path.
+    return query
+
+
+def add_partition(cursor, partition):
+    """ Creates foreign table for given partition.
+
+    Args:
+        cursor (FIXME:):
+        partition (FIXME:):
+    """
+    _create_if_not_exists(cursor, FOREIGN_SERVER_NAME)
+    query = _get_create_query(partition)
+    logging.debug('Create foreign table for {} partition. Query:\n{}.'.format(partition.path, query))
     cursor.execute(query)
 
 
@@ -66,7 +81,7 @@ def _create_if_not_exists(cursor, server_name):
         query = """
             CREATE SERVER {} FOREIGN DATA WRAPPER multicorn
             options (
-                wrapper 'ambryfdw.PartitionMsgpackForeignDataWrapper'
+                wrapper 'ambry_source.med.MPRForeignDataWrapper'
             );
         """.format(server_name)
         cursor.execute(query)
@@ -75,8 +90,18 @@ def _create_if_not_exists(cursor, server_name):
 
 
 def _table_name(partition):
-    """ Returns foreign table name for the given partition. """
-    return '{schema}.p_{vid}_ft'.format(schema=POSTGRES_PARTITION_SCHEMA_NAME, vid=partition.vid)
+    """ Returns foreign table name for the given partition.
+
+    Args:
+        partition (mpf.MprRowsFile):
+
+    Returns:
+        str: name of the table associated with partition.
+
+    """
+    # FIXME: find the better naming.
+    name = partition.path.replace('.', '_').replace(' ', '_')
+    return '{schema}.{name}_ft'.format(schema=POSTGRES_PARTITION_SCHEMA_NAME, name=name)
 
 
 # Note:
@@ -125,39 +150,39 @@ QUAL_OPERATOR_MAP = {
 }
 
 
-class PartitionMsgpackForeignDataWrapper(ForeignDataWrapper):
+class MPRForeignDataWrapper(ForeignDataWrapper):
+    """ Message Pack Rows (MPR) foreign data wrapper. """
 
     def __init__(self, options, columns):
-        super(PartitionMsgpackForeignDataWrapper, self).__init__(options, columns)
+        """
+
+        Args:
+            options (dict): filesystem and path, filesystem is root directory str, path is relative
+                name of the file.
+                Example: {
+                    'filesystem': '/tmp/my-root',
+                    'path': '/dir1/file1.mpr'
+                }
+        """
+
+        super(MPRForeignDataWrapper, self).__init__(options, columns)
         self.columns = columns
-        if 'filename' not in options:
+        if 'path' not in options:
             log_to_postgres(
                 'Filename is required option of the partition msgpack fdw.',
                 ERROR,
-                hint='Try adding the missing option in the table creation statement')  # FIXME:
-            raise RuntimeError('filename is required option of the partition msgpack fdw.')
-        self.filename = options['filename']
+                hint='Try to add the `path` option to the table creation statement')
+            raise RuntimeError('`path` is required option of the MPR (Message Pack Rows) fdw.')
 
-    @staticmethod
-    def decode_obj(obj):
-        if b'__datetime__' in obj:
-            # FIXME: not tested
-            try:
-                obj = datetime.strptime(obj['as_str'], DATETIME_FORMAT_NO_MS)
-            except ValueError:
-                # The preferred format is without the microseconds, but there are some lingering
-                # bundle that still have it.
-                obj = datetime.strptime(obj['as_str'], DATETIME_FORMAT_WITH_MS)
-        elif b'__time__' in obj:
-            # FIXME: not tested
-            obj = time(*list(time.strptime(obj['as_str'], TIME_FORMAT))[3:6])
-        elif b'__date__' in obj:
-            # FIXME: not tested
-            obj = datetime.strptime(obj['as_str'], DATE_FORMAT).date()
-        else:
-            # FIXME: not tested
-            raise Exception('Unknown type on decode: {} '.format(obj))
-        return obj
+        if 'filesystem' not in options:
+            log_to_postgres(
+                'filesystem is required option of the partition msgpack fdw.',
+                ERROR,
+                hint='Try to add the `filesystem` option to the table creation statement')
+            raise RuntimeError('`filesystem` is required option of the MPR (Message Pack Rows) fdw.')
+        self.filesystem = fsopendir(options['filesystem'])
+        self.path = options['path']
+        self._mp_rows = MPRowsFile(self.filesystem, self.path)
 
     def _matches(self, quals, row):
         """ Returns True if row matches to all quals. Otherwise returns False.
@@ -184,16 +209,9 @@ class PartitionMsgpackForeignDataWrapper(ForeignDataWrapper):
         return True
 
     def execute(self, quals, columns):
-        with open(self.filename, 'rb') as stream:
-            unpacker = msgpack.Unpacker(GzipFile(fileobj=stream), object_hook=self.decode_obj)
-            header = None
-
-            for row in unpacker:
+        with self._mp_rows.reader as reader:
+            for row in reader.rows:
                 assert isinstance(row, (tuple, list)), row
-
-                if not header:
-                    header = row
-                    continue
 
                 if not self._matches(quals, row):
                     continue

@@ -24,7 +24,7 @@ class Table:
 
         Args:
             columns (list of str): column names
-            partition (mpf.MprRowsFile):
+            partition (mpf.MPRowsFile):
 
         """
         self.columns = columns
@@ -85,7 +85,7 @@ def add_partition(connection, partition):
 
     Args:
         connection (apsw.Connection):
-        partition (mpf.MprRowsFile):
+        partition (mpf.MPRowsFile):
 
     """
 
@@ -106,7 +106,7 @@ def _table_name(partition):
     """ Returns virtual table name for the given partition.
 
     Args:
-        partition (mpf.MprRowsFile):
+        partition (mpf.MPRowsFile):
 
     Returns:
         str: name of the table associated with partition.

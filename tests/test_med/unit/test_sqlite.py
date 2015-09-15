@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from datetime import datetime
 import unittest
 
 from attrdict import AttrDict
@@ -61,7 +62,6 @@ class TestCursor(unittest.TestCase):
         self.assertEqual(cursor.Column(1), 1.2)
 
     def test_converts_datetime_value_to_isoformat(self):
-        from datetime import datetime
         dt = datetime(2010, 10, 10, 10, 10, 10)
         table = self._get_fake_table(rows=[[dt]])
         cursor = Cursor(table)

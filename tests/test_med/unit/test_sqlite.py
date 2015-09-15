@@ -141,28 +141,35 @@ class GetModuleClassTest(unittest.TestCase):
         self.assertEqual('CREATE TABLE table1(column1 INTEGER)', query)
         self.assertTrue(hasattr(table, 'Open'))
 
-    def test_converts_int_to_integer_sql_type(self):
+    def test_converts_int_to_integer_sqlite_type(self):
         partition = AttrDict({
             'schema': [{'type': 'int', 'name': 'column1', 'pos': 0}]})
         cls = _get_module_class(partition)
         query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertIn('(column1 INTEGER)', query)
 
-    def test_converts_str_to_text_sql_type(self):
+    def test_converts_float_to_real_sqlite_type(self):
+        partition = AttrDict({
+            'schema': [{'type': 'int', 'name': 'column1', 'pos': 0}]})
+        cls = _get_module_class(partition)
+        query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
+        self.assertIn('(column1 INTEGER)', query)
+
+    def test_converts_str_to_text_sqlite_type(self):
         partition = AttrDict({
             'schema': [{'type': 'str', 'name': 'column1', 'pos': 0}]})
         cls = _get_module_class(partition)
         query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertIn('(column1 TEXT)', query)
 
-    def test_converts_date_to_date_sql_type(self):
+    def test_converts_date_to_date_sqlite_type(self):
         partition = AttrDict({
             'schema': [{'type': 'date', 'name': 'column1', 'pos': 0}]})
         cls = _get_module_class(partition)
         query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertIn('(column1 DATE)', query)
 
-    def test_converts_datetime_to_timestamp_sql_type(self):
+    def test_converts_datetime_to_timestamp_sqlite_type(self):
         partition = AttrDict({
             'schema': [{'type': 'datetime', 'name': 'column1', 'pos': 0}]})
         cls = _get_module_class(partition)

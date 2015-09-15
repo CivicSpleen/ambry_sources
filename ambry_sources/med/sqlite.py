@@ -7,6 +7,15 @@ from apsw import MisuseError
 # Module: http://apidoc.apsw.googlecode.com/hg/vtable.html
 # Functions: http://www.drdobbs.com/database/query-anything-with-sqlite/202802959?pgno=3
 
+# python type to sqlite type map.
+TYPE_MAP = {
+    'int': 'INTEGER',
+    'float': 'REAL',
+    'str': 'TEXT',
+    'date': 'DATE',
+    'datetime': 'TIMESTAMP WITHOUT TIME ZONE'
+}
+
 
 class Table:
     """ Represents a table """
@@ -94,9 +103,18 @@ def add_partition(connection, partition):
 
 
 def _table_name(partition):
-    """ Returns virtual table name for the given partition. """
+    """ Returns virtual table name for the given partition.
+
+    Args:
+        partition (mpf.MprRowsFile):
+
+    Returns:
+        str: name of the table associated with partition.
+
+    """
     # FIXME: find the better naming.
-    return 'p_{name}_{p_vid}_vt'.format(name='_'.join(partition.headers), p_vid=partition.partition_vid or '')
+    name = partition.path.replace('.', '_').replace(' ', '_')
+    return 'p_{name}_vt'.format(name=name)
 
 
 def _get_module_class(partition):
@@ -107,17 +125,10 @@ def _get_module_class(partition):
             columns_types = []
             column_names = []
             for column in sorted(partition.schema, key=lambda x: x['pos']):
-                # FIXME: Use map.
-                if column['type'] == 'int':
-                    columns_types.append('{} INTEGER'.format(column['name']))
-                elif column['type'] == 'str':
-                    columns_types.append('{} TEXT'.format(column['name']))
-                elif column['type'] == 'date':
-                    columns_types.append('{} DATE'.format(column['name']))
-                elif column['type'] == 'datetime':
-                    columns_types.append('{} TIMESTAMP WITHOUT TIME ZONE'.format(column['name']))
-                else:
+                sqlite_type = TYPE_MAP.get(column['type'])
+                if not sqlite_type:
                     raise Exception('Do not know how to convert {} to sql column.'.format(column['type']))
+                columns_types.append('{} {}'.format(column['name'], sqlite_type))
                 column_names.append(column['name'])
             columns_types_str = ',\n'.join(columns_types)
             schema = 'CREATE TABLE {}({})'.format(tablename, columns_types_str)

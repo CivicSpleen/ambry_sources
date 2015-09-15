@@ -43,7 +43,8 @@ def _get_create_query(partition):
         CREATE FOREIGN TABLE {table_name} (
             {columns}
         ) server {server_name} options (
-            filename '{file_name}'
+            filesystem '{filesystem}'
+            path '{path}
         );
     """.format(table_name=_table_name(partition),
                columns=',\n'.join(columns), server_name=FOREIGN_SERVER_NAME,

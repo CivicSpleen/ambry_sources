@@ -82,7 +82,7 @@ def _create_if_not_exists(cursor, server_name):
         query = """
             CREATE SERVER {} FOREIGN DATA WRAPPER multicorn
             options (
-                wrapper 'ambry_source.med.MPRForeignDataWrapper'
+                wrapper 'ambry_sources.med.MPRForeignDataWrapper'
             );
         """.format(server_name)
         cursor.execute(query)

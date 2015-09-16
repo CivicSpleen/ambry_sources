@@ -53,7 +53,8 @@ class Test(TestBase):
                     cursor.execute('SELECT id, uuid, int, float FROM {} LIMIT 1;'.format(table_name))
                     result = cursor.fetchall()
                     self.assertEqual(len(result), 1)
-                    expected_first_row = ('1eb385', 'c36-9298-4427-8925-fe09294dbd 30', '99.', Decimal('734691532'))
+                    expected_first_row = ('1eb385', 'c36-9298-4427-8925-fe09294dbd 30',
+                                          '99.', Decimal('734691532'))
                     self.assertEqual(result[0], expected_first_row)
 
             finally:

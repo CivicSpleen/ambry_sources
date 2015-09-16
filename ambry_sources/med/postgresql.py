@@ -28,8 +28,8 @@ def add_partition(cursor, partition):
     """ Creates foreign table for given partition.
 
     Args:
-        cursor (FIXME:):
-        partition (FIXME:):
+        cursor (psycopg2.cursor):
+        partition (mpf.MPRowsFile):
     """
     _create_if_not_exists(cursor, FOREIGN_SERVER_NAME)
     query = _get_create_query(partition)

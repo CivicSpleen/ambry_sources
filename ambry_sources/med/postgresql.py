@@ -23,6 +23,19 @@ TYPE_MAP = {
 }
 
 
+def add_partition(cursor, partition):
+    """ Creates foreign table for given partition.
+
+    Args:
+        cursor (FIXME:):
+        partition (FIXME:):
+    """
+    _create_if_not_exists(cursor, FOREIGN_SERVER_NAME)
+    query = _get_create_query(partition)
+    logging.debug('Create foreign table for {} partition. Query:\n{}.'.format(partition.path, query))
+    cursor.execute(query)
+
+
 def _get_create_query(partition):
     """ Returns query to create foreign table.
 
@@ -51,19 +64,6 @@ def _get_create_query(partition):
                filesystem='fs',  # FIXME: give valid filesystem.
                path='path')  # FIXME: give valid path.
     return query
-
-
-def add_partition(cursor, partition):
-    """ Creates foreign table for given partition.
-
-    Args:
-        cursor (FIXME:):
-        partition (FIXME:):
-    """
-    _create_if_not_exists(cursor, FOREIGN_SERVER_NAME)
-    query = _get_create_query(partition)
-    logging.debug('Create foreign table for {} partition. Query:\n{}.'.format(partition.path, query))
-    cursor.execute(query)
 
 
 def _server_exists(cursor, server_name):
@@ -105,36 +105,26 @@ def _table_name(partition):
     return '{schema}.{name}_ft'.format(schema=POSTGRES_PARTITION_SCHEMA_NAME, name=name)
 
 
-# Note:
-#    date and time formats listed here have to match to formats used in the
-#    ambry.etl.partition.PartitionMsgpackDataFileReader.decode_obj
-
-DATETIME_FORMAT_NO_MS = '%Y-%m-%dT%H:%M:%S'
-DATETIME_FORMAT_WITH_MS = '%Y-%m-%dT%H:%M:%S.%f'
-TIME_FORMAT = '%H:%M:%S'
-DATE_FORMAT = '%Y-%m-%d'
-
-
-def like_op(a, b):
+def _like_op(a, b):
     """ Returns True if 'a LIKE b'. """
     # FIXME: Optimize
     r_exp = b.replace('%', '.*').replace('_', '.{1}') + '$'
     return bool(re.match(r_exp, a))
 
 
-def ilike_op(a, b):
+def _ilike_op(a, b):
     """ Returns True if 'a ILIKE 'b. FIXME: is it really ILIKE? """
-    return like_op(a.lower(), b.lower())
+    return _like_op(a.lower(), b.lower())
 
 
-def not_like_op(a, b):
+def _not_like_op(a, b):
     """ Returns True if 'a NOT LIKE b'. FIXME: is it really NOT? """
-    return not like_op(a, b)
+    return not _like_op(a, b)
 
 
-def not_ilike_op(a, b):
+def _not_ilike_op(a, b):
     """ Returns True if 'a NOT LIKE b'. FIXME: is it really NOT? """
-    return not ilike_op(a, b)
+    return not _ilike_op(a, b)
 
 
 QUAL_OPERATOR_MAP = {
@@ -144,10 +134,10 @@ QUAL_OPERATOR_MAP = {
     '<=': operator.le,
     '>=': operator.ge,
     '<>': operator.ne,
-    '~~': like_op,
-    '~~*': ilike_op,
-    '!~~*': not_ilike_op,
-    '!~~': not_like_op,
+    '~~': _like_op,
+    '~~*': _ilike_op,
+    '!~~*': _not_ilike_op,
+    '!~~': _not_like_op,
 }
 
 

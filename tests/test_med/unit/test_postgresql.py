@@ -1,96 +1,172 @@
 # -*- coding: utf-8 -*-
-from datetime import date, datetime
+from attrdict import AttrDict
 
-import psycopg2
+from multicorn.utils import WARNING
 
-from ambry_sources.med.postgresql import add_partition, _table_name
+import fudge
+from fudge.inspector import arg
 
-from tests import PostgreSQLTestBase
-from tests.test_med import BaseMEDTest
+from ambry_sources.mpf import MPRowsFile
+
+from ambry_sources.med.postgresql import add_partition, _get_create_query, MPRForeignDataWrapper
+
+from tests import TestBase
 
 
-class Test(BaseMEDTest):
+class AddPartitionTest(TestBase):
 
-    def test_creates_table(self):
-        # create fake partition.
-        partition_vid = 'vid1'
-        partition = self._get_fake_partition(partition_vid)
+    @fudge.patch(
+        'ambry_sources.med.postgresql._create_if_not_exists')
+    def test_creates_foreign_server(self, fake_create):
+        fake_create.expects_call()
+        cursor = AttrDict({
+            'execute': lambda q: None})
+        partition = AttrDict({
+            'schema': [{'type': 'int', 'name': 'column1', 'pos': 0}],
+            'path': 'name1'})
+        add_partition(cursor, partition)
 
-        # testing.
+    @fudge.patch(
+        'ambry_sources.med.postgresql._create_if_not_exists')
+    def test_creates_foreign_table(self, fake_create):
+        fake_create.expects_call()
+        cursor = AttrDict({
+            'execute': fudge.Fake().expects_call().with_args(arg.contains('CREATE FOREIGN TABLE'))})
+        partition = AttrDict({
+            'schema': [{'type': 'int', 'name': 'column1', 'pos': 0}],
+            'path': 'name1'})
+        add_partition(cursor, partition)
+
+
+class GetCreateQueryTest(TestBase):
+    def test_converts_int_to_postgresql_type(self):
+        partition = AttrDict({
+            'schema': [{'type': 'int', 'name': 'column1', 'pos': 0}],
+            'path': 'name1'})
+
+        query = _get_create_query(partition)
+        self.assertIn('column1 INTEGER', query)
+
+    def test_converts_float_to_postgresql_type(self):
+        partition = AttrDict({
+            'schema': [{'type': 'float', 'name': 'column1', 'pos': 0}],
+            'path': 'name1'})
+
+        query = _get_create_query(partition)
+        self.assertIn('column1 NUMERIC', query)
+
+    def test_converts_str_to_postgresql_type(self):
+        partition = AttrDict({
+            'schema': [{'type': 'str', 'name': 'column1', 'pos': 0}],
+            'path': 'name1'})
+
+        query = _get_create_query(partition)
+        self.assertIn('column1 TEXT', query)
+
+    def test_converts_date_to_postgresql_type(self):
+        partition = AttrDict({
+            'schema': [{'type': 'date', 'name': 'column1', 'pos': 0}],
+            'path': 'name1'})
+
+        query = _get_create_query(partition)
+        self.assertIn('column1 DATE', query)
+
+    def test_converts_datetime_to_postgresql_type(self):
+        partition = AttrDict({
+            'schema': [{'type': 'datetime', 'name': 'column1', 'pos': 0}],
+            'path': 'name1'})
+
+        query = _get_create_query(partition)
+        self.assertIn('column1 TIMESTAMP WITHOUT TIME ZONE', query)
+
+    def test_return_foreign_table_create_query(self):
+        partition = AttrDict({
+            'schema': [{'type': 'str', 'name': 'column1', 'pos': 0}],
+            'path': 'name1'})
+
+        query = _get_create_query(partition)
+        self.assertIn('CREATE FOREIGN TABLE', query)
+
+
+class MPRForeignDataWrapperTest(TestBase):
+
+    def test_raises_RuntimeError_if_path_not_given(self):
+        options = {}
+        columns = []
         try:
-            PostgreSQLTestBase._create_postgres_test_db()
-            conn = psycopg2.connect(**PostgreSQLTestBase.pg_test_db_data)
+            MPRForeignDataWrapper(options, columns)
+            raise AssertionError('RuntimeError was not raised.')
+        except RuntimeError as exc:
+            self.assertIn('`path` is required option', str(exc))
 
-            try:
-                with conn.cursor() as cursor:
-                    # we have to close opened transaction.
-                    cursor.execute('commit;')
-                    add_partition(cursor, partition)
-
-                # try to query just added partition virtual table.
-                with conn.cursor() as cursor:
-                    table_name = _table_name(partition)
-                    cursor.execute('SELECT rowid, col1, col2 from {};'.format(table_name))
-                    result = cursor.fetchall()
-                    self.assertEqual(len(result), 100)
-                    self.assertEqual(result[0], (0, 0, '0'))
-                    self.assertEqual(result[-1], (99, 99, '99'))
-            finally:
-                conn.close()
-        finally:
-            PostgreSQLTestBase._drop_postgres_test_db()
-
-    def test_creates_many_tables(self):
+    def test_raises_RuntimeError_if_filesystem_is_not_given(self):
+        options = {'path': '/tmp'}
+        columns = []
         try:
-            PostgreSQLTestBase._create_postgres_test_db()
-            conn = psycopg2.connect(**PostgreSQLTestBase.pg_test_db_data)
+            MPRForeignDataWrapper(options, columns)
+            raise AssertionError('RuntimeError was not raised.')
+        except RuntimeError as exc:
+            self.assertIn('`filesystem` is required option', str(exc))
 
-            try:
-                partitions = []
-                with conn.cursor() as cursor:
-                    for i in range(100):
-                        partition_vid = 'vid_{}'.format(i)
-                        partition = self._get_fake_partition(partition_vid)
-                        add_partition(cursor, partition)
-                        partitions.append(partition)
+    # _matches tests
+    @fudge.patch(
+        'ambry_sources.med.postgresql.log_to_postgres')
+    def test_adds_warning_message_with_missed_operator_to_postgres_log(self, fake_log):
+        fake_log.expects_call().with_args(arg.contains('Unknown operator foo'), WARNING, hint=arg.any())
+        options = {
+            'path': 'file1.mpr',  # These are not valid path and filesystem. But it does not matter here.
+            'filesystem': '/tmp'}
+        columns = []
+        mpr_wrapper = MPRForeignDataWrapper(options, columns)
+        fake_qual = AttrDict({'operator': 'foo'})
+        mpr_wrapper._matches([fake_qual], ['1'])
 
-                # check all virtual tables and rows.
-                with conn.cursor() as cursor:
-                    for partition in partitions:
-                        table_name = _table_name(partition)
-                        query = 'SELECT * FROM {};'.format(table_name)
-                        cursor.execute(query)
-                        result = cursor.fetchall()
-                        self.assertEqual(len(result), 100)
-            finally:
-                conn.close()
-        finally:
-            PostgreSQLTestBase._drop_postgres_test_db()
+    def test_returns_true_if_row_matches_all_quals(self):
+        options = {
+            'path': 'file1.mpr',  # These are not valid path and filesystem. But it does not matter here.
+            'filesystem': '/tmp'}
+        columns = ['column1']
+        mpr_wrapper = MPRForeignDataWrapper(options, columns)
+        fake_qual = AttrDict({
+            'operator': '=',
+            'field_name': 'column1',
+            'value': '1'})
+        self.assertTrue(mpr_wrapper._matches([fake_qual], ['1']))
 
-    def test_date_and_datetime(self):
-        # create fake partition.
-        partition_vid = 'vid1'
-        partition = self._get_fake_datetime_partition(partition_vid)
+    def test_returns_false_if_row_does_not_match_all_quals(self):
+        options = {
+            'path': 'file1.mpr',  # These are not valid path and filesystem. But it does not matter here.
+            'filesystem': '/tmp'}
+        columns = ['column1']
+        mpr_wrapper = MPRForeignDataWrapper(options, columns)
+        fake_qual = AttrDict({
+            'operator': '=',
+            'field_name': 'column1',
+            'value': '1'})
+        self.assertFalse(mpr_wrapper._matches([fake_qual], ['2']))
 
-        # testing.
-        try:
-            PostgreSQLTestBase._create_postgres_test_db()
-            conn = psycopg2.connect(**PostgreSQLTestBase.pg_test_db_data)
+    # _execute tests
+    def test_generates_rows_from_message_pack_rows_file(self):
+        options = {
+            'path': 'file1.mpr',  # These are not valid path and filesystem. But it does not matter here.
+            'filesystem': '/tmp'}
+        columns = []
+        mpr_wrapper = MPRForeignDataWrapper(options, columns)
 
-            try:
-                with conn.cursor() as cursor:
-                    add_partition(cursor, partition)
+        class FakeReader(object):
+            rows = iter([['1-1', '1-2'], ['2-1', '2-2']])
 
-                with conn.cursor() as cursor:
-                    # select from FDW table.
-                    table_name = _table_name(partition)
-                    cursor.execute('SELECT rowid, col1, col2 from {};'.format(table_name))
-                    result = cursor.fetchall()
-                    self.assertEqual(len(result), 100)
-                    self.assertEqual(
-                        result[0],
-                        (0, date(2015, 8, 30), datetime(2015, 8, 30, 11, 41, 32, 977993)))
-            finally:
-                conn.close()
-        finally:
-            PostgreSQLTestBase._drop_postgres_test_db()
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+        with fudge.patched_context(MPRowsFile, 'reader', FakeReader()):
+            rows_itr = mpr_wrapper.execute([], ['column1', 'column2'])
+            rows = list(rows_itr)
+            expected_rows = [
+                ['1-1', '1-2'],
+                ['2-1', '2-2']]
+
+        self.assertEqual(rows, expected_rows)

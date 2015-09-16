@@ -4,6 +4,7 @@
 import os
 import sys
 from setuptools.command.test import test as TestCommand
+from setuptools import find_packages
 import uuid
 
 from pip.req import parse_requirements
@@ -24,9 +25,7 @@ if sys.argv[-1] == 'publish':
 with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as f:
     readme = f.read()
 
-packages = [
-    'ambry_sources',
-]
+packages = find_packages()
 
 package_data = {
 }

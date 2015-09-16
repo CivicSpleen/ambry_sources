@@ -1,85 +1,13 @@
 # -*- coding: utf-8 -*-
 
-
 import unittest
-import ambry_sources
+
 from fs.opener import fsopendir
+from tests import TestBase
 
-class BasicTestSuite(unittest.TestCase):
+
+class BasicTestSuite(TestBase):
     """Basic test cases."""
-
-    def setup_temp_dir(self):
-        import shutil
-        import os
-        build_url = '/tmp/ampr-build-test'
-        if not os.path.exists(build_url):
-            os.makedirs(build_url)
-        shutil.rmtree(build_url)
-        os.makedirs(build_url)
-
-        return build_url
-
-    def get_header_test_file(self, file_name):
-        """ Creates source pipe from xls with given file name and returns it."""
-        import os.path
-        import tests
-        import xlrd
-
-        test_files_dir = os.path.join(os.path.dirname(tests.__file__), 'test_data', 'crazy_headers')
-
-        class XlsSource(object):
-            def __iter__(self):
-                book = xlrd.open_workbook(os.path.join(test_files_dir, file_name))
-                sheet = book.sheet_by_index(0)
-                num_cols = sheet.ncols
-                for row_idx in range(0, sheet.nrows):
-                    row = []
-                    for col_idx in range(0, num_cols):
-                        value = sheet.cell(row_idx, col_idx).value
-                        if value == '':
-                            # FIXME: Is it valid requirement?
-                            # intuiter requires None's in the empty cells.
-                            value = None
-                        row.append(value)
-                    yield row
-
-        return XlsSource()
-
-    def load_sources(self, file_name = 'sources.csv'):
-        import tests
-        import csv
-        from os.path import join, dirname
-        from ambry_sources.sources import ColumnSpec, SourceSpec
-
-        test_data = fsopendir(join(dirname(tests.__file__), 'test_data'))
-
-        sources = {}
-
-        fixed_widths = (('id', 1, 6),
-                        ('uuid', 7, 34),
-                        ('int', 41, 3),
-                        ('float', 44, 14),
-                        )
-
-        fw_columns = [ColumnSpec(**dict(zip('name start width'.split(), e))) for e in fixed_widths]
-
-        with test_data.open(file_name) as f:
-            r = csv.DictReader(f)
-
-            for row in r:
-
-                if row['name'] == 'simple_fixed':
-                    row['columns'] = fw_columns
-
-                ss = SourceSpec(**row)
-
-                if 'expect_headers' in row:
-                    ss.expect_headers = row['expect_headers']
-                    ss.expect_start = int(row['expect_start'])
-
-                sources[ss.name] = ss
-
-        return sources
 
     def test_download(self):
         """Just check that all of the sources can be downloaded without exceptions"""

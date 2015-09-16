@@ -314,8 +314,23 @@ class TypeIntuiter(object):
                 pass
                 raise
 
-    def run(self, source):
+    def run(self, source, total_rows = None):
+
+        MIN_SKIP_ROWS = 10000
+
+        if total_rows and total_rows > MIN_SKIP_ROWS:
+            skip_rows = int(total_rows / MIN_SKIP_ROWS)
+
+            skip_rows = skip_rows if skip_rows > 1 else None
+
+        else:
+            skip_rows = None
+
         for i, row in enumerate(iter(source)):
+
+            if skip_rows and i%skip_rows != 0:
+                continue
+
             self.process_row(i, row)
 
         return self
@@ -622,14 +637,15 @@ class RowIntuiter(object):
 
         pattern_source = try_tests(tests, test_rows, rows)
 
-        # FIXME. Need to gracefully handle case of not finding a patterm.
-        assert pattern_source
+        if not pattern_source:
+            from .exceptions import RowIntuitError
+            raise RowIntuitError("Failed to find data pattern")
 
         pattern = re.compile(pattern_source)
 
         return pattern, pattern_source
 
-    def classify(self, rows):
+    def classify(self, rows, skip_rows):
 
         import re
 
@@ -649,7 +665,11 @@ class RowIntuiter(object):
 
             return False
 
+
         for i, row in enumerate(rows):
+
+            if skip_rows and i % skip_rows != 0:
+                continue
 
             picture = self.picture(row)
 
@@ -747,8 +767,19 @@ class RowIntuiter(object):
         else:
             return []
 
-    def run(self, source):
+    def run(self, source, total_rows = None):
         from itertools import islice
         self.test_rows = list(islice(iter(source), self.N_TEST_ROWS))
-        self.classify(self.test_rows)
+
+        MIN_SKIP_ROWS = 10000
+
+        if total_rows and total_rows > MIN_SKIP_ROWS:
+            skip_rows = int(total_rows/MIN_SKIP_ROWS)
+
+            skip_rows = skip_rows if skip_rows > 1 else None
+
+        else:
+            skip_rows = None
+
+        self.classify(self.test_rows, skip_rows)
         return self

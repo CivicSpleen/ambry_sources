@@ -82,6 +82,9 @@ def main():
         pm("version", r.info['version'])
         pm("rows", r.info['rows'])
         pm("cols", r.info['cols'])
+        pm("header_rows", r.info['header_rows'])
+        pm("data_rows", r.info['data_start_row'])
+
         ss = r.meta['source']
         pm("URL", ss['url'])
         pm("encoding", ss['encoding'])
@@ -103,6 +106,8 @@ def main():
             MAX_LINE = 80
             ll = 0
             headers = []
+
+            # Only show so may cols as will fit in an 80 char line.
             for h in r.headers:
                 if len(' '.join(headers+[h])) > MAX_LINE:
                     break

@@ -308,7 +308,7 @@ class MPRowsFile(object):
             self._start_time = time.time()
 
             with self.reader as r:
-                ti = TypeIntuiter().process_header(r.headers).run(r.rows)
+                ti = TypeIntuiter().process_header(r.headers).run(r.rows, r.n_rows)
 
             with self.writer as w:
                 w.set_types(ti)
@@ -324,7 +324,7 @@ class MPRowsFile(object):
             self._start_time = time.time()
 
             with self.reader as r:
-                ri = RowIntuiter().run(r.raw)
+                ri = RowIntuiter().run(r.raw, r.n_rows)
 
             with self.writer as w:
                 w.set_row_spec(ri)
@@ -353,7 +353,7 @@ class MPRowsFile(object):
         return stats
 
     def load_rows(self, source, spec=None, intuit_rows=None, intuit_type=True, run_stats=True):
-
+        from .exceptions import RowIntuitError
         if self.n_rows:
             raise MPRError("Can't load_rows; rows already loaded. n_rows = {}".format(self.n_rows))
 
@@ -382,8 +382,12 @@ class MPRowsFile(object):
                 w.close()
 
             if intuit_rows:
-
-                self.run_row_intuiter()
+                try:
+                    self.run_row_intuiter()
+                except RowIntuitError:
+                    # FIXME Need to report this, but there is currently no way to get
+                    # the higher level logger.
+                    pass
 
             elif spec:
 
@@ -444,9 +448,10 @@ class MPRowsFile(object):
 
         rec = total = rate = 0
 
-        if self._process == 'load_rows' and self._writer:
-            rec = self._writer.data_end_row
+        if self._process in ('load_rows', 'write') and self._writer:
+            rec = self._writer.n_rows
             rate = round(float(rec) / float(time.time() - self._start_time), 2)
+
         elif self._reader:
             rec = self._reader.pos
             total = self._reader.data_end_row
@@ -573,7 +578,11 @@ class MPRWriter(object):
                 self.insert_headers(next(itr))
                 continue
             else:
-                self.insert_row(next(itr))
+                self.n_rows += 1
+
+                self._row_writer(row)
+
+        self.data_end_row = self.n_rows
 
     def close(self):
 

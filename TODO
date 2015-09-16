@@ -1,0 +1,28 @@
+
+Design Improvements
+
+Speed and performance could probably be improved a lot by running the Stats and
+Intuition processes while the MPR file is being loaded. This could be done
+efficiently by re-implementing the main load_rows() loop in Cython
+
+The stats could be re-implemented in Cython, since livestats.py is a single
+file. The Python code for stats should determine what the LOM is for each
+column, then the stats code in the loop could be very simple.
+
+The TypeIntuiter could be simplified and incorporated into the file format by
+making space in the file for counts of each type and each row. The MPR file
+would handle figuring a type for each value in each column, and storing the
+counts in the file. Then, after the run, the Type Intuiter could determine
+resolved types.
+
+The RowIntuiter could probably be sped up by having the Type Intuiter generate
+'pictures' of the first 100 and last 100 rows, or maybe just storing the
+type values in a buffer for the start, and a ring-buffer at the end. Then,
+generate the pictures and data-pattern in post-processing.
+
+Writing could be sped up by creating a custom implementation of the msgpack
+distribution's _packer.pyx file. The custom version would only work on
+arrays of arrays
+
+Could also incorporate a basic Type caster, on both input and output
+

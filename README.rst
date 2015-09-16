@@ -33,6 +33,23 @@ Parameters that can be set on a source file.
 - filetype. A file extension to use for the file.
 - encoding. A python encoding name. If missing, defaults to 'ascii', and is most often set to 'utf8'
 
+Multicorn install
+-----------------
+.. code-block:: bash
+
+    $ wget https://github.com/Kozea/Multicorn/archive/v1.2.3.zip
+    $ unzip v1.2.3.zip
+    $ cd Multicorn-1.2.3
+    $ make && sudo make install
+
+Virtualenv hint
+---------------
+Postgres FDW implementation does not work under virtual environment. You have to install ambry_sources to global environment and create \*.pth files for ambry_sources and multicorn in the site-packages of your virtual environment.
+Create multicorn.pth containing path to the multicorn package. Example (use your own path instead):
+``/usr/local/lib/python2.7/dist-packages/multicorn-1.2.3_dev-py2.7-linux-i686.egg``
+Add ambry_sources.pth containing path to the ambry_sources package. Example (use your own path instead):
+``/usr/local/lib/python2.7/dist-packages/ambry_sources``
+
 Running tests
 -------------
 .. code-block:: bash
@@ -41,5 +58,3 @@ Running tests
     $ cd ambry_sources
     $ pip install -r requirements.txt
     $ python setup.py test
-
-FIXME: Describe multicorn installation.

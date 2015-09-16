@@ -13,7 +13,8 @@ from mpf import MPRowsFile
 from sources import RowProxy
 
 import logging
-#FORMAT = '%(asctime)-15s %(clientip)s %(user)-8s %(message)s'
+
+# FORMAT = '%(asctime)-15s %(clientip)s %(user)-8s %(message)s'
 logging.basicConfig()
 
 if __name__ == "__main__":

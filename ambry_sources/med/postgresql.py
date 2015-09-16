@@ -3,10 +3,11 @@ import logging
 import operator
 import re
 from fs.opener import fsopendir
-from ambry_sources.mpf import MPRowsFile
 
 from multicorn import ForeignDataWrapper
 from multicorn.utils import log_to_postgres, ERROR, WARNING
+
+from ambry_sources.mpf import MPRowsFile
 
 POSTGRES_PARTITION_SCHEMA_NAME = 'partitions'
 FOREIGN_SERVER_NAME = 'partition_server'
@@ -56,13 +57,13 @@ def _get_create_query(partition):
         CREATE FOREIGN TABLE {table_name} (
             {columns}
         ) server {server_name} options (
-            filesystem '{filesystem}'
-            path '{path}
+            filesystem '{filesystem}',
+            path '{path}'
         );
     """.format(table_name=_table_name(partition),
                columns=',\n'.join(columns), server_name=FOREIGN_SERVER_NAME,
-               filesystem='fs',  # FIXME: give valid filesystem.
-               path='path')  # FIXME: give valid path.
+               filesystem=partition._fs.root_path,
+               path=partition.path)
     return query
 
 

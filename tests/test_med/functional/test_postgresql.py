@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import unittest
+from decimal import Decimal
 
 import psycopg2
 
@@ -22,6 +22,12 @@ class Test(TestBase):
         s = get_source(spec, cache_fs)
         partition = MPRowsFile(cache_fs, spec.name).load_rows(s)
 
+        # first make sure file not changed.
+        expected_names = ['id', 'uuid', 'int', 'float']
+        expected_types = ['str', 'str', 'str', 'float']
+        self.assertEqual(sorted([x['name'] for x in partition.schema]), sorted(expected_names))
+        self.assertEqual(sorted([x['type'] for x in partition.schema]), sorted(expected_types))
+
         try:
             # create foreign data table
             PostgreSQLTestBase._create_postgres_test_db()
@@ -36,11 +42,20 @@ class Test(TestBase):
                 # try to query just added partition foreign data table.
                 with conn.cursor() as cursor:
                     table_name = _table_name(partition)
-                    cursor.execute('SELECT rowid, col1, col2 from {};'.format(table_name))
+
+                    # count all rows
+                    query = 'SELECT count(*) FROM {};'.format(table_name)
+                    cursor.execute(query)
                     result = cursor.fetchall()
-                    self.assertEqual(len(result), 100)
-                    self.assertEqual(result[0], (0, 0, '0'))
-                    self.assertEqual(result[-1], (99, 99, '99'))
+                    self.assertEqual(result, [(10000,)])
+
+                    # check first row
+                    cursor.execute('SELECT id, uuid, int, float FROM {} LIMIT 1;'.format(table_name))
+                    result = cursor.fetchall()
+                    self.assertEqual(len(result), 1)
+                    expected_first_row = ('1eb385', 'c36-9298-4427-8925-fe09294dbd 30', '99.', Decimal('734691532'))
+                    self.assertEqual(result[0], expected_first_row)
+
             finally:
                 conn.close()
         finally:

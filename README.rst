@@ -45,9 +45,9 @@ Multicorn install
 Virtualenv hint
 ---------------
 Postgres FDW implementation does not work under virtual environment. You have to install ambry_sources to global environment and create \*.pth files for ambry_sources and multicorn in the site-packages of your virtual environment.
-Create multicorn.pth containing path to the multicorn package. Example (use your own path instead):
+Create multicorn.pth file containing path to the multicorn package. Example (use your own path instead):
 ``/usr/local/lib/python2.7/dist-packages/multicorn-1.2.3_dev-py2.7-linux-i686.egg``
-Add ambry_sources.pth containing path to the ambry_sources package. Example (use your own path instead):
+Add ambry_sources.pth file containing path to the ambry_sources package. Example (use your own path instead):
 ``/usr/local/lib/python2.7/dist-packages/ambry_sources``
 
 Running tests

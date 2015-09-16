@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from attrdict import AttrDict
 
+from multicorn.utils import WARNING
+
 import fudge
 from fudge.inspector import arg
 
@@ -107,6 +109,41 @@ class MPRForeignDataWrapperTest(TestBase):
             self.assertIn('`filesystem` is required option', str(exc))
 
     # _matches tests
+    @fudge.patch(
+        'ambry_sources.med.postgresql.log_to_postgres')
+    def test_adds_warning_message_with_missed_operator_to_postgres_log(self, fake_log):
+        fake_log.expects_call().with_args(arg.contains('Unknown operator foo'), WARNING, hint=arg.any())
+        options = {
+            'path': 'file1.mpr',  # These are not valid path and filesystem. But it does not matter here.
+            'filesystem': '/tmp'}
+        columns = []
+        mpr_wrapper = MPRForeignDataWrapper(options, columns)
+        fake_qual = AttrDict({'operator': 'foo'})
+        mpr_wrapper._matches([fake_qual], ['1'])
+
+    def test_returns_true_if_row_matches_all_quals(self):
+        options = {
+            'path': 'file1.mpr',  # These are not valid path and filesystem. But it does not matter here.
+            'filesystem': '/tmp'}
+        columns = ['column1']
+        mpr_wrapper = MPRForeignDataWrapper(options, columns)
+        fake_qual = AttrDict({
+            'operator': '=',
+            'field_name': 'column1',
+            'value': '1'})
+        self.assertTrue(mpr_wrapper._matches([fake_qual], ['1']))
+
+    def test_returns_false_if_row_does_not_match_all_quals(self):
+        options = {
+            'path': 'file1.mpr',  # These are not valid path and filesystem. But it does not matter here.
+            'filesystem': '/tmp'}
+        columns = ['column1']
+        mpr_wrapper = MPRForeignDataWrapper(options, columns)
+        fake_qual = AttrDict({
+            'operator': '=',
+            'field_name': 'column1',
+            'value': '1'})
+        self.assertFalse(mpr_wrapper._matches([fake_qual], ['2']))
 
     # _execute tests
     def test_generates_rows_from_message_pack_rows_file(self):

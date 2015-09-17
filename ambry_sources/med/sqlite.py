@@ -80,7 +80,7 @@ class Cursor:
         self._reader = None
 
 
-def add_partition(connection, partition):
+def add_partition(connection, partition, vid):
     """ Creates virtual table for partition.
 
     Args:
@@ -99,22 +99,20 @@ def add_partition(connection, partition):
 
     # create virtual table.
     cursor = connection.cursor()
-    cursor.execute('CREATE VIRTUAL TABLE {} using {};'.format(_table_name(partition), module_name))
+    cursor.execute('CREATE VIRTUAL TABLE {} using {};'.format(table_name(vid), module_name))
 
 
-def _table_name(partition):
+def table_name(vid):
     """ Returns virtual table name for the given partition.
 
     Args:
-        partition (mpf.MPRowsFile):
+        vid (str): vid of the partition
 
     Returns:
         str: name of the table associated with partition.
 
     """
-    # FIXME: find the better naming.
-    name = partition.path.replace('.', '_').replace(' ', '_')
-    return 'p_{name}_vt'.format(name=name)
+    return 'p_{vid}_vt'.format(vid=vid)
 
 
 def _get_module_class(partition):

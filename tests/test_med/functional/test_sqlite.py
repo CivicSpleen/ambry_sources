@@ -3,7 +3,7 @@
 import apsw
 
 from ambry_sources import get_source
-from ambry_sources.med.sqlite import add_partition, _table_name
+from ambry_sources.med.sqlite import add_partition, table_name
 from ambry_sources.mpf import MPRowsFile
 
 from tests import TestBase
@@ -27,16 +27,16 @@ class Test(TestBase):
         self.assertEqual(sorted([x['type'] for x in partition.schema]), sorted(expected_types))
 
         connection = apsw.Connection(':memory:')
-        add_partition(connection, partition)
+        add_partition(connection, partition, 'vid1')
 
         # check all columns and some rows.
         cursor = connection.cursor()
-        query = 'SELECT count(*) FROM {};'.format(_table_name(partition))
+        query = 'SELECT count(*) FROM {};'.format(table_name('vid1'))
         result = cursor.execute(query).fetchall()
         self.assertEqual(result, [(10000,)])
 
         # query by columns.
-        query = 'SELECT id, uuid, int, float FROM {} LIMIT 1;'.format(_table_name(partition))
+        query = 'SELECT id, uuid, int, float FROM {} LIMIT 1;'.format(table_name('vid1'))
         result = cursor.execute(query).fetchall()
         self.assertEqual(len(result), 1)
         expected_first_row = ('1eb385', 'c36-9298-4427-8925-fe09294dbd 30', '99.', '734691532')

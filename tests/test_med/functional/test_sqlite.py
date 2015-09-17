@@ -2,12 +2,13 @@
 
 import apsw
 
+from fs.opener import fsopendir
+
 from ambry_sources import get_source
 from ambry_sources.med.sqlite import add_partition, table_name
 from ambry_sources.mpf import MPRowsFile
 
 from tests import TestBase
-from fs.opener import fsopendir
 
 
 class Test(TestBase):

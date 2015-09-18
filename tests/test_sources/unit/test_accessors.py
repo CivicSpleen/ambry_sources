@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import unittest
+from collections import OrderedDict
 
 import fiona
 import fudge
@@ -8,6 +9,44 @@ from ambry_sources.sources import SourceSpec, ShapefileSource
 
 
 class TestShapefileSource(unittest.TestCase):
+
+    # _convert_column tests
+    def test_converts_shapefile_column(self):
+        spec = fudge.Fake().is_a_stub()
+        fstor = fudge.Fake().is_a_stub()
+        source = ShapefileSource(spec, fstor)
+        expected_column = {'name': 'name1', 'type': 'int'}
+        self.assertEqual(
+            source._convert_column((u'name1', 'int:3')),
+            expected_column)
+
+    # _get_columns tests
+    def test_converts_given_columns(self):
+        spec = fudge.Fake().is_a_stub()
+        fstor = fudge.Fake().is_a_stub()
+        source = ShapefileSource(spec, fstor)
+        column1 = ('name1', 'int:10')
+        column2 = ('name2', 'str:10')
+        converted_column1 = {'name': 'name1', 'type': 'int'}
+        converted_column2 = {'name': 'name2', 'type': 'str'}
+        shapefile_columns = OrderedDict([column1, column2])
+        ret = source._get_columns(shapefile_columns)
+        self.assertIn(converted_column1, ret)
+        self.assertIn(converted_column2, ret)
+
+    def test_extends_with_id_and_geometry(self):
+        spec = fudge.Fake().is_a_stub()
+        fstor = fudge.Fake().is_a_stub()
+        source = ShapefileSource(spec, fstor)
+        shapefile_columns = OrderedDict()
+        ret = source._get_columns(shapefile_columns)
+        self.assertEqual(len(ret), 2)
+        names = [x['name'] for x in ret]
+        self.assertIn('id', names)
+        self.assertIn('geometry', names)
+
+        types = [x['type'] for x in ret]
+        self.assertIn('geometry_type', types)
 
     def test_reads_first_layer_if_spec_segment_is_empty(self):
         # cache open of the fiona because we need to call it in mocked environment.

@@ -337,6 +337,30 @@ class ShapefileSource(GeoSourceBase):
         type_ = type_.split(':')[0]
         return {'name': name, 'type': type_}
 
+    def _get_columns(self, shapefile_columns):
+        """ Returns columns for the file accessed by accessor.
+
+        Args:
+            shapefile_columns (SortedDict): key is column name, value is column type.
+
+        Returns:
+            list: list of columns in ambry_sources format
+
+        Example:
+            self._get_columns(SortedDict((u'POSTID', 'str:20'))) -> [{'name': u'POSTID', 'type': 'str'}]
+
+        """
+        #
+        # first column is id and will contain id of the shape.
+        columns = [{'name': 'id', 'type': 'int'}]
+
+        # extend with *.shp file columns converted to ambry_sources format.
+        columns.extend(map(self._convert_column, shapefile_columns.iteritems()))
+
+        # last column is wkt value.
+        columns.append({'name': 'geometry', 'type': 'geometry_type'})
+        return columns
+
     def _get_row_gen(self):
         """ Returns generator over shapefile rows.
 
@@ -352,18 +376,10 @@ class ShapefileSource(GeoSourceBase):
             virtual_fs = 'zip://{}'.format(self._fstor._fs.zf.filename)
             layer_index = self.spec.segment or 0
             with fiona.open('/', vfs=virtual_fs, layer=layer_index) as source:
-                geometry_type = source.schema['geometry']
+                # geometry_type = source.schema['geometry']
                 property_schema = source.schema['properties']
 
-                #
-                # populate columns of the spec.
-                self.spec.columns = [{'name': 'id', 'type': 'int'}]
-
-                # extend with *.shp file columns converted to ambry_sources format.
-                self.spec.columns.extend(map(self._convert_column, property_schema.iteritems()))
-
-                # last column is wkt value.
-                self.spec.columns.append({'name': 'geometry', 'type': 'geometry_type'})
+                self.spec.columns = self._get_columns(property_schema)
 
                 for s in source:
                     row_data = s['properties']

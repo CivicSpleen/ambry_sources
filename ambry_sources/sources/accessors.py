@@ -16,7 +16,7 @@ from .exceptions import SourceError
 class SourceFile(object):
     """Base class for accessors that generate rows from a source file
 
-    FIXME: must override _get_row_gen at least.
+    FIXME: must override _get_row_gen at least. (Update docstring)
     """
 
     def __init__(self, spec, fstor, use_row_spec=True):
@@ -168,7 +168,7 @@ class FixedSource(SourceFile):
         parts = []
 
         if not self.spec.columns:
-            raise SourceError('Fixed width source much have a schema defined, with  column widths.')
+            raise SourceError('Fixed width source must have a schema defined, with column widths.')
 
         for i, c in enumerate(self.spec.columns):
 
@@ -313,11 +313,29 @@ class GoogleSource(SourceFile):
 
 
 class GeoSourceBase(SourceFile):
-    """Base class for all geo sources."""
+    """ Base class for all geo sources. """
     pass
 
 
 class ShapefileSource(GeoSourceBase):
+    """ Accessor for shapefiles (*.shp) with geo data. """
+
+    def _convert_column(self, shapefile_column):
+        """ Converts column from a *.shp file to the column expected by ambry_sources.
+
+        Args:
+            shapefile_column (tuple): first element is name, second is type.
+
+        Returns:
+            dict: column spec as ambry_sources expects
+
+        Example:
+            self._convert_column((u'POSTID', 'str:20')) -> {'name': u'POSTID', 'type': 'str'}
+
+        """
+        name, type_ = shapefile_column
+        type_ = type_.split(':')[0]
+        return {'name': name, 'type': type_}
 
     def _get_row_gen(self):
         """ Returns generator over shapefile rows.
@@ -330,11 +348,22 @@ class ShapefileSource(GeoSourceBase):
         """
 
         with fiona.drivers():
-            virtual_fs = self._fstor.system_path
+            # retrive full path of the zip and convert it to url
+            virtual_fs = 'zip://{}'.format(self._fstor._fs.zf.filename)
             layer_index = self.spec.segment or 0
             with fiona.open('/', vfs=virtual_fs, layer=layer_index) as source:
                 geometry_type = source.schema['geometry']
                 property_schema = source.schema['properties']
+
+                #
+                # populate columns of the spec.
+                self.spec.columns = [{'name': 'id', 'type': 'int'}]
+
+                # extend with *.shp file columns converted to ambry_sources format.
+                self.spec.columns.extend(map(self._convert_column, property_schema.iteritems()))
+
+                # last column is wkt value.
+                self.spec.columns.append({'name': 'geometry', 'type': 'geometry_type'})
 
                 for s in source:
                     row_data = s['properties']

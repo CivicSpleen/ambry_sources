@@ -56,14 +56,18 @@ class TestShapefileSource(unittest.TestCase):
                 pass
         self.assertEqual(self._layer_used, 5)
 
-    def test_header_populating(self):
+    def test_populates_columns_of_the_spec(self):
+        # FIXME:
         pass
 
     def test_first_element_is_id_of_the_shape(self):
+        # FIXME:
         pass
 
     def test_middle_elements_are_columns_data(self):
+        # FIXME:
         pass
 
     def test_last_element_is_wkt(self):
+        # FIXME:
         pass

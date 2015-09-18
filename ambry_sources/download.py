@@ -16,7 +16,7 @@ from ambry_sources.util import copy_file_or_flo, parse_url_to_dict
 from ambry_sources.exceptions import ConfigurationError, DownloadError
 
 from .sources import GoogleSource, CsvSource, TsvSource, FixedSource, ExcelSource, PartitionSource,\
-    SourceError, DelayedOpen
+    SourceError, DelayedOpen, ShapefileSource
 
 
 def get_source(spec, cache_fs,  account_accessor=None, clean=False):
@@ -53,28 +53,24 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False):
 
     spec.filetype = file_type
 
-    # FIXME SHould use a dict
-    if file_type == 'gs':
-        clz = GoogleSource
-    elif file_type == 'csv':
-        clz = CsvSource
-    elif file_type == 'tsv':
-        clz = TsvSource
-    elif file_type == 'fixed' or file_type == 'txt':
-        spec.filetype = 'fixed'
-        clz = FixedSource
-    elif file_type == 'xls':
-        clz = ExcelSource
-    elif file_type == 'xlsx':
-        clz = ExcelSource
-    elif file_type == 'partition':
-        clz = PartitionSource
-    else:
+    TYPE_TO_SOURCE_MAP = {
+        'gs': GoogleSource,
+        'csv': CsvSource,
+        'tsv': TsvSource,
+        'fixed': FixedSource,
+        'txt': FixedSource,
+        'xls': ExcelSource,
+        'xlsx': ExcelSource,
+        'partition': PartitionSource,
+        'shape': ShapefileSource}
+
+    cls = TYPE_TO_SOURCE_MAP.get(file_type)
+    if cls is None:
         raise SourceError(
             "Failed to determine file type for source '{}'; unknown type '{}' "
-                .format(spec.name, file_type))
+            .format(spec.name, file_type))
 
-    return clz(spec, fstor, use_row_spec=False)
+    return cls(spec, fstor, use_row_spec=False)
 
 
 def import_source(spec, cache_fs,  file_path=None, account_accessor=None):

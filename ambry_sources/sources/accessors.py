@@ -3,8 +3,9 @@ Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
 Revised BSD License, included in this distribution as LICENSE.txt
 """
 import fiona
+
 from shapely.geometry import shape
-from shapely.wkt import dumps, loads
+from shapely.wkt import dumps
 
 import petl
 
@@ -16,7 +17,7 @@ from .exceptions import SourceError
 class SourceFile(object):
     """Base class for accessors that generate rows from a source file
 
-    FIXME: must override _get_row_gen at least. (Update docstring)
+    Subclasses of SourceFile must override at lease _get_row_gen method.
     """
 
     def __init__(self, spec, fstor, use_row_spec=True):
@@ -128,9 +129,7 @@ class SourceFile(object):
 
     def _get_row_gen(self):
         """ Returns generator over all rows of the source. """
-        # FIXME:
-        # raise NotImplementedError
-        pass
+        raise NotImplementedError('Subclasses of SourceFile must provide a _get_row_gen() method')
 
     def start(self):
         pass

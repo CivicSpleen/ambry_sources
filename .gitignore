@@ -55,3 +55,6 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# ambry_sources stuff:
+.pg_settings.json

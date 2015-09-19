@@ -58,3 +58,7 @@ Running tests
     $ cd ambry_sources
     $ pip install -r requirements.txt
     $ python setup.py test
+
+Ignoring slow tests while developing (requires pytest installation).
+.. code-block:: bash
+py.test tests/test_sources -k-slow

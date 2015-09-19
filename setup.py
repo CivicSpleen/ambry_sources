@@ -30,7 +30,8 @@ packages = find_packages()
 package_data = {
 }
 
-requires = parse_requirements('requirements.txt', session=uuid.uuid1())
+install_requires = parse_requirements('requirements/base.txt', session=uuid.uuid1())
+tests_require = parse_requirements('requirements/dev.txt', session=uuid.uuid1())
 
 classifiers = [
     'Development Status :: 4 - Beta',
@@ -76,8 +77,8 @@ setup(
     long_description=readme,
     packages=packages,
     package_data=package_data,
-    install_requires=[x for x in reversed([str(x.req) for x in requires])],
-    tests_require=['pytest'],
+    install_requires=[x for x in reversed([str(x.req) for x in install_requires])],
+    tests_require=[x for x in reversed([str(x.req) for x in tests_require])],
     scripts=['scripts/ampr'],
     author=ambry_sources.__author__,
     author_email='eric@civicknowledge.com',

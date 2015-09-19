@@ -59,7 +59,7 @@ class Test(TestBase):
 
     @pytest.mark.slow
     def test_all(self):
-        # This is very heavey test, so it is disabled. Run it by hand.
+        """ Test all sources from geo_sources.csv """
         cache_fs = fsopendir(self.setup_temp_dir())
 
         sources = self.load_sources(file_name='geo_sources.csv')

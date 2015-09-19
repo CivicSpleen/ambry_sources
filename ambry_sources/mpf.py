@@ -8,8 +8,9 @@ Revised BSD License, included in this distribution as LICENSE.txt
 """
 
 import datetime
-import time
 import gzip
+import math
+import time
 
 import msgpack
 import struct
@@ -631,11 +632,12 @@ class MPRWriter(object):
 
     def set_stats(self, stats):
         """Copy stats into the schema"""
-        import math
 
-        self.meta['stats'] = {name:{ k:v if not isinstance(v,float) or (not math.isinf(v) and not math.isnan(v)) else None
-                                     for k,v in stats.dict.items()}
-                                     for name, stats in stats.dict.items()}
+        self.meta['stats'] = {
+            name: {
+                k: v if not isinstance(v, float) or (not math.isinf(v) and not math.isnan(v)) else None
+                for k, v in stats.dict.items()
+            } for name, stats in stats.dict.items()}
 
     def set_source_spec(self, spec):
         """Set the metadata coresponding to the SourceSpec, excluding the row spec parts. """

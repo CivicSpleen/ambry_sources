@@ -4,11 +4,30 @@ from collections import OrderedDict
 
 import fiona
 import fudge
+from fudge.inspector import arg
 
 from ambry_sources.sources import SourceSpec, ShapefileSource
 
 
 class TestShapefileSource(unittest.TestCase):
+
+    def _get_fake_collection(self):
+        """ Returns fake collection which can be used as replaced for fiona.open(...) return value. """
+
+        class FakeCollection(object):
+            schema = {
+                'properties': OrderedDict([('col1', 'int:10')])}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, type, value, traceback):
+                pass
+
+            def __iter__(self):
+                return iter([{'properties': OrderedDict([('col1', 1)]), 'geometry': 'LINE', 'id': '0'}])
+
+        return FakeCollection()
 
     # _convert_column tests
     def test_converts_shapefile_column(self):
@@ -48,65 +67,95 @@ class TestShapefileSource(unittest.TestCase):
         types = [x['type'] for x in ret]
         self.assertIn('geometry_type', types)
 
-    def test_reads_first_layer_if_spec_segment_is_empty(self):
-        # cache open of the fiona because we need to call it in mocked environment.
-        self._layer_used = None
-
-        class FakeError(Exception):
-            pass
-
-        def open_replacement(path, vfs=None, layer=None):
-            self._layer_used = layer
-            # Now I know everything I need to implement that test. Break right now.
-            raise FakeError
+    @fudge.patch(
+        'ambry_sources.sources.accessors.fiona.open')
+    def test_reads_first_layer_if_spec_segment_is_empty(self, fake_open):
+        fake_collection = self._get_fake_collection()
+        fake_open.expects_call().with_args(arg.any(), vfs=arg.any(), layer=0).returns(fake_collection)
 
         spec = SourceSpec('http://example.com')
         assert spec.segment is None
         fstor = fudge.Fake().is_a_stub()
         source = ShapefileSource(spec, fstor)
-        with fudge.patched_context(fiona, 'open', open_replacement):
-            # we need to get at least one row to test used layer.
-            try:
-                next(source._get_row_gen())
-            except FakeError:
-                pass
-        self.assertEqual(self._layer_used, 0)
+        next(source._get_row_gen())
 
-    def test_reads_layer_specified_by_segment(self):
-        # cache open of the fiona because we need to call it in mocked environment.
-        self._layer_used = None
-
-        class FakeError(Exception):
-            pass
-
-        def open_replacement(path, vfs=None, layer=None):
-            self._layer_used = layer
-            # Now I know everything I need for that test. Break right now.
-            raise FakeError
-
+    @fudge.patch(
+        'ambry_sources.sources.accessors.fiona.open')
+    def test_reads_layer_specified_by_segment(self, fake_open):
+        fake_collection = self._get_fake_collection()
+        fake_open.expects_call().with_args(arg.any(), vfs=arg.any(), layer=5).returns(fake_collection)
         spec = SourceSpec('http://example.com', segment=5)
         fstor = fudge.Fake().is_a_stub()
         source = ShapefileSource(spec, fstor)
-        with fudge.patched_context(fiona, 'open', open_replacement):
-            # we need to get at least one row to test used layer.
-            try:
-                next(source._get_row_gen())
-            except FakeError:
-                pass
-        self.assertEqual(self._layer_used, 5)
+        next(source._get_row_gen())
 
-    def test_populates_columns_of_the_spec(self):
-        # FIXME:
-        pass
+    @fudge.patch(
+        'ambry_sources.sources.accessors.fiona.open',
+        'ambry_sources.sources.accessors.ShapefileSource._get_columns')
+    def test_populates_columns_of_the_spec(self, fake_open, fake_get):
+        fake_collection = self._get_fake_collection()
+        fake_open.expects_call().returns(fake_collection)
+        fake_get.expects_call().returns([{'name': 'col1', 'type': 'int'}])
+        spec = SourceSpec('http://example.com')
+        fstor = fudge.Fake().is_a_stub()
+        source = ShapefileSource(spec, fstor)
+        next(source._get_row_gen())
+        self.assertEquals(spec.columns, [{'name': 'col1', 'type': 'int'}])
 
-    def test_first_element_is_id_of_the_shape(self):
-        # FIXME:
-        pass
+    @fudge.patch(
+        'ambry_sources.sources.accessors.fiona.open',
+        'ambry_sources.sources.accessors.ShapefileSource._get_columns',
+        'ambry_sources.sources.accessors.shape',
+        'ambry_sources.sources.accessors.dumps')
+    def test_converts_row_id_to_integer(self, fake_open, fake_get, fake_shape, fake_dumps):
+        fake_collection = self._get_fake_collection()
+        fake_open.expects_call().returns(fake_collection)
+        fake_shape.expects_call().is_a_stub()
+        fake_dumps.expects_call().is_a_stub()
+        fake_get.expects_call().returns([{'name': 'col1', 'type': 'int'}])
+        spec = SourceSpec('http://example.com')
+        fstor = fudge.Fake().is_a_stub()
+        source = ShapefileSource(spec, fstor)
+        # drop header
+        row_gen = source._get_row_gen()
+        next(row_gen)
+        first_row = next(row_gen)
+        self.assertEqual(first_row[0], 0)
 
-    def test_middle_elements_are_columns_data(self):
-        # FIXME:
-        pass
+    @fudge.patch(
+        'ambry_sources.sources.accessors.fiona.open',
+        'ambry_sources.sources.accessors.ShapefileSource._get_columns')
+    def test_first_generated_row_is_header(self, fake_open, fake_get):
+        fake_collection = self._get_fake_collection()
+        fake_open.expects_call().returns(fake_collection)
+        fake_get.expects_call().returns([
+            {'name': 'id', 'type': 'int'},
+            {'name': 'col1', 'type': 'int'},
+            {'name': 'geometry', 'type': 'geometry_type'}])
+        spec = SourceSpec('http://example.com')
+        fstor = fudge.Fake().is_a_stub()
+        source = ShapefileSource(spec, fstor)
+        # drop header
+        row_gen = source._get_row_gen()
+        header = next(row_gen)
+        self.assertEqual(header, ['id', 'col1', 'geometry'])
 
-    def test_last_element_is_wkt(self):
-        # FIXME:
-        pass
+    @fudge.patch(
+        'ambry_sources.sources.accessors.fiona.open',
+        'ambry_sources.sources.accessors.ShapefileSource._get_columns',
+        'ambry_sources.sources.accessors.shape',
+        'ambry_sources.sources.accessors.dumps')
+    def test_last_element_in_the_row_is_wkt(self, fake_open, fake_get, fake_shape, fake_dumps):
+        fake_collection = self._get_fake_collection()
+        fake_open.expects_call().returns(fake_collection)
+        fake_shape.expects_call().is_a_stub()
+        fake_dumps.expects_call().returns('I AM FAKE WKT')
+        fake_get.expects_call().returns([{'name': 'col1', 'type': 'int'}])
+        spec = SourceSpec('http://example.com')
+        fstor = fudge.Fake().is_a_stub()
+        source = ShapefileSource(spec, fstor)
+        # drop header
+        row_gen = source._get_row_gen()
+        next(row_gen)
+        first_row = next(row_gen)
+        self.assertEqual(first_row[-1], 'I AM FAKE WKT')

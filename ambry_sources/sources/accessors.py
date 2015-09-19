@@ -380,6 +380,12 @@ class ShapefileSource(GeoSourceBase):
 
                 self.spec.columns = self._get_columns(property_schema)
 
+                # first generated row should be a header. That allows RowIntuiter properly recognize header.
+                # FIXME: I know the header better than RowIntuiter. Why should I mess up header and rows
+                # and rely on RowIntuiter? Ask Eric.
+                headers = [x['name'] for x in self.spec.columns]
+                yield headers
+
                 for s in source:
                     row_data = s['properties']
                     shp = shape(s['geometry'])

@@ -651,8 +651,6 @@ class MPRWriter(object):
         me = self.meta['excel']
         me['workbook'] = spec.segment
 
-
-
     def set_row_spec(self, ri_or_ss):
         """Set the row spec and schema from a RowIntuiter object or a SourceSpec"""
 

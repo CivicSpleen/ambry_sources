@@ -384,7 +384,7 @@ class ShapefileSource(GeoSourceBase):
                     row_data = s['properties']
                     shp = shape(s['geometry'])
                     wkt = dumps(shp)
-                    row = ['idFIXME:']
+                    row = [int(s['id'])]
                     for col_name, elem in row_data.iteritems():
                         row.append(elem)
                     row.append(wkt)

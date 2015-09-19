@@ -26,6 +26,6 @@ class Test(TestBase):
 
         # generated row is valid
         self.assertEqual(len(first_row), 68)
-        self.assertEqual(first_row[0], 'idFIXME:')
+        self.assertEqual(first_row[0], 0)
         # last element is wkt.
         self.assertIn('LINESTRING', first_row[-1])

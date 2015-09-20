@@ -117,27 +117,52 @@ class BasicTestSuite(TestBase):
 
         # Basic read/ write tests.
 
-        row = lambda: [None, 1, random(), str(uuid4()),
-                       datetime.date(randint(2000, 2015), randint(1, 12), 10),
-                       datetime.date(randint(2000, 2015), randint(1, 12), 10)]
+        def rand_date_a():
+            return datetime.date(randint(2000, 2015), randint(1, 12), 10)
+
+        epoch = datetime.date(1970, 1, 1)
+
+        def rand_date_b():
+            return (datetime.date(randint(2000, 2015), randint(1, 12), 10) - epoch).total_seconds()
+
+        row = lambda: (None, 1, random(), str(uuid4()), rand_date_b(), rand_date_b() )
+
         headers = list('abcdefghi')[:len(row())]
 
         rows = [row() for i in range(N)]
 
-        with Timer() as t:
+        def write_large_blocks():
+
             df = MPRowsFile(fs, 'foobar')
-            w = df.writer
 
-            w.headers = headers
+            if df.exists:
+                df.remove()
 
-            w.meta['source']['url'] = 'blah blah'
+            with Timer() as t, df.writer as w:
+                w.headers = headers
+                w.insert_rows(rows)
 
-            for i in range(N):
-                w.insert_row(rows[i])
+            print "MSGPack write ", float(N) / t.elapsed, w.n_rows
 
-            w.close()
+        def write_small_blocks():
+            df = MPRowsFile(fs, 'foobar')
 
-        print "MSGPack write ", float(N) / t.elapsed, w.n_rows
+            if df.exists:
+                df.remove()
+
+            with Timer() as t, df.writer as w:
+
+                for i in range(N):
+                    w.headers = headers
+                    w.insert_row(rows[i])
+
+            print "MSGPack write ", float(N) / t.elapsed, w.n_rows
+
+        write_large_blocks()
+
+        write_small_blocks()
+
+        df = MPRowsFile(fs, 'foobar')
 
         with Timer() as t:
             count = 0
@@ -149,6 +174,7 @@ class BasicTestSuite(TestBase):
             for i, row in enumerate(r):
                 count += 1
 
+
             r.close()
 
         print "MSGPack read  ", float(N) / t.elapsed, i, count, s
@@ -159,6 +185,7 @@ class BasicTestSuite(TestBase):
             r = df.reader
 
             for row in r.rows:
+
                 count += 1
 
             r.close()

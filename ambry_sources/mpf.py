@@ -147,6 +147,8 @@ class MPRowsFile(object):
 
     @staticmethod
     def encode_obj(obj):
+
+
         if isinstance(obj, datetime.datetime):
             return {'__datetime__': True, 'as_str': obj.isoformat()}
         elif isinstance(obj, datetime.date):
@@ -500,6 +502,8 @@ class MPRWriter(object):
         self.n_rows = 0
         self.n_cols = 0
 
+        self.cache = []
+
         try:
 
             MPRowsFile.read_file_header(self, self._fh)
@@ -523,7 +527,7 @@ class MPRWriter(object):
 
         # Creating the GzipFile object will also write the Gzip header, about 21 bytes of data.
         if self._compress:
-            self._zfh = GzipFile(fileobj=self._fh)  # Compressor for writing rows
+            self._zfh = GzipFile(fileobj=self._fh, compresslevel=9)  # Compressor for writing rows
         else:
             self._zfh = self._fh
 
@@ -567,13 +571,28 @@ class MPRWriter(object):
         self.data_start_row = 1
         self._row_writer([c['name'] for c in self.meta['schema']])
 
+    def _write_cache(self):
+
+        self._row_writer(self.cache)
+        self.cache = []
+
     def insert_row(self, row):
 
         self.n_rows += 1
         self.n_cols = max(self.n_cols, len(row))
         self.data_end_row = self.n_rows
 
-        self._row_writer(row)
+        self.cache.append(row)
+        if len(self.cache) >= 10000:
+            self._write_cache()
+
+    def insert_rows(self, rows):
+
+        self.n_rows += len(rows)
+        #self.n_cols = max(self.n_cols, len(row))
+        self.data_end_row = self.n_rows
+
+        self._row_writer(rows)
 
     def load_rows(self, source, first_is_header=False):
         """Load rows from an iterator"""
@@ -593,6 +612,9 @@ class MPRWriter(object):
         self.data_end_row = self.n_rows
 
     def close(self):
+
+        if len(self.cache):
+            self._write_cache()
 
         if self._fh:
             # First close the Gzip file, so it can flush, etc.
@@ -801,7 +823,9 @@ class MPRReader(object):
         else:
             self._zfh = self._fh
 
-        self.unpacker = msgpack.Unpacker(self._zfh, object_hook=MPRowsFile.decode_obj, encoding='utf-8')
+        self.unpacker = msgpack.Unpacker(self._zfh, object_hook=MPRowsFile.decode_obj,
+                                         use_list = False,
+                                         encoding='utf-8')
 
         self._meta = None
 
@@ -879,9 +903,10 @@ class MPRReader(object):
         try:
             self._in_iteration = True
 
-            for i, row in enumerate(self.unpacker):
-                yield row
-                self.pos += 1
+            for rows in self.unpacker:
+                for row in rows:
+                    yield row
+                    self.pos += 1
 
         finally:
             self._in_iteration = False
@@ -924,9 +949,11 @@ class MPRReader(object):
         try:
             self._in_iteration = True
 
-            for i in range(self.data_start_row, self.data_end_row+1):
-                yield next(self.unpacker)
-                self.pos += 1
+            while True:
+                for row in  next(self.unpacker):
+                    yield row
+
+                    self.pos += 1
 
         finally:
             self._in_iteration = False
@@ -944,11 +971,17 @@ class MPRReader(object):
 
         try:
             self._in_iteration = True
-            for i in range(self.data_start_row, self.data_end_row + 1):
-                row = next(self.unpacker)
+            while True:
+                rows = next(self.unpacker)
 
-                yield rp.set_row(row)
+                for row in rows:
+                    yield rp.set_row(row)
+
                 self.pos += 1
+
+                #if self._fh.tell() >= self.meta_start:
+                #    break
+
 
         finally:
             self._in_iteration = False

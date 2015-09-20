@@ -113,8 +113,10 @@ class RowProxy(object):
             self.__row[self.__pos_map[key]] = value
 
     def __getattr__(self, key):
-
-        return self.__row[self.__pos_map[key]]
+        try:
+            return self.__row[self.__pos_map[key]]
+        except KeyError:
+            raise KeyError("Failed to find key {}; has {}".format(key, self.__keys))
 
     def __delitem__(self, key):
         raise NotImplementedError()

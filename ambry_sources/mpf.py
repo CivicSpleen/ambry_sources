@@ -52,7 +52,6 @@ class GzipFile(gzip.GzipFile):
         else:
             return super(GzipFile, self)._read(size)
 
-
 class MPRowsFile(object):
     """The Message Pack Rows File format holds a collection of arrays, in message pack format, along with a
     dictionary of values. The format is designed for holding tabular data in an efficient, compressed form,
@@ -136,7 +135,7 @@ class MPRowsFile(object):
         self._compress = True
 
         self._process = None  # Process name for report_progress
-        self._start_time = None
+        self._start_time = 0
 
         if not self._path.endswith(self.EXTENSION):
             self._path = self._path + self.EXTENSION
@@ -351,6 +350,17 @@ class MPRowsFile(object):
         return stats
 
     def load_rows(self, source, spec=None, intuit_rows=None, intuit_type=True, run_stats=True):
+        try:
+            self._load_rows(source, spec=spec, intuit_rows=intuit_rows,
+                            intuit_type=intuit_type, run_stats=run_stats)
+        except:
+            self.writer.close()
+            self.remove()
+            raise
+
+        return self
+
+    def _load_rows(self, source, spec=None, intuit_rows=None, intuit_type=True, run_stats=True):
         from .exceptions import RowIntuitError
         if self.n_rows:
             raise MPRError("Can't load_rows; rows already loaded. n_rows = {}".format(self.n_rows))
@@ -835,6 +845,7 @@ class MPRReader(object):
 
             if self.header_row == 0:
                 self._headers = self.unpacker.next()
+
                 self.pos += 1
 
             elif self.meta['schema']:
@@ -917,8 +928,9 @@ class MPRReader(object):
                 yield next(self.unpacker)
                 self.pos += 1
 
-        except:
+        finally:
             self._in_iteration = False
+
 
     def __iter__(self):
         """Iterator for reading rows as RowProxy objects"""

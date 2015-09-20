@@ -26,3 +26,16 @@ arrays of arrays
 
 Could also incorporate a basic Type caster, on both input and output
 
+Performance Improvements
+
+Compared to MPR, The HDF% Format, via PyTables, is astonishingly fast, but
+only when appending many rows at a time. When appending only one row at a,
+it is comparable to MPR. This is probably because when appending a lot of
+rows, the rows are iterated in C. We could probably perform a similar
+improvement in MPR.
+
+In this case, we'd have an insert_rows() method that would insert a large block of rows.
+The reader would have to understand that if the first element of an array is another array,
+it is interpreted as a collection of rows, not a single row. Or, we could write the rows in C.
+
+Additionally, BLOSC compression seems to be significantly faster.

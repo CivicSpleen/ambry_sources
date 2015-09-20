@@ -6,7 +6,7 @@ import psycopg2
 from fs.opener import fsopendir
 
 from ambry_sources import get_source
-from ambry_sources.med.postgresql import add_partition, _table_name
+from ambry_sources.med.postgresql import add_partition, table_name
 from ambry_sources.mpf import MPRowsFile
 
 from tests import PostgreSQLTestBase, TestBase
@@ -37,23 +37,24 @@ class Test(TestBase):
                 with conn.cursor() as cursor:
                     # we have to close opened transaction.
                     cursor.execute('commit;')
-                    add_partition(cursor, partition)
+                    add_partition(cursor, partition, 'vid1')
 
                 # try to query just added partition foreign data table.
                 with conn.cursor() as cursor:
-                    table_name = _table_name(partition)
+                    table = table_name('vid1')
 
                     # count all rows
-                    query = 'SELECT count(*) FROM {};'.format(table_name)
+                    query = 'SELECT count(*) FROM {};'.format(table)
                     cursor.execute(query)
                     result = cursor.fetchall()
                     self.assertEqual(result, [(10000,)])
 
                     # check first row
-                    cursor.execute('SELECT id, uuid, int, float FROM {} LIMIT 1;'.format(table_name))
+                    cursor.execute('SELECT id, uuid, int, float FROM {} LIMIT 1;'.format(table))
                     result = cursor.fetchall()
                     self.assertEqual(len(result), 1)
-                    expected_first_row = ('1eb385', 'c36-9298-4427-8925-fe09294dbd 30', '99.', Decimal('734691532'))
+                    expected_first_row = ('1eb385', 'c36-9298-4427-8925-fe09294dbd 30',
+                                          '99.', Decimal('734691532'))
                     self.assertEqual(result[0], expected_first_row)
 
             finally:

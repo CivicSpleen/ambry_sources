@@ -97,7 +97,7 @@ class AddPartitionTest(unittest.TestCase):
 
     @fudge.patch(
         'ambry_sources.med.sqlite._get_module_class',
-        'ambry_sources.med.sqlite._table_name')
+        'ambry_sources.med.sqlite.table_name')
     def test_creates_sqlite_module(self, fake_get, fake_table):
         fake_get.expects_call().returns(fudge.Fake().is_a_stub())
         fake_table.expects_call()
@@ -106,11 +106,11 @@ class AddPartitionTest(unittest.TestCase):
             'createmodule': fake_create_module,
             'cursor': lambda: fudge.Fake().is_a_stub()})
         fake_partition = AttrDict()
-        add_partition(fake_connection, fake_partition)
+        add_partition(fake_connection, fake_partition, 'vid1')
 
     @fudge.patch(
         'ambry_sources.med.sqlite._get_module_class',
-        'ambry_sources.med.sqlite._table_name')
+        'ambry_sources.med.sqlite.table_name')
     def test_creates_virtual_table(self, fake_get, fake_table):
         fake_get.expects_call().returns(fudge.Fake().is_a_stub())
         fake_table.expects_call()
@@ -120,7 +120,7 @@ class AddPartitionTest(unittest.TestCase):
             'createmodule': fake_create_module,
             'cursor': lambda: AttrDict({'execute': fake_execute})})
         fake_partition = AttrDict()
-        add_partition(fake_connection, fake_partition)
+        add_partition(fake_connection, fake_partition, 'vid1')
 
 
 class GetModuleClassTest(unittest.TestCase):

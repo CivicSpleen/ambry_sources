@@ -3,8 +3,9 @@ Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
 Revised BSD License, included in this distribution as LICENSE.txt
 """
 import fiona
+
 from shapely.geometry import shape
-from shapely.wkt import dumps, loads
+from shapely.wkt import dumps
 
 import petl
 
@@ -16,7 +17,7 @@ from .exceptions import SourceError
 class SourceFile(object):
     """Base class for accessors that generate rows from a source file
 
-    FIXME: must override _get_row_gen at least.
+    Subclasses of SourceFile must override at lease _get_row_gen method.
     """
 
     def __init__(self, spec, fstor, use_row_spec=True):
@@ -128,9 +129,7 @@ class SourceFile(object):
 
     def _get_row_gen(self):
         """ Returns generator over all rows of the source. """
-        # FIXME:
-        # raise NotImplementedError
-        pass
+        raise NotImplementedError('Subclasses of SourceFile must provide a _get_row_gen() method')
 
     def start(self):
         pass
@@ -168,7 +167,7 @@ class FixedSource(SourceFile):
         parts = []
 
         if not self.spec.columns:
-            raise SourceError('Fixed width source much have a schema defined, with  column widths.')
+            raise SourceError('Fixed width source must have a schema defined, with column widths.')
 
         for i, c in enumerate(self.spec.columns):
 
@@ -315,11 +314,53 @@ class GoogleSource(SourceFile):
 
 
 class GeoSourceBase(SourceFile):
-    """Base class for all geo sources."""
+    """ Base class for all geo sources. """
     pass
 
 
 class ShapefileSource(GeoSourceBase):
+    """ Accessor for shapefiles (*.shp) with geo data. """
+
+    def _convert_column(self, shapefile_column):
+        """ Converts column from a *.shp file to the column expected by ambry_sources.
+
+        Args:
+            shapefile_column (tuple): first element is name, second is type.
+
+        Returns:
+            dict: column spec as ambry_sources expects
+
+        Example:
+            self._convert_column((u'POSTID', 'str:20')) -> {'name': u'POSTID', 'type': 'str'}
+
+        """
+        name, type_ = shapefile_column
+        type_ = type_.split(':')[0]
+        return {'name': name, 'type': type_}
+
+    def _get_columns(self, shapefile_columns):
+        """ Returns columns for the file accessed by accessor.
+
+        Args:
+            shapefile_columns (SortedDict): key is column name, value is column type.
+
+        Returns:
+            list: list of columns in ambry_sources format
+
+        Example:
+            self._get_columns(SortedDict((u'POSTID', 'str:20'))) -> [{'name': u'POSTID', 'type': 'str'}]
+
+        """
+        #
+        # first column is id and will contain id of the shape.
+        columns = [{'name': 'id', 'type': 'int'}]
+
+        # extend with *.shp file columns converted to ambry_sources format.
+        columns.extend(map(self._convert_column, shapefile_columns.iteritems()))
+
+        # last column is wkt value.
+        columns.append({'name': 'geometry', 'type': 'geometry_type'})
+        return columns
 
     def _get_row_gen(self):
         """ Returns generator over shapefile rows.
@@ -332,17 +373,26 @@ class ShapefileSource(GeoSourceBase):
         """
 
         with fiona.drivers():
-            virtual_fs = self._fstor.system_path
+            # retrive full path of the zip and convert it to url
+            virtual_fs = 'zip://{}'.format(self._fstor._fs.zf.filename)
             layer_index = self.spec.segment or 0
             with fiona.open('/', vfs=virtual_fs, layer=layer_index) as source:
-                geometry_type = source.schema['geometry']
+                # geometry_type = source.schema['geometry']
                 property_schema = source.schema['properties']
+
+                self.spec.columns = self._get_columns(property_schema)
+
+                # first generated row should be a header. That allows RowIntuiter properly recognize header.
+                # FIXME: I know the header better than RowIntuiter. Why should I mess up header and rows
+                # and rely on RowIntuiter? Ask Eric.
+                headers = [x['name'] for x in self.spec.columns]
+                yield headers
 
                 for s in source:
                     row_data = s['properties']
                     shp = shape(s['geometry'])
                     wkt = dumps(shp)
-                    row = ['idFIXME:']
+                    row = [int(s['id'])]
                     for col_name, elem in row_data.iteritems():
                         row.append(elem)
                     row.append(wkt)

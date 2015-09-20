@@ -139,7 +139,7 @@ class SourceSpec(object):
                 url = self.url
 
             root, ext = splitext(url)
-            return ext[1:]
+            return ext[1:].lower()
 
         return None
 

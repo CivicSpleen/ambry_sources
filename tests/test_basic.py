@@ -3,6 +3,12 @@
 import unittest
 
 from fs.opener import fsopendir
+
+import pytest
+
+from ambry_sources import get_source
+from ambry_sources.mpf import MPRowsFile
+
 from tests import TestBase
 
 
@@ -12,38 +18,33 @@ class BasicTestSuite(TestBase):
     def test_download(self):
         """Just check that all of the sources can be downloaded without exceptions"""
 
-        from ambry_sources import get_source
-
         cache_fs = fsopendir('temp://')
 
         sources = self.load_sources()
 
         for source_name, spec in sources.items():
-            s = get_source(spec, cache_fs)
-            print spec.url
+            try:
+                s = get_source(spec, cache_fs)
 
-            for i, row in enumerate(s):
-                if i > 10:
-                    break
+                for i, row in enumerate(s):
+                    if i > 10:
+                        break
+            except Exception as exc:
+                raise AssertionError('Failed to download {} source because of {} error.'
+                                     .format(s.url, exc))
 
     def test_fixed(self):
-        from ambry_sources import get_source
-        from ambry_sources.mpf import MPRowsFile
         cache_fs = fsopendir(self.setup_temp_dir())
-
         sources = self.load_sources()
-
         spec = sources['simple_fixed']
-
         s = get_source(spec, cache_fs)
-
         f = MPRowsFile(cache_fs, spec.name).load_rows(s)
+        self.assertEqual(f.headers, ['id', 'uuid', 'int', 'float'])
 
     def test_row_intuit(self):
-        """Check that the soruces can be loaded and analyzed without exceptions and that the
+        """Check that the sources can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
 
-        from ambry_sources import get_source
         from ambry_sources.intuit import RowIntuiter
 
         cache_fs = fsopendir('temp://')
@@ -53,34 +54,31 @@ class BasicTestSuite(TestBase):
 
         for source_name, spec in sources.items():
             s = get_source(spec, cache_fs)
-
-            print spec.name, spec.url
-
             ri = RowIntuiter().run(s)
 
-            print ri.header_lines, ri.start_line
-
-            self.assertEqual(spec.expect_headers,','.join(str(e) for e in ri.header_lines) )
-            self.assertEqual(spec.expect_start, ri.start_line)
+            self.assertEqual(
+                spec.expect_headers,
+                ','.join(str(e) for e in ri.header_lines),
+                'Headers of {} source does not match to row intuiter'.format(spec.name))
+            self.assertEqual(
+                spec.expect_start, ri.start_line,
+                'Start line of {} source does not match to row intuiter start line.'.format(spec.name))
 
     def test_row_load_intuit(self):
         """Check that the soruces can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
 
-        from ambry_sources import get_source
-
-        from ambry_sources.mpf import MPRowsFile
         from itertools import ifilter
 
         cache_fs = fsopendir('temp://')
         cache_fs.makedir('/mpr')
-        #cache_fs = fsopendir('/tmp/ritest/')
+        # cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
 
-            #if source_name != '': continue
+            # if source_name != '': continue
 
             s = get_source(spec, cache_fs)
 
@@ -100,13 +98,12 @@ class BasicTestSuite(TestBase):
                 # First row proxy
                 row3 = next(iter(r)).row
 
-            self.assertEquals(row1, row2)
-            self.assertEquals(row1, row3)
+            self.assertEqual(row1, row2)
+            self.assertEqual(row1, row3)
 
+    @pytest.mark.slow
     def test_datafile_read_write(self):
-        from ambry_sources.mpf import MPRowsFile
         from fs.opener import fsopendir
-        import time
         import datetime
         from random import randint, random
         from contexttimer import Timer
@@ -199,21 +196,18 @@ class BasicTestSuite(TestBase):
         self.assertEqual('bingo', r.meta['source']['url'])
 
     def generate_rows(self, N):
-
-        import time
         import datetime
-        from random import randint, random
         import string
 
         rs = string.ascii_letters
 
-        row = lambda x: [x, x*2, x%17, rs[x%19:x%19+20],
-                       datetime.date(2000 + x%15, 1 + x%12, 10),
-                       datetime.date(2000 + (x+1)%15, 1 + (x+1)%12, 10)]
+        row = lambda x: [x, x * 2, x % 17, rs[x % 19:x % 19 + 20],
+                         datetime.date(2000 + x % 15, 1 + x % 12, 10),
+                         datetime.date(2000 + (x + 1) % 15, 1 + (x + 1) % 12, 10)]
 
         headers = list('abcdefghi')[:len(row(0))]
 
-        rows = [row(i) for i in range(1,N+1)]
+        rows = [row(i) for i in range(1, N+1)]
 
         return rows, headers
 
@@ -221,13 +215,10 @@ class BasicTestSuite(TestBase):
         """Check that the soruces can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
 
-        from ambry_sources.mpf import MPRowsFile
-        from ambry_sources import get_source
-
         from contexttimer import Timer
 
         cache_fs = fsopendir('temp://')
-        #cache_fs = fsopendir('/tmp/ritest/')
+        # cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources-non-std-headers.csv')
 
@@ -235,20 +226,19 @@ class BasicTestSuite(TestBase):
 
             s = get_source(spec, cache_fs)
 
-            #if source_name != 'immunize': continue
+            # if source_name != 'immunize': continue
 
             print spec.name, spec.url
 
             with Timer() as t:
-                f = MPRowsFile(cache_fs, source_name).load_rows(s, spec, run_stats = True)
+                f = MPRowsFile(cache_fs, source_name).load_rows(s, spec, run_stats=True)
 
             with f.reader as r:
-                print "Loaded ", r.n_rows, float(r.n_rows)/ t.elapsed, 'rows/sec'
+                print 'Loaded ', r.n_rows, float(r.n_rows) / t.elapsed, 'rows/sec'
 
-            with f.reader as r:
-                stats = r.meta['stats']
-
-                #print [ sd['mean'] for col_name, sd in r.meta['stats'].items() ]
+            # with f.reader as r:
+            #    stats = r.meta['stats']
+            #    print [ sd['mean'] for col_name, sd in r.meta['stats'].items() ]
 
     def test_datafile(self):
         """
@@ -257,15 +247,13 @@ class BasicTestSuite(TestBase):
 
         :return:
         """
-        from ambry_sources.mpf import MPRowsFile
-        from ambry_sources.sources import ColumnSpec
         from itertools import islice
 
         N = 500
 
         rows, headers = self.generate_rows(N)
 
-        def first_row_header(data_start_row=None, data_end_row = None):
+        def first_row_header(data_start_row=None, data_end_row=None):
 
             # Normal Headers
             f = MPRowsFile('mem://frh')
@@ -284,13 +272,13 @@ class BasicTestSuite(TestBase):
 
             w.close()
 
-            self.assertEquals([u'a', u'b', u'c', u'd', u'e', u'f'], w.parent.reader.headers)
+            self.assertEqual([u'a', u'b', u'c', u'd', u'e', u'f'], w.parent.reader.headers)
 
             w.parent.reader.close()
 
             return f
 
-        def no_header(data_start_row=None, data_end_row = None):
+        def no_header(data_start_row=None, data_end_row=None):
 
             # No header, column labels.
             f = MPRowsFile('mem://nh')
@@ -307,18 +295,18 @@ class BasicTestSuite(TestBase):
 
             w.close()
 
-            self.assertEquals(['col0', 'col1', 'col2', 'col3', 'col4', 'col5'], w.parent.reader.headers)
+            self.assertEqual(['col0', 'col1', 'col2', 'col3', 'col4', 'col5'], w.parent.reader.headers)
 
             w.parent.reader.close()
 
             return f
 
-        def schema_header(data_start_row=None, data_end_row = None):
+        def schema_header(data_start_row=None, data_end_row=None):
             # Set the schema
             f = MPRowsFile('mem://sh')
             w = f.writer
 
-            w.meta['schema'] = [dict(name = 'x'+str(e)) for e in range(len(headers))]
+            w.meta['schema'] = [dict(name='x' + str(e)) for e in range(len(headers))]
 
             for row in rows:
                 w.insert_row(row)
@@ -331,7 +319,7 @@ class BasicTestSuite(TestBase):
 
             w.close()
 
-            self.assertEquals([u'x0', u'x1', u'x2', u'x3', u'x4', u'x5'], w.parent.reader.headers)
+            self.assertEqual([u'x0', u'x1', u'x2', u'x3', u'x4', u'x5'], w.parent.reader.headers)
 
             w.parent.reader.close()
 
@@ -339,7 +327,7 @@ class BasicTestSuite(TestBase):
 
         # Try a few header start / data start values.
 
-        for ff in ( first_row_header, schema_header, no_header):
+        for ff in (first_row_header, schema_header, no_header):
             print '===', ff
             f = ff()
 
@@ -348,7 +336,7 @@ class BasicTestSuite(TestBase):
 
             with f.reader as r:
                 # Check that the first row value starts at one and goes up from there.
-                map(lambda f: self.assertEqual(f[0], f[1][0]), enumerate(islice(r.rows, 5),1))
+                map(lambda f: self.assertEqual(f[0], f[1][0]), enumerate(islice(r.rows, 5), 1))
 
         for ff in (first_row_header, schema_header, no_header):
             print '===', ff
@@ -361,19 +349,18 @@ class BasicTestSuite(TestBase):
                 self.assertEqual(11, len(l))
 
             with f.reader as r:
-                #Check that the first row value starts at one and goes up from there.
-                # the - r.info['header_row'] bit accounts for the fact that sometimes the header is the first row,
-                # sometimes not.
-                map(lambda f: self.assertEqual(f[0], f[1][0]), enumerate(list(r.rows)[:5],
-                                                                         data_start_row - r.info['header_row'] ))
+                # Check that the first row value starts at one and goes up from there.
+                # the - r.info['header_row'] bit accounts for the fact that sometimes
+                # the header is the first row, sometimes not.
+                map(lambda f: self.assertEqual(f[0], f[1][0]),
+                    enumerate(list(r.rows)[:5], data_start_row - r.info['header_row']))
 
             with f.reader as r:
-                self.assertEquals(data_end_row - r.info['header_row'], list(r.rows)[-1][0])
+                self.assertEqual(data_end_row - r.info['header_row'], list(r.rows)[-1][0])
 
     def test_spec_load(self):
         """Test that setting a SourceSpec propertly sets the header_lines data start position"""
 
-        from ambry_sources.mpf import MPRowsFile
         from ambry_sources.sources import SourceSpec
         import string
 
@@ -387,10 +374,10 @@ class BasicTestSuite(TestBase):
 
         # Append a complex header, to give the RowIntuiter something to do.
         rows = [
-            ["Dataset Title"] + blank[1:],
+            ['Dataset Title'] + blank[1:],
             blank,
             blank,
-            [rs[i] for i,e in enumerate(rows[0])],
+            [rs[i] for i, e in enumerate(rows[0])],
             [rs[i+1] for i, e in enumerate(rows[0])],
             [rs[i+2] for i, e in enumerate(rows[0])],
         ] + rows
@@ -404,17 +391,11 @@ class BasicTestSuite(TestBase):
         self.assertEqual([3, 4, 5], d['header_rows'])
         self.assertEqual([u'a_b_c', u'b_c_d', u'c_d_e', u'd_e_f', u'e_f_g', u'f_g_h'], d['headers'])
 
-        f = MPRowsFile('mem://frh').load_rows(rows, SourceSpec(None, header_lines=(3,4), start_line = 5))
+        f = MPRowsFile('mem://frh').load_rows(rows, SourceSpec(None, header_lines=(3, 4), start_line=5))
 
         d = f.info
 
         self.assertEqual(5, d['data_start_row'])
         self.assertEqual(506, d['data_end_row'])
-        self.assertEqual([3,4], d['header_rows'])
+        self.assertEqual([3, 4], d['header_rows'])
         self.assertEqual([u'a_b', u'b_c', u'c_d', u'd_e', u'e_f', u'f_g'], d['headers'])
-
-
-
-
-if __name__ == '__main__':
-    unittest.main()

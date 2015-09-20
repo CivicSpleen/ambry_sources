@@ -24,20 +24,21 @@ TYPE_MAP = {
 }
 
 
-def add_partition(cursor, partition):
+def add_partition(cursor, partition, vid):
     """ Creates foreign table for given partition.
 
     Args:
         cursor (psycopg2.cursor):
         partition (mpf.MPRowsFile):
+        vid (str): vid of the partition.
     """
     _create_if_not_exists(cursor, FOREIGN_SERVER_NAME)
-    query = _get_create_query(partition)
+    query = _get_create_query(partition, vid)
     logging.debug('Create foreign table for {} partition. Query:\n{}.'.format(partition.path, query))
     cursor.execute(query)
 
 
-def _get_create_query(partition):
+def _get_create_query(partition, vid):
     """ Returns query to create foreign table.
 
     Args:
@@ -54,13 +55,13 @@ def _get_create_query(partition):
         columns.append('{} {}'.format(column['name'], postgres_type))
 
     query = """
-        CREATE FOREIGN TABLE {table_name} (
+        CREATE FOREIGN TABLE {table} (
             {columns}
         ) server {server_name} options (
             filesystem '{filesystem}',
             path '{path}'
         );
-    """.format(table_name=_table_name(partition),
+    """.format(table=table_name(vid),
                columns=',\n'.join(columns), server_name=FOREIGN_SERVER_NAME,
                filesystem=partition._fs.root_path,
                path=partition.path)
@@ -91,40 +92,37 @@ def _create_if_not_exists(cursor, server_name):
         logging.debug('{} foreign server already exists. Do nothing.'.format(server_name))
 
 
-def _table_name(partition):
+def table_name(vid):
     """ Returns foreign table name for the given partition.
 
     Args:
-        partition (mpf.MprRowsFile):
+        vid (str): vid of the partition
 
     Returns:
         str: name of the table associated with partition.
 
     """
-    # FIXME: find the better naming.
-    name = partition.path.replace('.', '_').replace(' ', '_')
-    return '{schema}.{name}_ft'.format(schema=POSTGRES_PARTITION_SCHEMA_NAME, name=name)
+    return '{schema}.p_{vid}_ft'.format(schema=POSTGRES_PARTITION_SCHEMA_NAME, vid=vid)
 
 
 def _like_op(a, b):
     """ Returns True if 'a LIKE b'. """
-    # FIXME: Optimize
     r_exp = b.replace('%', '.*').replace('_', '.{1}') + '$'
     return bool(re.match(r_exp, a))
 
 
 def _ilike_op(a, b):
-    """ Returns True if 'a ILIKE 'b. FIXME: is it really ILIKE? """
+    """ Returns True if 'a ILIKE 'b. """
     return _like_op(a.lower(), b.lower())
 
 
 def _not_like_op(a, b):
-    """ Returns True if 'a NOT LIKE b'. FIXME: is it really NOT? """
+    """ Returns True if 'a NOT LIKE b'. """
     return not _like_op(a, b)
 
 
 def _not_ilike_op(a, b):
-    """ Returns True if 'a NOT LIKE b'. FIXME: is it really NOT? """
+    """ Returns True if 'a NOT LIKE b'. """
     return not _ilike_op(a, b)
 
 

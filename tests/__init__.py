@@ -4,6 +4,7 @@ Created on Jun 22, 2012
 @author: eric
 """
 
+import json
 import unittest
 
 import psycopg2
@@ -18,6 +19,12 @@ POSTGRES_PARTITION_SCHEMA_NAME = 'partitions'
 MISSING_POSTGRES_CONFIG_MSG = 'PostgreSQL is not configured properly. Add postgresql-test '\
     'to the database config of the ambry config.'
 SAFETY_POSTFIX = 'ab1efg2'  # Prevents wrong database dropping.
+
+SETTINGS_EXAMPLE = '''{
+   "user": "<pg_user_name>",
+   "password": "<password>",
+   "host": "127.0.0.1"
+}'''
 
 
 class TestBase(unittest.TestCase):
@@ -126,12 +133,29 @@ class PostgreSQLTestBase(TestBase):
 
     @classmethod
     def _create_postgres_test_db(cls):
-        """ FIXME: """
-        database = 'ambry'
-        user = 'ambry'
-        password = 'secret'
-        host = '127.0.0.1'
-        test_db_name = '{}_test_{}'.format(database, SAFETY_POSTFIX)
+        """ Creates new database for testing. """
+        try:
+            pg_settings = json.load(open('.pg_settings.json'))
+        except IOError:
+            msg = 'Postgres database credentials was not found. Create `.pg_settings.json` file'\
+                ' near setup.py. The minimal content of the .pg_settings.json:\n{}'.format(SETTINGS_EXAMPLE)
+            raise RuntimeError(msg)
+
+        # pg settings validation
+        missing = []
+        for field in ('user', 'password', 'host'):
+            if field not in pg_settings:
+                missing.append(field)
+
+        if missing:
+            msg = '.pg_settings.json is not valid. Add {} field(s). The minimal example: \n{}'\
+                .format(', '.join(missing), SETTINGS_EXAMPLE)
+            raise RuntimeError(msg)
+
+        user = pg_settings['user']
+        password = pg_settings['password']
+        host = pg_settings['host']
+        test_db_name = 'ambry_test_{}'.format(SAFETY_POSTFIX)
         postgres_db_name = 'postgres'
 
         # connect to postgres database because we need to create database for tests.

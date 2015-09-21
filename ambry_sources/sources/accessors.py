@@ -101,14 +101,18 @@ class SourceFile(object):
 class GeneratorSource(SourceFile):
     def __init__(self, spec, generator, use_row_spec=True):
         super(GeneratorSource, self).__init__(spec, None, use_row_spec)
+
         self.gen = generator
+
+        if callable(self.gen):
+            self.gen = self.gen()
 
     def __iter__(self):
         """Iterate over all of the lines in the file"""
 
         self.start()
 
-        for row in self.gen():
+        for row in self.gen:
             yield row
 
         self.finish()

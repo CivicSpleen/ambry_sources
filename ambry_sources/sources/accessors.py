@@ -29,10 +29,24 @@ class SourceFile(object):
 
         self.spec = spec
         self._fstor = fstor
-        self.headers = []
-        self.use_row_spec = use_row_spec
+        self._headers = None # Reserved for subclasses that extract headers from data stream
+
+    @property
+    def headers(self):
+        """Return a list of the names of the columns of this file, or None if the header is not defined.
+
+        This should *only* return headers if the headers are unambiguous, such as for database tables,
+        or shapefiles. For other files, like CSV and Excel, the header row can now be determined without analysis
+        or specification."""
+
+        return None
+
+    @headers.setter
+    def headers(self,v):
+        raise NotImplementedError
 
     def coalesce_headers(self, header_lines):
+        """Collect multiple header lines from the preamble and assemble them into a single header line"""
 
         if len(header_lines) > 1:
 
@@ -63,62 +77,7 @@ class SourceFile(object):
             return []
 
     def __iter__(self):
-
-        rg = self._get_row_gen()
-
-        self.start()
-
-        if self.use_row_spec:
-            header_lines = self.spec.header_lines
-            start_line = self.spec.start_line
-            end_line = self.spec.end_line
-
-            headers = []
-            comments = []
-
-            # The loop is broken up into parts to remove as much of the logic as possible in the
-            # majority of cases. It's an easy, although small, optimization
-
-            # Wrap the rg to isolate it from the starting and stopping of the multiple loops. The muti-loop
-            # situation isn't a problem for most generators, but the ones created by PETL will restart.
-            def wrap_rg():
-                for row in rg:
-                    yield row
-
-            wrapped_rg = wrap_rg()
-
-            for i, row in enumerate(wrapped_rg):
-                if header_lines and i in header_lines:
-                    headers.append(row)
-
-                elif i == start_line:
-                    self.headers = self.coalesce_headers(headers)
-                    yield self.headers
-                    yield row
-                    break
-
-                else:
-                    comments.append(row)
-
-            if end_line:
-                for i, row in enumerate(wrapped_rg):
-
-                    if i == end_line:
-                        break
-
-                    yield row
-            else:
-                for i, row in enumerate(wrapped_rg):
-                    yield row
-
-        else:
-
-            for row in rg:
-                yield row
-
-        self.finish()
-
-    def raw_iter(self):
+        """Iterate over all of the lines in the file"""
 
         self.start()
 
@@ -126,6 +85,7 @@ class SourceFile(object):
             yield row
 
         self.finish()
+
 
     def _get_row_gen(self):
         """ Returns generator over all rows of the source. """
@@ -143,20 +103,42 @@ class GeneratorSource(SourceFile):
         super(GeneratorSource, self).__init__(spec, None, use_row_spec)
         self.gen = generator
 
-    def _get_row_gen(self):
-        return self.gen
+    def __iter__(self):
+        """Iterate over all of the lines in the file"""
 
+        self.start()
+
+        for row in self.gen():
+            yield row
+
+        self.finish()
 
 class CsvSource(SourceFile):
     """Generate rows from a CSV source"""
-    def _get_row_gen(self):
-        return petl.io.csv.fromcsv(self._fstor, self.spec.encoding)
+
+    def __iter__(self):
+        """Iterate over all of the lines in the file"""
+
+        self.start()
+
+        for i, row in enumerate(petl.io.csv.fromcsv(self._fstor, self.spec.encoding)):
+            yield row
+
+        self.finish()
 
 
 class TsvSource(SourceFile):
     """Generate rows from a TSV (tab separated value) source"""
-    def _get_row_gen(self):
-        return petl.io.csv.fromtsv(self._fstor, self.spec.encoding)
+
+    def __iter__(self):
+        """Iterate over all of the lines in the file"""
+
+        self.start()
+
+        for i, row in enumerate(petl.io.csv.fromtsv(self._fstor, self.spec.encoding)):
+            yield row
+
+        self.finish()
 
 
 class FixedSource(SourceFile):
@@ -184,24 +166,19 @@ class FixedSource(SourceFile):
 
         return eval(code)
 
+    @property
     def headers(self):
         return [c.name if c.name else i for i, c in enumerate(self.spec.columns)]
 
-    def _get_row_gen(self):
+    def __iter__(self):
+        """Iterate over all of the lines in the file"""
 
-        flo = self._fstor.open(mode='r', encoding=self.spec.encoding)
+        self.start()
+
         parser = self.make_fw_row_parser()
 
-        yield self.headers
-
-        for line in flo:
+        for line in self._fstor.open(mode='r', encoding=self.spec.encoding):
             yield [e.strip() for e in parser(line)]
-
-    def __iter__(self):
-        rg = self._get_row_gen()
-        self.start()
-        for row in rg:
-            yield row
 
         self.finish()
 
@@ -216,6 +193,21 @@ class PartitionSource(SourceFile):
 
 class ExcelSource(SourceFile):
     """Generate rows from an excel file"""
+
+    def __iter__(self):
+        """Iterate over all of the lines in the file"""
+
+        self.start()
+
+        for i, row in enumerate(self._get_row_gen()):
+
+            if i == 0:
+                self._headers = row
+
+            yield row
+
+        self.finish()
+
 
     def _get_row_gen(self):
         from fs.errors import NoSysPathError
@@ -302,16 +294,15 @@ class GoogleSource(SourceFile):
 
     """
 
-    def _get_row_gen(self):
-        """Iterate over the rows of a google spreadsheet.
+    def __iter__(self):
+        """Iterate over all of the lines in the file"""
 
-        Note:
-            The URL field of the source must start with gs:// followed by the spreadsheet key.
-        """
+        self.start()
 
         for row in self._fstor.get_all_values():
             yield row
 
+        self.finish()
 
 class GeoSourceBase(SourceFile):
     """ Base class for all geo sources. """
@@ -362,7 +353,8 @@ class ShapefileSource(GeoSourceBase):
         columns.append({'name': 'geometry', 'type': 'geometry_type'})
         return columns
 
-    def _get_row_gen(self):
+
+    def __iter__(self):
         """ Returns generator over shapefile rows.
 
         Note:
@@ -371,6 +363,7 @@ class ShapefileSource(GeoSourceBase):
             The last column is a string named geometry, which has the wkt value, the type is geometry_type.
 
         """
+        self.start()
 
         with fiona.drivers():
             # retrive full path of the zip and convert it to url
@@ -380,13 +373,7 @@ class ShapefileSource(GeoSourceBase):
                 # geometry_type = source.schema['geometry']
                 property_schema = source.schema['properties']
 
-                self.spec.columns = self._get_columns(property_schema)
-
-                # first generated row should be a header. That allows RowIntuiter properly recognize header.
-                # FIXME: I know the header better than RowIntuiter. Why should I mess up header and rows
-                # and rely on RowIntuiter? Ask Eric.
-                headers = [x['name'] for x in self.spec.columns]
-                yield headers
+                self._headers = ['id'] + [x['name'] for x in self._get_columns(property_schema)] + ['geometry']
 
                 for s in source:
                     row_data = s['properties']
@@ -397,3 +384,5 @@ class ShapefileSource(GeoSourceBase):
                         row.append(elem)
                     row.append(wkt)
                     yield row
+
+        self.finish()

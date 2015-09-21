@@ -11,7 +11,7 @@ import datetime
 import gzip
 import math
 import time
-
+from six import string_types
 import msgpack
 import struct
 
@@ -64,14 +64,60 @@ class MPRowsFile(object):
 
     # 8s: Magic Number, H: Version,  I: Number of rows, I: number of columns
     # Q: Position of end of rows / Start of meta,
-    # i: Header row, I: Data start row, I: Data end row
-    FILE_HEADER_FORMAT = struct.Struct('>8sHIIQiII')
+    # I: Data start row, I: Data end row
+    FILE_HEADER_FORMAT = struct.Struct('>8sHIIQII')
+
     FILE_HEADER_FORMAT_SIZE = FILE_HEADER_FORMAT.size
+
+    # These are all of the keys for the  schema. The schema is a collection of rows, with these
+    # keys being the first, followed by one row per column.
+    SCHEMA_TEMPLATE = [
+        'pos',
+        'name',
+        'type',
+        'description',
+        'start',
+        'width',
+
+        # types
+        'position',
+        'header',
+        'length',
+        'has_codes',
+        'type_count',  # Note! Row Intuiter object call this 'count'
+
+        'ints',
+        'floats',
+        'strs',
+        'unicode',
+        'nones',
+        'datetimes',
+        'dates',
+        'times',
+        'strvals',
+
+        # Stats
+        'flags',
+        'lom',
+        'resolved_type',
+        'stat_count',  # Note! Stat object calls this 'count'
+        'nuniques',
+        'mean',
+        'std',
+        'min',
+        'p25',
+        'p50',
+        'p75',
+        'max',
+        'skewness',
+        'kurtosis',
+        'hist',
+        'text_hist',
+        'uvalues']
 
     META_TEMPLATE = {
 
-        'schema': {},
-        'stats': {},
+        'schema': [SCHEMA_TEMPLATE],
         'about': {
             'create_time': None,  # Timestamp when file was  created.
             'load_time': None  # Length of time MPRowsFile.load_rows ran, in seconds()
@@ -105,15 +151,7 @@ class MPRowsFile(object):
         }
     }
 
-    SCHEMA_TEMPLATE = {
-        'pos': None,
-        'name': None,
-        'type': None,
-        'resolved_type': None,
-        'description': None,
-        'start': None,
-        'width': None
-    }
+
 
     def __init__(self,  url_or_fs, path=None):
         """
@@ -147,7 +185,6 @@ class MPRowsFile(object):
 
     @staticmethod
     def encode_obj(obj):
-
 
         if isinstance(obj, datetime.datetime):
             return {'__datetime__': True, 'as_str': obj.isoformat()}
@@ -184,7 +221,7 @@ class MPRowsFile(object):
     @classmethod
     def read_file_header(cls, o, fh):
         try:
-            o.magic, o.version, o.n_rows, o.n_cols, o.meta_start, o.header_row, o.data_start_row, o.data_end_row = \
+            o.magic, o.version, o.n_rows, o.n_cols, o.meta_start, o.data_start_row, o.data_end_row = \
                 cls.FILE_HEADER_FORMAT.unpack(fh.read(cls.FILE_HEADER_FORMAT_SIZE))
         except struct.error as e:
             raise IOError("Failed to read file header; {}; path = {}".format(e, o.parent.path))
@@ -194,7 +231,7 @@ class MPRowsFile(object):
         """Write the magic number, version and the file_header dictionary.  """
 
         hdf = cls.FILE_HEADER_FORMAT.pack(cls.MAGIC, cls.VERSION, o.n_rows, o.n_cols, o.meta_start,
-                                          o.header_row, o.data_start_row, o.data_end_row)
+                                          o.data_start_row, o.data_end_row)
 
         assert len(hdf) == cls.FILE_HEADER_FORMAT_SIZE
 
@@ -230,10 +267,42 @@ class MPRowsFile(object):
     @classmethod
     def write_meta(cls, o, fh):
 
+        o.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
+
         fh.seek(o.meta_start)  # Should probably already be there.
 
         fhb = msgpack.packb(o.meta, encoding='utf-8').encode('zlib')
         fh.write(fhb)
+
+    @classmethod
+    def _columns(cls, o, n_cols = 0):
+
+        from ambry_sources.sources.util import RowProxy
+
+        s = o.meta['schema']
+
+        assert len(s) >= 1  # Should always have header row.
+        assert o.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE, (o.meta['schema'][0], MPRowsFile.SCHEMA_TEMPLATE)
+
+        # n_cols here is for columns in the data table, which are rows in the headers table
+        n_cols = max(n_cols, o.n_cols, len(s)-1)
+
+        for i in range(1, n_cols+1):
+            # Normally, we'd only create one of these, and set the row on the singleton for
+            # each row. But in this case, the caller may turn the output of the method into a list,
+            # in which case all of the rows would have the values of the last one.
+            rp = RowProxy(s[0])
+            try:
+                row = s[i]
+            except IndexError:
+                # Extend the row, but make sure the pos value is set property.
+                ext_row = [i, 'col{}'.format(i)] + [None] * (len(s[0]) - 2)
+                s.append(ext_row)
+                row = s[i]
+
+            yield rp.set_row(row)
+
+        assert o.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
 
     @property
     def info(self):
@@ -248,7 +317,6 @@ class MPRowsFile(object):
             meta_start_pos=o.meta_start,
             rows=o.n_rows,
             cols=o.n_cols,
-            header_row=o.header_row,
             header_rows=o.meta['row_spec']['header_rows'],
             data_start_row=o.data_start_row,
             data_end_row=o.data_end_row,
@@ -273,9 +341,6 @@ class MPRowsFile(object):
         with self.reader as r:
             return r.meta
 
-    @property
-    def schema(self):
-        return [{k: r.get(k) for k in self.SCHEMA_TEMPLATE} for r in (self.meta or {}).get('schema', [])]
 
     @property
     def stats(self):
@@ -341,8 +406,7 @@ class MPRowsFile(object):
             self._start_time = time.time()
 
             with self.reader as r:
-
-                stats = Stats([(c['name'], c['type']) for c in r.meta['schema']]).run(r, sample_from=r.n_rows)
+                stats = Stats([(c.name, c.type) for c in r.columns ]).run(r, sample_from=r.n_rows)
 
             with self.writer as w:
                 w.set_stats(stats)
@@ -390,7 +454,12 @@ class MPRowsFile(object):
                 if spec:
                     w.set_source_spec(spec)
 
+
+
                 w.close()
+
+            with self.reader as r:
+                assert r.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
 
             if intuit_rows:
                 try:
@@ -404,6 +473,7 @@ class MPRowsFile(object):
 
                 with self.writer as w:
                     w.set_row_spec(spec)
+                    assert w.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
 
             if intuit_type:
                 self.run_type_intuiter()
@@ -495,7 +565,6 @@ class MPRWriter(object):
         self.magic = self.MAGIC
         self.data_start = self.FILE_HEADER_FORMAT_SIZE
         self.meta_start = 0
-        self.header_row = -1  # -1 means  no header
         self.data_start_row = 0
         self.data_end_row = 0
 
@@ -505,7 +574,7 @@ class MPRWriter(object):
         self.cache = []
 
         try:
-
+           #  Try to read an existing file
             MPRowsFile.read_file_header(self, self._fh)
 
             self._fh.seek(self.meta_start)
@@ -517,6 +586,7 @@ class MPRWriter(object):
             self._fh.seek(self.meta_start)
 
         except IOError:
+            # No, doesn exist, or is corrupt
             self._fh.seek(0)
 
             self.meta_start = self.data_start
@@ -536,85 +606,121 @@ class MPRWriter(object):
         if self.n_rows == 0:
             self.meta['about']['create_time'] = time.time()
 
-    def _row_writer(self, row):
-        try:
-            self._zfh.write(msgpack.packb(row, default=MPRowsFile.encode_obj, encoding='utf-8'))
-        except IOError as e:
-            raise IOError("Can't write row to file: {}".format(e))
 
     @property
     def info(self):
         return MPRowsFile._info(self)
 
-    def set_schema(self, headers):
-        from copy import deepcopy
+    def set_col_val(name_or_pos, **kwargs):
+        pass
 
-        schema = []
+    @property
+    def headers(self):
+        """Return the headers rows
 
-        for i, h in enumerate(headers):
-            d = deepcopy(self.SCHEMA_TEMPLATE)
+        """
+        return [ e.name for e in MPRowsFile._columns(self) ]
+
+    @headers.setter
+    def headers(self, headers):
+        """Set column names"""
+
+        assert isinstance(headers,  (tuple, list)), headers
+
+        for i, row in enumerate(MPRowsFile._columns(self, len(headers))):
+            assert isinstance(headers[i], string_types)
+            row.name = headers[i]
+
+        assert self.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
+
+    @property
+    def columns(self):
+        """Return the headers rows
+
+        """
+        return MPRowsFile._columns(self)
+
+    @columns.setter
+    def columns(self, headers):
+
+        for i, row in enumerate(MPRowsFile._columns(self, len(headers))):
+
+            h = headers[i]
 
             if isinstance(h, dict):
                 d = dict(h.items())
-                d['pos'] = i
-                schema.append(d)
+                raise NotImplementedError()
             else:
-                d['pos'] = i
-                d['name'] = h
-                schema.append(d)
+                row.name = h
 
-        self.meta['schema'] = schema
+    def column(self, name_or_pos):
 
-    def insert_headers(self, headers):
-        self.set_schema(headers)
-        self.header_row = 0
-        self.data_start_row = 1
-        self._row_writer([c['name'] for c in self.meta['schema']])
+        for h in self.columns:
 
-    def _write_cache(self):
+            if name_or_pos == h.pos or name_or_pos == h.name:
+                return h
 
-        self._row_writer(self.cache)
-        self.cache = []
+        raise KeyError("Didn't find '{}' as either a name nor a position ".format(name_or_pos))
+
+    def _write_rows(self, rows = None):
+
+        rows, clear_cache = (self.cache, True) if not rows else (rows, False )
+
+        if not rows:
+            return
+
+        try:
+            self._zfh.write(msgpack.packb(rows, default=MPRowsFile.encode_obj, encoding='utf-8'))
+        except IOError as e:
+            raise IOError("Can't write row to file: {}".format(e))
+
+        # Hope that the max # of cols is found in the first 100 rows
+        # FIXME! This won't work if rows is an interator.
+        self.n_cols = reduce(max, ( len(e) for e in rows[:100]), self.n_cols)
+
+        if clear_cache:
+            self.cache = []
 
     def insert_row(self, row):
 
         self.n_rows += 1
-        self.n_cols = max(self.n_cols, len(row))
         self.data_end_row = self.n_rows
 
         self.cache.append(row)
+
         if len(self.cache) >= 10000:
-            self._write_cache()
+            self._write_rows()
 
     def insert_rows(self, rows):
+        '''Insert a list of rows. Don't insert iterators'''
 
         self.n_rows += len(rows)
-        #self.n_cols = max(self.n_cols, len(row))
+
         self.data_end_row = self.n_rows
 
-        self._row_writer(rows)
+        self._write_rows(rows)
 
     def load_rows(self, source, first_is_header=False):
         """Load rows from an iterator"""
 
-        itr = iter(source)
+        try:
+            if source.headers:
+                self.headers = source.headers
+        except AttributeError:
+            pass
 
-        for i, row in enumerate(iter(source)):
+        for row in iter(source):
+            self.insert_row(row)
 
-            if first_is_header and i == 0:
-                self.insert_headers(next(itr))
-                continue
-            else:
-                self.n_rows += 1
+            # If the source has a headers property, and it's defined, then
+            # use it for the headers. This often has to be called after iteration, because
+            # the source may have the header as the first row
 
-                self._row_writer(row)
-
-        self.data_end_row = self.n_rows
 
     def close(self):
 
         if len(self.cache):
-            self._write_cache()
+            self._write_rows()
 
         if self._fh:
             # First close the Gzip file, so it can flush, etc.
@@ -647,38 +753,26 @@ class MPRWriter(object):
     def set_types(self, ti):
         """Set Types from a type intuiter object"""
 
-        if self.meta['schema']:
-            results = {r['position']: r for r in ti._dump()}
-            for i, row in enumerate(self.meta['schema']):
-                result = results[i]
-                assert result['header'] == row['name']
-                del result['position']
+        results = {int(r['position']): r for r in ti._dump()}
+        for i in range(len(results)):
 
-                if not row.get('type'):
-                    result['type'] = result['resolved_type']
+            for k, v in results[i].items():
+                k = {'count': 'type_count'}.get(k,k)
+                self.column(i+1)[k] = v
 
-                row.update(result)
-
-        else:
-            schema = []
-            for i, r in enumerate(ti._dump()):
-                r['pos'] = r['position']
-                r['name'] = r['header']
-                r['type'] = r['resolved_type']
-                del r['position']
-                del r['header']
-                schema.append(r)
-
-            self.meta['schema'] = schema
+            if not self.column(i+1).type:
+                self.column(i+1).type = results[i]['resolved_type']
 
     def set_stats(self, stats):
         """Copy stats into the schema"""
 
-        self.meta['stats'] = {
-            name: {
-                k: v if not isinstance(v, float) or (not math.isinf(v) and not math.isnan(v)) else None
-                for k, v in stats.dict.items()
-            } for name, stats in stats.dict.items()}
+        for name, stat_set in stats.dict.items():
+            row = self.column(name)
+
+            for k, v in stat_set.dict.items():
+                k = {'count': 'stat_count'}.get(k, k)
+                row[k] = v
+
 
     def set_source_spec(self, spec):
         """Set the metadata coresponding to the SourceSpec, excluding the row spec parts. """
@@ -714,17 +808,7 @@ class MPRWriter(object):
                 w.meta['row_spec']['end_row'] = ri.end_line
                 w.meta['row_spec']['data_pattern'] = ri.data_pattern_source
 
-                schema = []
-                for i, h in enumerate(ri.headers):
-                    d = dict(
-                        pos=i,
-                        name=self.header_mangler(h),
-                        description=h
-                    )
-
-                    schema.append(d)
-
-                w.meta['schema'] = schema
+                w.headers = [self.header_mangler(h) for h in ri.headers]
 
         else:
             ss = ri_or_ss
@@ -739,7 +823,7 @@ class MPRWriter(object):
 
                     header_lines = itemgetter(*ss.header_lines)(rows)
 
-                    if not isinstance(header_lines[0], list):
+                    if not isinstance(header_lines[0], (list, tuple)):
                         header_lines = [header_lines]
 
                 else:
@@ -756,7 +840,7 @@ class MPRWriter(object):
                 w.meta['row_spec']['data_pattern'] = None
 
                 if header_lines:
-                    w.set_schema([self.header_mangler(h) for h in RowIntuiter.coalesce_headers(header_lines)])
+                    w.headers = [self.header_mangler(h) for h in RowIntuiter.coalesce_headers(header_lines)]
 
         # Now, look for the end line.
         if False:
@@ -801,7 +885,6 @@ class MPRReader(object):
         self._headers = None
         self.data_start = 0
         self.meta_start = 0
-        self.header_row = -1  # -1 means no header, 0 == first row.
         self.data_start_row = 0
         self.data_end_row = 0
 
@@ -845,54 +928,20 @@ class MPRReader(object):
         return self._meta
 
     @property
+    def columns(self):
+        """Return the headers rows
+
+        """
+        return MPRowsFile._columns(self)
+
+    @property
     def headers(self):
-        """Return the headers row, which can come from one of three locations.
-
-        - Normally, the header is the first row in the data
-        - The header row may be specified as a later row with ``header_row``, in which case all of the rows before
-            it are considered comments and are not returned.
-        - If it is not specified as the first row, it can be given in the metadata schema
-        - If there is no first row and no schema, a header is generated from column numbers
-
-        The header always exists, and it is always returned as row 0, except when using the raw iterator.
+        """Return the headers rows
 
         """
 
-        if not self._headers:
+        return [e.name for e in MPRowsFile._columns(self)]
 
-            if self._in_iteration:
-                raise MPRError("Can't get header because iteration has already started")
-
-            assert self.pos == 0
-
-            assert self.header_row == 0 or self.header_row == -1, self.header_row
-
-            if self.header_row == 0:
-                self._headers = self.unpacker.next()
-
-                self.pos += 1
-
-            elif self.meta['schema']:
-                # No header row exists, so try to get one from the schema
-                self._headers = [c['name'] for c in self.meta['schema']]
-
-            else:
-                # No schema, so just return numbered columns
-                self._headers = ['col' + str(e) for e in range(0, self.n_cols)]
-
-        return self._headers
-
-    def consume_to_data(self):
-        """Read and discard rows until we get to the data start row"""
-
-        if self.pos >= self.data_start_row:
-            return
-
-        while self.pos != self.data_start_row:
-            next(self.unpacker)
-            self.pos += 1
-
-        return
 
     @property
     def raw(self):
@@ -944,14 +993,13 @@ class MPRReader(object):
 
         _ = self.headers  # Get the header, but don't return it.
 
-        self.consume_to_data()
-
         try:
             self._in_iteration = True
 
             while True:
                 for row in  next(self.unpacker):
-                    yield row
+                    if self.data_start_row <= self.pos <= self.data_end_row:
+                        yield row
 
                     self.pos += 1
 
@@ -967,17 +1015,16 @@ class MPRReader(object):
 
         rp = RowProxy(self.headers)
 
-        self.consume_to_data()
-
         try:
             self._in_iteration = True
             while True:
                 rows = next(self.unpacker)
 
                 for row in rows:
-                    yield rp.set_row(row)
+                    if self.data_start_row <= self.pos <= self.data_end_row:
+                        yield rp.set_row(row)
 
-                self.pos += 1
+                    self.pos += 1
 
                 #if self._fh.tell() >= self.meta_start:
                 #    break

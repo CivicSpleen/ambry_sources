@@ -131,6 +131,15 @@ class RowProxy(object):
     def dict(self):
         return dict(zip(self.__keys, self.__row))
 
+    def keys(self):
+        return self.__keys
+
+    def values(self):
+        return self.__row
+
+    def items(self):
+        return zip(self.__keys, self.__row)
+
     # The final two methods aren't required, but nice for demo purposes:
     def __str__(self):
         """ Returns simple dict representation of the mapping. """

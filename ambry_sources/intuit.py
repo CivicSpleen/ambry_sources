@@ -645,7 +645,7 @@ class RowIntuiter(object):
 
         return pattern, pattern_source
 
-    def classify(self, rows, skip_rows):
+    def classify(self, rows):
 
         import re
 
@@ -665,11 +665,7 @@ class RowIntuiter(object):
 
             return False
 
-
         for i, row in enumerate(rows):
-
-            if skip_rows and i % skip_rows != 0:
-                continue
 
             picture = self.picture(row)
 
@@ -771,15 +767,6 @@ class RowIntuiter(object):
         from itertools import islice
         self.test_rows = list(islice(iter(source), self.N_TEST_ROWS))
 
-        MIN_SKIP_ROWS = 10000
 
-        if total_rows and total_rows > MIN_SKIP_ROWS:
-            skip_rows = int(total_rows/MIN_SKIP_ROWS)
-
-            skip_rows = skip_rows if skip_rows > 1 else None
-
-        else:
-            skip_rows = None
-
-        self.classify(self.test_rows, skip_rows)
+        self.classify(self.test_rows)
         return self

@@ -25,6 +25,8 @@ parser.add_argument('-10', '--sample', action='store_true',
                     help='Sample the first 10 records. Will only display 80 chars wide')
 parser.add_argument('-r', '--records', action='store_true',
                     help='Output the records in tabular format')
+parser.add_argument('-R', '--raw', action='store_true',
+                    help='For the sample output, use the raw iterator')
 parser.add_argument('-j', '--json', action='store_true',
                     help='Output the entire file as JSON')
 parser.add_argument('-c', '--csv', help='Output the entire file as CSV')
@@ -116,7 +118,13 @@ def main():
                     break
                 headers.append(h)
 
-            print tabulate.tabulate(islice((r[:len(headers)] for r in r.rows),10), headers)
+            itr = r.raw if args.raw else r.rows
+
+            rows = []
+            for i, row in enumerate(islice([r[:len(headers)] for r in itr],10)):
+                rows.append((i,)+row)
+
+            print tabulate.tabulate(rows, ['#'] + headers)
 
     elif args.records:
 

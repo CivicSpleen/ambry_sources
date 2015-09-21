@@ -15,7 +15,7 @@ from tests import TestBase
 class BasicTestSuite(TestBase):
     """Basic test cases."""
 
-    def test_download(self):
+    def test_just_download(self):
         """Just check that all of the sources can be downloaded without exceptions"""
 
         cache_fs = fsopendir('temp://')
@@ -33,6 +33,27 @@ class BasicTestSuite(TestBase):
                 raise AssertionError('Failed to download {} source because of {} error.'
                                      .format(s.url, exc))
 
+    def test_just_load(self):
+        """Just check that all of the sources can be downloaded without exceptions"""
+
+        cache_fs = fsopendir('/tmp/foobar/')
+
+        sources = self.load_sources()
+
+        for source_name, spec in sources.items():
+
+            s = get_source(spec, cache_fs)
+
+            print spec.name
+
+            f = MPRowsFile(cache_fs, spec.name)
+
+            if f.exists:
+                f.remove()
+
+            with f.writer as w:
+                w.load_rows(s)
+
     def test_fixed(self):
         cache_fs = fsopendir(self.setup_temp_dir())
         sources = self.load_sources()
@@ -40,6 +61,30 @@ class BasicTestSuite(TestBase):
         s = get_source(spec, cache_fs)
         f = MPRowsFile(cache_fs, spec.name).load_rows(s)
         self.assertEqual(f.headers, ['id', 'uuid', 'int', 'float'])
+
+    def test_type_intuit(self):
+        """Just check that all of the sources can be downloaded without exceptions"""
+        from ambry_sources.intuit import TypeIntuiter
+
+        cache_fs = fsopendir(self.setup_temp_dir())
+        sources = self.load_sources()
+        spec = sources['simple_fixed']
+        s = get_source(spec, cache_fs)
+
+        f = MPRowsFile(cache_fs, spec.name)
+
+        with f.writer as w:
+            w.load_rows(s)
+
+        with f.reader as r:
+            ti = TypeIntuiter().process_header(r.headers).run(r.rows, r.n_rows)
+
+        with f.writer as w:
+            w.set_types(ti)
+
+        with f.reader as w:
+            for col in w.columns:
+                print col.pos, col.name, col.type
 
     def test_row_intuit(self):
         """Check that the sources can be loaded and analyzed without exceptions and that the
@@ -53,6 +98,7 @@ class BasicTestSuite(TestBase):
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
+            print source_name
             s = get_source(spec, cache_fs)
             ri = RowIntuiter().run(s)
 
@@ -68,23 +114,31 @@ class BasicTestSuite(TestBase):
         """Check that the soruces can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
 
-        from itertools import ifilter
+        from itertools import ifilter, islice
 
         cache_fs = fsopendir('temp://')
         cache_fs.makedir('/mpr')
-        # cache_fs = fsopendir('/tmp/ritest/')
+        cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
 
-            # if source_name != '': continue
+
+            #if source_name != 'ed_cohort': continue
 
             s = get_source(spec, cache_fs)
 
             print source_name
 
-            f = MPRowsFile(cache_fs, '/mpr/'+source_name).load_rows(s)
+            f = MPRowsFile(cache_fs, '/mpr/'+source_name)
+
+            if f.exists:
+                f.remove()
+
+            f.load_rows(s, intuit_type=False, run_stats=False)
+
+            self.assertEqual(f.info['data_start_row'], spec.expect_start)
 
             with f.reader as r:
                 # First row, marked with metadata, that is marked as a data row
@@ -100,6 +154,56 @@ class BasicTestSuite(TestBase):
 
             self.assertEqual(row1, row2)
             self.assertEqual(row1, row3)
+
+            with f.reader as r:
+                raw_rows = list(islice(r.raw,None,40))
+
+            self.assertEqual(row2, raw_rows[f.info['data_start_row']])
+
+
+    def test_headers(self):
+
+        fs = fsopendir('mem://')
+
+        df = MPRowsFile(fs, 'foobar')
+
+        with df.writer as w:
+
+            schema = lambda row, col: w.meta['schema'][row][col]
+
+            w.headers = list('abcdefghi')
+
+            self.assertEqual('a', schema(1, 1))
+            self.assertEqual('e', schema(5, 1))
+            self.assertEqual('i', schema(9, 1))
+
+            for h in w.columns:
+                h.description = "{}-{}".format(h.pos, h.name)
+
+            self.assertEqual('1-a', schema(1, 3))
+            self.assertEqual('5-e', schema(5, 3))
+            self.assertEqual('9-i', schema(9, 3))
+
+            w.column(1).description  = 'one'
+            w.column(2).description = 'two'
+            w.column('c').description = 'C'
+            w.column('d')['description'] = 'D'
+
+            self.assertEqual('one', schema(1,3))
+            self.assertEqual('two', schema(2, 3))
+            self.assertEqual('C', schema(3, 3))
+            self.assertEqual('D', schema(4, 3))
+
+        with df.reader as r:
+            schema = lambda row, col: r.meta['schema'][row][col]
+
+            self.assertEqual([u'a', u'b', u'c', u'd', u'e', u'f', u'g', u'h', u'i'], r.headers)
+
+            self.assertEqual('one', schema(1, 3))
+            self.assertEqual('two', schema(2, 3))
+            self.assertEqual('C', schema(3, 3))
+            self.assertEqual('D', schema(4, 3))
+
 
     @pytest.mark.slow
     def test_datafile_read_write(self):
@@ -159,6 +263,8 @@ class BasicTestSuite(TestBase):
             print "MSGPack write ", float(N) / t.elapsed, w.n_rows
 
         write_large_blocks()
+
+        return
 
         write_small_blocks()
 
@@ -286,7 +392,7 @@ class BasicTestSuite(TestBase):
             f = MPRowsFile('mem://frh')
             w = f.writer
 
-            w.insert_headers(headers)
+            w.columns = headers
 
             for row in rows:
                 w.insert_row(row)
@@ -299,7 +405,7 @@ class BasicTestSuite(TestBase):
 
             w.close()
 
-            self.assertEqual([u'a', u'b', u'c', u'd', u'e', u'f'], w.parent.reader.headers)
+            self.assertEqual((u'a', u'b', u'c', u'd', u'e', u'f'), tuple(w.parent.reader.headers))
 
             w.parent.reader.close()
 
@@ -322,7 +428,7 @@ class BasicTestSuite(TestBase):
 
             w.close()
 
-            self.assertEqual(['col0', 'col1', 'col2', 'col3', 'col4', 'col5'], w.parent.reader.headers)
+            self.assertEqual(['col1', 'col2', 'col3', 'col4', 'col5', 'col6'], w.parent.reader.headers)
 
             w.parent.reader.close()
 
@@ -333,7 +439,7 @@ class BasicTestSuite(TestBase):
             f = MPRowsFile('mem://sh')
             w = f.writer
 
-            w.meta['schema'] = [dict(name='x' + str(e)) for e in range(len(headers))]
+            w.headers = [ 'x' + str(e) for e in range(len(headers))]
 
             for row in rows:
                 w.insert_row(row)
@@ -346,7 +452,7 @@ class BasicTestSuite(TestBase):
 
             w.close()
 
-            self.assertEqual([u'x0', u'x1', u'x2', u'x3', u'x4', u'x5'], w.parent.reader.headers)
+            self.assertEqual((u'x0', u'x1', u'x2', u'x3', u'x4', u'x5'),tuple(w.parent.reader.headers))
 
             w.parent.reader.close()
 
@@ -359,7 +465,9 @@ class BasicTestSuite(TestBase):
             f = ff()
 
             with f.reader as r:
-                self.assertEqual(N, len(list(r.rows)))
+                l = list(r.rows)
+
+                self.assertEqual(N, len(l))
 
             with f.reader as r:
                 # Check that the first row value starts at one and goes up from there.
@@ -375,15 +483,6 @@ class BasicTestSuite(TestBase):
                 l = list(r.rows)
                 self.assertEqual(11, len(l))
 
-            with f.reader as r:
-                # Check that the first row value starts at one and goes up from there.
-                # the - r.info['header_row'] bit accounts for the fact that sometimes
-                # the header is the first row, sometimes not.
-                map(lambda f: self.assertEqual(f[0], f[1][0]),
-                    enumerate(list(r.rows)[:5], data_start_row - r.info['header_row']))
-
-            with f.reader as r:
-                self.assertEqual(data_end_row - r.info['header_row'], list(r.rows)[-1][0])
 
     def test_spec_load(self):
         """Test that setting a SourceSpec propertly sets the header_lines data start position"""

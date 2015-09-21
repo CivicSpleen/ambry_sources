@@ -42,11 +42,10 @@ class Constant:
 class StatSet(object):
     LOM = Constant()  # Level of Measurement, More or Less
 
-    # Real levels of Measurement
-    LOM.NOMINAL = 'n'
-    LOM.ORDINAL = 'o'
-    LOM.INTERVAL = 'i'
-    LOM.RATIO = 'r'
+    LOM.NOMINAL = 'n' # Categorical, usually strings.
+    LOM.ORDINAL = 'o' # A number which counts or ranks. Subtraction is not defined. Times and Dates
+    LOM.INTERVAL = 'i' # A number, for which subtraction is defined, but not division
+    LOM.RATIO = 'r' # A number, for which division is defined and zero means "nothing".  Kelvin, but not Celsius
 
     def __init__(self, name, typ):
 

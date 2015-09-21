@@ -7,3 +7,5 @@ class ConfigurationError(Exception):
 class DownloadError(Exception):
     pass
 
+class RowIntuitError(Exception):
+    pass

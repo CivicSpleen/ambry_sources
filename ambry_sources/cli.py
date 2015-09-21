@@ -15,21 +15,22 @@ parser = argparse.ArgumentParser(
     prog='ampr',
     description='Ambry Message Pack Rows file access version:'.format(__version__))
 
-parser.add_argument('-l', '--ls', dest='command',
-                    help='List the contents of the file')
-
 parser.add_argument('-m', '--meta', action='store_true',
                     help='Show metadata')
 parser.add_argument('-s', '--schema', action='store_true',
                     help='Show the schema')
 parser.add_argument('-S', '--stats', action='store_true',
-                    help='Show the schema')
-parser.add_argument('-r', '--sample', action='store_true',
-                    help='Sample the first 10 records')
+                    help='Show the statistics')
+parser.add_argument('-10', '--sample', action='store_true',
+                    help='Sample the first 10 records. Will only display 80 chars wide')
+parser.add_argument('-r', '--records', action='store_true',
+                    help='Output the records in tabular format')
+parser.add_argument('-R', '--raw', action='store_true',
+                    help='For the sample output, use the raw iterator')
 parser.add_argument('-j', '--json', action='store_true',
                     help='Output the entire file as JSON')
-parser.add_argument('-c', '--csv', action='store_true',
-                    help='Output the entire file as CSV')
+parser.add_argument('-c', '--csv', help='Output the entire file as CSV')
+parser.add_argument('-l', '--limit', help='The number of rows to output for CSV or JSON')
 
 parser.add_argument('path', nargs='?', type=str, help='File path')
 
@@ -57,14 +58,18 @@ def main():
     stats_getter = itemgetter(*stats_fields)
 
     if args.csv:
+        import unicodecsv as csv
         with f.reader as r:
-            import csv
-            import sys
-            w = csv.writer(sys.stdout)
-            w.writerow(r.headers)
-            for row in r.rows:
-                w.writerow(row)
-            sys.stdout.flush()
+            limit = int(args.limit) if args.limit else None
+            with open(args.csv, 'wb') as out_f:
+                w = csv.writer(out_f)
+                w.writerow(r.headers)
+                for i, row in enumerate(r.rows):
+                    w.writerow(row)
+
+                    if limit and i>= limit:
+                        break
+
 
         return
 
@@ -74,7 +79,7 @@ def main():
             return
         m = str(m).strip()
         if m:
-            print "{:<10s}: {}".format(l,m)
+            print "{:<12s}: {}".format(l,m)
 
     with f.reader as r:
         pm("MPR File",args.path)
@@ -82,6 +87,9 @@ def main():
         pm("version", r.info['version'])
         pm("rows", r.info['rows'])
         pm("cols", r.info['cols'])
+        pm("header_rows", r.info['header_rows'])
+        pm("data_row", r.info['data_start_row'])
+
         ss = r.meta['source']
         pm("URL", ss['url'])
         pm("encoding", ss['encoding'])
@@ -103,12 +111,40 @@ def main():
             MAX_LINE = 80
             ll = 0
             headers = []
+
+            # Only show so may cols as will fit in an 80 char line.
             for h in r.headers:
                 if len(' '.join(headers+[h])) > MAX_LINE:
                     break
                 headers.append(h)
 
-            print tabulate.tabulate(islice([ r[:len(headers)] for r in r.rows],10), headers)
+            itr = r.raw if args.raw else r.rows
+
+            rows = []
+            for i, row in enumerate(islice([r[:len(headers)] for r in itr],10)):
+                rows.append((i,)+row)
+
+            print tabulate.tabulate(rows, ['#'] + headers)
+
+    elif args.records:
+
+        with f.reader as r:
+
+            acc = []
+            try:
+                for i , row in enumerate(r.rows):
+
+                    if i % 30 == 0:
+                        print tabulate.tabulate(acc, r.headers)
+                        acc = []
+                    else:
+                        acc.append(row)
+            except KeyboardInterrupt:
+                import sys
+                sys.exit(0)
+
+
+
 
 if __name__ == "__main__":
     main()

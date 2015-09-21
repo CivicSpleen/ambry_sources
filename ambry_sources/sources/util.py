@@ -113,8 +113,10 @@ class RowProxy(object):
             self.__row[self.__pos_map[key]] = value
 
     def __getattr__(self, key):
-
-        return self.__row[self.__pos_map[key]]
+        try:
+            return self.__row[self.__pos_map[key]]
+        except KeyError:
+            raise KeyError("Failed to find key {}; has {}".format(key, self.__keys))
 
     def __delitem__(self, key):
         raise NotImplementedError()
@@ -128,6 +130,15 @@ class RowProxy(object):
     @property
     def dict(self):
         return dict(zip(self.__keys, self.__row))
+
+    def keys(self):
+        return self.__keys
+
+    def values(self):
+        return self.__row
+
+    def items(self):
+        return zip(self.__keys, self.__row)
 
     # The final two methods aren't required, but nice for demo purposes:
     def __str__(self):

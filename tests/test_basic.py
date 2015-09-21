@@ -15,6 +15,7 @@ from tests import TestBase
 class BasicTestSuite(TestBase):
     """Basic test cases."""
 
+    @unittest.skip('Useful for debugging, but doesnt add test coverage')
     def test_just_download(self):
         """Just check that all of the sources can be downloaded without exceptions"""
 
@@ -33,10 +34,11 @@ class BasicTestSuite(TestBase):
                 raise AssertionError('Failed to download {} source because of {} error.'
                                      .format(s.url, exc))
 
+    @unittest.skip('Useful for debugging, but doesnt add test coverage')
     def test_just_load(self):
-        """Just check that all of the sources can be downloaded without exceptions"""
+        """Just check that all of the sources can be loaded without exceptions"""
 
-        cache_fs = fsopendir('/tmp/foobar/')
+        cache_fs = fsopendir('temp://')
 
         sources = self.load_sources()
 
@@ -53,6 +55,34 @@ class BasicTestSuite(TestBase):
 
             with f.writer as w:
                 w.load_rows(s)
+
+            with f.reader as r:
+                print r.headers
+
+    #@unittest.skip('Useful for debugging, but doesnt add test coverage')
+    def test_full_load(self):
+        """Just check that all of the sources can be loaded without exceptions"""
+
+        cache_fs = fsopendir('temp://')
+
+        sources = self.load_sources()
+
+        for source_name, spec in sources.items():
+
+            s = get_source(spec, cache_fs)
+
+            print spec.name
+
+            f = MPRowsFile(cache_fs, spec.name)
+
+            if f.exists:
+                f.remove()
+
+            f.load_rows(s)
+
+            with f.reader as r:
+                print r.headers
+
 
     def test_fixed(self):
         cache_fs = fsopendir(self.setup_temp_dir())
@@ -123,7 +153,6 @@ class BasicTestSuite(TestBase):
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
-
 
             #if source_name != 'ed_cohort': continue
 

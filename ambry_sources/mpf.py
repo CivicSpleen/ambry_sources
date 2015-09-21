@@ -454,12 +454,7 @@ class MPRowsFile(object):
                 if spec:
                     w.set_source_spec(spec)
 
-
-
                 w.close()
-
-            with self.reader as r:
-                assert r.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
 
             if intuit_rows:
                 try:
@@ -625,7 +620,11 @@ class MPRWriter(object):
     def headers(self, headers):
         """Set column names"""
 
+        if not headers:
+            return
+
         assert isinstance(headers,  (tuple, list)), headers
+
 
         for i, row in enumerate(MPRowsFile._columns(self, len(headers))):
             assert isinstance(headers[i], string_types)

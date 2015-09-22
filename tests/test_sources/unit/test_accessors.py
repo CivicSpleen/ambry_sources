@@ -2,7 +2,6 @@
 import unittest
 from collections import OrderedDict
 
-import fiona
 import fudge
 from fudge.inspector import arg
 
@@ -68,10 +67,14 @@ class TestShapefileSource(unittest.TestCase):
         self.assertIn('geometry_type', types)
 
     @fudge.patch(
-        'ambry_sources.sources.accessors.fiona.open')
-    def test_reads_first_layer_if_spec_segment_is_empty(self, fake_open):
+        'ambry_sources.sources.accessors.fiona.open',
+        'ambry_sources.sources.accessors.shape',
+        'ambry_sources.sources.accessors.dumps')
+    def test_reads_first_layer_if_spec_segment_is_empty(self, fake_open, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
         fake_open.expects_call().with_args(arg.any(), vfs=arg.any(), layer=0).returns(fake_collection)
+        fake_shape.is_a_stub()
+        fake_dumps.is_a_stub()
 
         spec = SourceSpec('http://example.com')
         assert spec.segment is None
@@ -80,10 +83,14 @@ class TestShapefileSource(unittest.TestCase):
         next(source._get_row_gen())
 
     @fudge.patch(
-        'ambry_sources.sources.accessors.fiona.open')
-    def test_reads_layer_specified_by_segment(self, fake_open):
+        'ambry_sources.sources.accessors.fiona.open',
+        'ambry_sources.sources.accessors.shape',
+        'ambry_sources.sources.accessors.dumps')
+    def test_reads_layer_specified_by_segment(self, fake_open, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
         fake_open.expects_call().with_args(arg.any(), vfs=arg.any(), layer=5).returns(fake_collection)
+        fake_shape.is_a_stub()
+        fake_dumps.is_a_stub()
         spec = SourceSpec('http://example.com', segment=5)
         fstor = fudge.Fake().is_a_stub()
         source = ShapefileSource(spec, fstor)
@@ -91,11 +98,15 @@ class TestShapefileSource(unittest.TestCase):
 
     @fudge.patch(
         'ambry_sources.sources.accessors.fiona.open',
-        'ambry_sources.sources.accessors.ShapefileSource._get_columns')
-    def test_populates_columns_of_the_spec(self, fake_open, fake_get):
+        'ambry_sources.sources.accessors.ShapefileSource._get_columns',
+        'ambry_sources.sources.accessors.shape',
+        'ambry_sources.sources.accessors.dumps')
+    def test_populates_columns_of_the_spec(self, fake_open, fake_get, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
         fake_open.expects_call().returns(fake_collection)
         fake_get.expects_call().returns([{'name': 'col1', 'type': 'int'}])
+        fake_shape.is_a_stub()
+        fake_dumps.is_a_stub()
         spec = SourceSpec('http://example.com')
         fstor = fudge.Fake().is_a_stub()
         source = ShapefileSource(spec, fstor)
@@ -116,29 +127,29 @@ class TestShapefileSource(unittest.TestCase):
         spec = SourceSpec('http://example.com')
         fstor = fudge.Fake().is_a_stub()
         source = ShapefileSource(spec, fstor)
-        # drop header
         row_gen = source._get_row_gen()
-        next(row_gen)
         first_row = next(row_gen)
         self.assertEqual(first_row[0], 0)
 
     @fudge.patch(
         'ambry_sources.sources.accessors.fiona.open',
-        'ambry_sources.sources.accessors.ShapefileSource._get_columns')
-    def test_first_generated_row_is_header(self, fake_open, fake_get):
+        'ambry_sources.sources.accessors.ShapefileSource._get_columns',
+        'ambry_sources.sources.accessors.shape',
+        'ambry_sources.sources.accessors.dumps')
+    def test_saves_header(self, fake_open, fake_get, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
         fake_open.expects_call().returns(fake_collection)
         fake_get.expects_call().returns([
             {'name': 'id', 'type': 'int'},
             {'name': 'col1', 'type': 'int'},
             {'name': 'geometry', 'type': 'geometry_type'}])
+        fake_shape.expects_call().is_a_stub()
+        fake_dumps.expects_call().is_a_stub()
         spec = SourceSpec('http://example.com')
         fstor = fudge.Fake().is_a_stub()
         source = ShapefileSource(spec, fstor)
-        # drop header
-        row_gen = source._get_row_gen()
-        header = next(row_gen)
-        self.assertEqual(header, ['id', 'col1', 'geometry'])
+        next(source._get_row_gen())
+        self.assertEqual(source._headers, ['id', 'col1', 'geometry'])
 
     @fudge.patch(
         'ambry_sources.sources.accessors.fiona.open',
@@ -154,8 +165,6 @@ class TestShapefileSource(unittest.TestCase):
         spec = SourceSpec('http://example.com')
         fstor = fudge.Fake().is_a_stub()
         source = ShapefileSource(spec, fstor)
-        # drop header
         row_gen = source._get_row_gen()
-        next(row_gen)
         first_row = next(row_gen)
         self.assertEqual(first_row[-1], 'I AM FAKE WKT')

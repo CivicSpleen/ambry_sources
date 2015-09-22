@@ -86,7 +86,6 @@ class SourceFile(object):
 
         self.finish()
 
-
     def _get_row_gen(self):
         """ Returns generator over all rows of the source. """
         raise NotImplementedError('Subclasses of SourceFile must provide a _get_row_gen() method')
@@ -212,7 +211,6 @@ class ExcelSource(SourceFile):
 
         self.finish()
 
-
     def _get_row_gen(self):
         from fs.errors import NoSysPathError
 
@@ -308,6 +306,7 @@ class GoogleSource(SourceFile):
 
         self.finish()
 
+
 class GeoSourceBase(SourceFile):
     """ Base class for all geo sources. """
     pass
@@ -357,6 +356,8 @@ class ShapefileSource(GeoSourceBase):
         columns.append({'name': 'geometry', 'type': 'geometry_type'})
         return columns
 
+    def _get_row_gen(self):
+        return iter(self)
 
     def __iter__(self):
         """ Returns generator over shapefile rows.
@@ -377,7 +378,7 @@ class ShapefileSource(GeoSourceBase):
                 # geometry_type = source.schema['geometry']
                 property_schema = source.schema['properties']
 
-                self._headers = ['id'] + [x['name'] for x in self._get_columns(property_schema)] + ['geometry']
+                self._headers = [x['name'] for x in self._get_columns(property_schema)]
 
                 for s in source:
                     row_data = s['properties']

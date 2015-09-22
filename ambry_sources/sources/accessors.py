@@ -377,7 +377,7 @@ class ShapefileSource(GeoSourceBase):
             with fiona.open('/', vfs=virtual_fs, layer=layer_index) as source:
                 # geometry_type = source.schema['geometry']
                 property_schema = source.schema['properties']
-
+                self.spec.columns = self._get_columns(property_schema)
                 self._headers = [x['name'] for x in self._get_columns(property_schema)]
 
                 for s in source:

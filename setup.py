@@ -72,7 +72,7 @@ from ambry_sources.__meta__ import __version__, __author__
 
 setup(
     name='ambry-sources',
-    version=ambry_sources.__version__,
+    version=__version__,
     description='Ambry Partition Message Pack File',
     long_description=readme,
     packages=packages,
@@ -80,7 +80,7 @@ setup(
     install_requires=[x for x in reversed([str(x.req) for x in install_requires])],
     tests_require=[x for x in reversed([str(x.req) for x in tests_require])],
     scripts=['scripts/ampr'],
-    author=ambry_sources.__author__,
+    author=__author__,
     author_email='eric@civicknowledge.com',
     url='https://github.com/streeter/python-skeleton',
     license='MIT',

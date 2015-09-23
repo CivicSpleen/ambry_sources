@@ -36,7 +36,6 @@ package_data = {
 install_requires = parse_requirements('requirements/base.txt', session=uuid.uuid1())
 tests_require = parse_requirements('requirements/dev.txt', session=uuid.uuid1())
 
-print '!!!', list(install_requires), list(tests_require)
 classifiers = [
     'Development Status :: 4 - Beta',
     'Environment :: Web Environment',
@@ -86,7 +85,7 @@ setup(
     scripts=['scripts/ampr'],
     author=ambry_meta.__author__,
     author_email='eric@civicknowledge.com',
-    url='https://github.com/streeter/python-skeleton',
+    url='https://github.com/CivicKnowledge/ambry_sources.git',
     license='MIT',
     cmdclass={'test': PyTest},
     classifiers=classifiers,

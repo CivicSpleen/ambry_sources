@@ -1,2 +1,6 @@
 include LICENSE
+include TODO
 include README.rst
+include requirements/base.txt
+include requirements/dev.txt
+include docs/*

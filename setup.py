@@ -31,7 +31,7 @@ package_data = {
 install_requires = parse_requirements('requirements/base.txt', session=uuid.uuid1())
 tests_require = parse_requirements('requirements/dev.txt', session=uuid.uuid1())
 
-print '!!!', install_requires, tests_require
+print '!!!', list(install_requires), list(tests_require)
 classifiers = [
     'Development Status :: 4 - Beta',
     'Environment :: Web Environment',

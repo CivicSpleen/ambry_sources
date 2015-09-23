@@ -21,8 +21,10 @@ parser.add_argument('-s', '--schema', action='store_true',
                     help='Show the schema')
 parser.add_argument('-S', '--stats', action='store_true',
                     help='Show the statistics')
-parser.add_argument('-10', '--sample', action='store_true',
-                    help='Sample the first 10 records. Will only display 80 chars wide')
+parser.add_argument('-H', '--head', action='store_true',
+                    help='Display the first 10 records. Will only display 80 chars wide')
+parser.add_argument('-T', '--tail', action='store_true',
+                    help='Display the first last 10 records. Will only display 80 chars wide')
 parser.add_argument('-r', '--records', action='store_true',
                     help='Output the records in tabular format')
 parser.add_argument('-R', '--raw', action='store_true',
@@ -89,6 +91,7 @@ def main():
         pm("cols", r.info['cols'])
         pm("header_rows", r.info['header_rows'])
         pm("data_row", r.info['data_start_row'])
+        pm("end_row", r.info['data_end_row'])
 
         ss = r.meta['source']
         pm("URL", ss['url'])
@@ -96,18 +99,18 @@ def main():
 
     if args.schema:
         print "\nSCHEMA"
-
-        print tabulate.tabulate((schema_getter(row) for row in f.schema), schema_fields)
+        with f.reader as r:
+            print tabulate.tabulate((schema_getter(row.dict) for row in r.columns), schema_fields)
 
     if args.stats:
         with f.reader as r:
             print "\nSTATS"
-            stats = [r.meta['stats'].get(row['name']) for row in r.meta['schema']]
-            print tabulate.tabulate((stats_getter(row) for row in stats if row), stats_fields)
 
-    if args.sample:
+            print tabulate.tabulate((stats_getter(row.dict) for row in r.columns), stats_fields)
+
+    if args.head or args.tail:
         with f.reader as r:
-            print "\nSAMPLE"
+            print ("\nHEAD" if args.head else "\nTAIL")
             MAX_LINE = 80
             ll = 0
             headers = []
@@ -121,8 +124,12 @@ def main():
             itr = r.raw if args.raw else r.rows
 
             rows = []
-            for i, row in enumerate(islice([r[:len(headers)] for r in itr],10)):
-                rows.append((i,)+row)
+
+            start, end = (None,10) if args.head else (r.n_rows-10, r.n_rows )
+
+            slc = islice(itr,start,end)
+
+            rows = [(i,)+row[:len(headers)] for i, row in enumerate(slc, start if start else 0)]
 
             print tabulate.tabulate(rows, ['#'] + headers)
 

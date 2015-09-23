@@ -64,6 +64,7 @@ class Test(TestBase):
 
         sources = self.load_sources(file_name='geo_sources.csv')
         for name, spec in sources.iteritems():
+            print name
             if name == 'highways':
                 # it is already tested. Skip.
                 continue
@@ -74,7 +75,7 @@ class Test(TestBase):
             mpr = MPRowsFile(cache_fs, spec.name).load_rows(source)
 
             # Are columns recognized properly?
-            columns = [x['name'] for x in mpr.schema]
+            columns = mpr.headers
             self.assertIn('id', columns)
             self.assertIn('geometry', columns)
 

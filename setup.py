@@ -68,7 +68,7 @@ class PyTest(TestCommand):
         errno = pytest.main(self.pytest_args)
         sys.exit(errno)
 
-from ambry_sources import __version__, __author__
+from ambry_sources.__meta__ import __version__, __author__
 
 setup(
     name='ambry-sources',

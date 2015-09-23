@@ -26,7 +26,7 @@ with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as f:
 
 # Avoiding import so we don't execute __init__.py, which has imports
 # that aren't installed until after installation.
-ambry_meta = imp.load_source('_meta', 'ambry/__meta__.py')
+ambry_meta = imp.load_source('_meta', 'ambry_sources/__meta__.py')
 
 packages = find_packages()
 

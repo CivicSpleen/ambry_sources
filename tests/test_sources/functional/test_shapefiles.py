@@ -23,24 +23,23 @@ class Test(TestBase):
 
         # first check is it converted properly.
         row_gen = source._get_row_gen()
-        header_row = next(row_gen)
+        first_row = next(row_gen)
+
+        # generates valid first row
+        self.assertEqual(len(first_row), 68)
+        self.assertEqual(first_row[0], 0)
+        # last element is wkt.
+        self.assertIn('LINESTRING', first_row[-1])
 
         # spec columns are properly populated
         self.assertEqual(len(spec.columns), 68)
         self.assertEqual(spec.columns[0]['name'], 'id')
         self.assertEqual(spec.columns[-1]['name'], 'geometry')
 
-        # generates valid header
-        self.assertEqual(len(header_row), 68)
-        self.assertEqual(header_row[0], 'id')
-        self.assertEqual(header_row[-1], 'geometry')
-
-        # generates valid first row
-        first_row = next(row_gen)
-        self.assertEqual(len(first_row), 68)
-        self.assertEqual(first_row[0], 0)
-        # last element is wkt.
-        self.assertIn('LINESTRING', first_row[-1])
+        # header is valid
+        self.assertEqual(len(source._headers), 68)
+        self.assertEqual(source._headers[0], 'id')
+        self.assertEqual(source._headers[-1], 'geometry')
 
         # now check its load to MPRows
         mpr = MPRowsFile(cache_fs, spec.name).load_rows(source)

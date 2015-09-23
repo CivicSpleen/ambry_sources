@@ -556,6 +556,8 @@ class RowIntuiter(object):
 
         self.test_rows = []
 
+        self.debug = False
+
     def picture(self, row):
         """Create a simplified character representation of the data row, which can be pattern matched
         with a regex """
@@ -687,7 +689,8 @@ class RowIntuiter(object):
                 found_header = True
                 label = 'H'
 
-            #print label, picture, row
+            if self.debug:
+                print label, picture, row
 
             if label == 'C':
                 self.comment_lines.append(i)

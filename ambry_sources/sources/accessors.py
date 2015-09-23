@@ -359,6 +359,12 @@ class ShapefileSource(GeoSourceBase):
     def _get_row_gen(self):
         return iter(self)
 
+    @property
+    def headers(self):
+        """Return headers. This must be run after iteration, since the value that is returned is
+        set in iteration """
+        return self._headers
+
     def __iter__(self):
         """ Returns generator over shapefile rows.
 

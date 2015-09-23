@@ -181,6 +181,13 @@ class MPRowsFile(object):
     def path(self):
         return self._path
 
+    @property
+    def syspath(self):
+        if self.exists:
+            return self._fs.getsyspath(self.path)
+        else:
+            return None
+
     @staticmethod
     def encode_obj(obj):
 
@@ -228,8 +235,10 @@ class MPRowsFile(object):
     def write_file_header(cls, o, fh):
         """Write the magic number, version and the file_header dictionary.  """
 
+
         hdf = cls.FILE_HEADER_FORMAT.pack(cls.MAGIC, cls.VERSION, o.n_rows, o.n_cols, o.meta_start,
-                                          o.data_start_row, o.data_end_row)
+                                          o.data_start_row,
+                                          o.data_end_row if o.data_end_row else o.n_rows)
 
         assert len(hdf) == cls.FILE_HEADER_FORMAT_SIZE
 
@@ -474,6 +483,11 @@ class MPRowsFile(object):
             if run_stats:
                 self.run_stats()
 
+            with self.writer as w:
+
+                if not w.data_end_row:
+                    w.data_end_row = w.n_rows
+
         finally:
             self._process = None
 
@@ -559,7 +573,7 @@ class MPRWriter(object):
         self.data_start = self.FILE_HEADER_FORMAT_SIZE
         self.meta_start = 0
         self.data_start_row = 0
-        self.data_end_row = 0
+        self.data_end_row = None
 
         self.n_rows = 0
         self.n_cols = 0
@@ -679,7 +693,6 @@ class MPRWriter(object):
     def insert_row(self, row):
 
         self.n_rows += 1
-        self.data_end_row = self.n_rows
 
         self.cache.append(row)
 
@@ -690,8 +703,6 @@ class MPRWriter(object):
         '''Insert a list of rows. Don't insert iterators'''
 
         self.n_rows += len(rows)
-
-        self.data_end_row = self.n_rows
 
         self._write_rows(rows)
 
@@ -796,6 +807,7 @@ class MPRWriter(object):
             with self.parent.writer as w:
 
                 w.data_start_row = ri.start_line
+                w.data_end_row = ri.end_line if ri.end_line else None
 
                 w.meta['row_spec']['header_rows'] = ri.header_lines
                 w.meta['row_spec']['comment_rows'] = ri.comment_lines
@@ -827,6 +839,7 @@ class MPRWriter(object):
             with self.parent.writer as w:
 
                 w.data_start_row = ss.start_line
+                w.data_end_row = ss.end_line if ss.end_line else None
 
                 w.meta['row_spec']['header_rows'] = ss.header_lines
                 w.meta['row_spec']['comment_rows'] = None

@@ -14,8 +14,6 @@ try:
 except ImportError:
     from distutils.core import setup
 
-import ambry_sources
-
 
 if sys.argv[-1] == 'publish':
     os.system('python setup.py sdist upload')
@@ -32,6 +30,7 @@ package_data = {
 
 install_requires = parse_requirements('requirements/base.txt', session=uuid.uuid1())
 tests_require = parse_requirements('requirements/dev.txt', session=uuid.uuid1())
+
 print '!!!', install_requires, tests_requires
 classifiers = [
     'Development Status :: 4 - Beta',
@@ -69,6 +68,7 @@ class PyTest(TestCommand):
         errno = pytest.main(self.pytest_args)
         sys.exit(errno)
 
+from ambry_sources import __version__, __author__
 
 setup(
     name='ambry-sources',

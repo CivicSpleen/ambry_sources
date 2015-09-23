@@ -237,6 +237,7 @@ class MPRowsFile(object):
     def write_file_header(cls, o, fh):
         """Write the magic number, version and the file_header dictionary.  """
 
+
         hdf = cls.FILE_HEADER_FORMAT.pack(cls.MAGIC, cls.VERSION, o.n_rows, o.n_cols, o.meta_start,
                                           o.data_start_row,
                                           o.data_end_row if o.data_end_row else o.n_rows)
@@ -810,7 +811,7 @@ class MPRWriter(object):
             with self.parent.writer as w:
 
                 w.data_start_row = ri.start_line
-                w.data_end_row = ri.start_line if ri.start_line else None
+                w.data_end_row = ri.end_line if ri.end_line else None
 
                 w.meta['row_spec']['header_rows'] = ri.header_lines
                 w.meta['row_spec']['comment_rows'] = ri.comment_lines

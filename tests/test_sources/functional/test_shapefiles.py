@@ -45,10 +45,13 @@ class Test(TestBase):
         mpr = MPRowsFile(cache_fs, spec.name).load_rows(source)
 
         # Are columns recognized properly?
-        columns = [x['name'] for x in mpr.schema]
+        NAME_INDEX = 1  # which element of the column description contains name.
+        # Collect all names from column descriptors. Skip first elem of the schema because
+        # it's descriptor of column descriptor elements.
+        columns = [x[NAME_INDEX] for x in mpr.meta['schema'][1:]]
         self.assertIn('id', columns)
         self.assertIn('geometry', columns)
-        self.assertIn('length', columns)  # column from shape file.
+        self.assertIn('LENGTH', columns)  # column from shape file.
 
         # Is first row valid?
         first_row = next(iter(mpr.reader))

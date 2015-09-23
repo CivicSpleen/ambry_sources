@@ -6,6 +6,7 @@ import sys
 from setuptools.command.test import test as TestCommand
 from setuptools import find_packages
 import uuid
+import imp
 
 from pip.req import parse_requirements
 
@@ -22,6 +23,10 @@ if sys.argv[-1] == 'publish':
 
 with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as f:
     readme = f.read()
+
+# Avoiding import so we don't execute __init__.py, which has imports
+# that aren't installed until after installation.
+ambry_meta = imp.load_source('_meta', 'ambry/__meta__.py')
 
 packages = find_packages()
 
@@ -68,11 +73,10 @@ class PyTest(TestCommand):
         errno = pytest.main(self.pytest_args)
         sys.exit(errno)
 
-from ambry_sources.__meta__ import __version__, __author__
 
 setup(
     name='ambry-sources',
-    version=__version__,
+    version=ambry_meta.__version__,
     description='Ambry Partition Message Pack File',
     long_description=readme,
     packages=packages,
@@ -80,7 +84,7 @@ setup(
     install_requires=[x for x in reversed([str(x.req) for x in install_requires])],
     tests_require=[x for x in reversed([str(x.req) for x in tests_require])],
     scripts=['scripts/ampr'],
-    author=__author__,
+    author=ambry_meta.__author__,
     author_email='eric@civicknowledge.com',
     url='https://github.com/streeter/python-skeleton',
     license='MIT',

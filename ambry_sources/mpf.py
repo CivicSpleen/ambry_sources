@@ -151,8 +151,6 @@ class MPRowsFile(object):
         }
     }
 
-
-
     def __init__(self,  url_or_fs, path=None):
         """
 
@@ -284,7 +282,7 @@ class MPRowsFile(object):
         fh.write(fhb)
 
     @classmethod
-    def _columns(cls, o, n_cols = 0):
+    def _columns(cls, o, n_cols=0):
 
         from ambry_sources.sources.util import RowProxy
 
@@ -615,7 +613,6 @@ class MPRWriter(object):
         if self.n_rows == 0:
             self.meta['about']['create_time'] = time.time()
 
-
     @property
     def info(self):
         return MPRowsFile._info(self)
@@ -628,7 +625,7 @@ class MPRWriter(object):
         """Return the headers rows
 
         """
-        return [ e.name for e in MPRowsFile._columns(self) ]
+        return [e.name for e in MPRowsFile._columns(self)]
 
     @headers.setter
     def headers(self, headers):
@@ -638,7 +635,6 @@ class MPRWriter(object):
             return
 
         assert isinstance(headers,  (tuple, list)), headers
-
 
         for i, row in enumerate(MPRowsFile._columns(self, len(headers))):
             assert isinstance(headers[i], string_types)
@@ -919,7 +915,7 @@ class MPRReader(object):
             self._zfh = self._fh
 
         self.unpacker = msgpack.Unpacker(self._zfh, object_hook=MPRowsFile.decode_obj,
-                                         use_list = False,
+                                         use_list=False,
                                          encoding='utf-8')
 
         self._meta = None

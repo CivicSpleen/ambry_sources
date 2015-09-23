@@ -148,7 +148,7 @@ class BasicTestSuite(TestBase):
 
         cache_fs = fsopendir('temp://')
         cache_fs.makedir('/mpr')
-        cache_fs = fsopendir('/tmp/ritest/')
+        #cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources-non-std-headers.csv')
 

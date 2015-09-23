@@ -23,9 +23,9 @@ class Test(TestBase):
 
         # first make sure file not changed.
         expected_names = ['id', 'uuid', 'int', 'float']
-        expected_types = ['str', 'str', 'str', 'float']
-        self.assertEqual(sorted([x['name'] for x in partition.schema]), sorted(expected_names))
-        self.assertEqual(sorted([x['type'] for x in partition.schema]), sorted(expected_types))
+        expected_types = ['int', 'str', 'int', 'float']
+        self.assertEqual([x['name'] for x in partition.reader.columns], expected_names)
+        self.assertEqual([x['type'] for x in partition.reader.columns], expected_types)
 
         connection = apsw.Connection(':memory:')
         add_partition(connection, partition, 'vid1')
@@ -36,9 +36,11 @@ class Test(TestBase):
         result = cursor.execute(query).fetchall()
         self.assertEqual(result, [(10000,)])
 
+        with partition.reader as r:
+            expected_first_row = next(iter(r)).row
+
         # query by columns.
         query = 'SELECT id, uuid, int, float FROM {} LIMIT 1;'.format(table_name('vid1'))
         result = cursor.execute(query).fetchall()
         self.assertEqual(len(result), 1)
-        expected_first_row = ('1eb385', 'c36-9298-4427-8925-fe09294dbd 30', '99.', '734691532')
         self.assertEqual(result[0], expected_first_row)

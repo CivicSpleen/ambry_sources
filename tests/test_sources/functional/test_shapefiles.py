@@ -66,21 +66,25 @@ class Test(TestBase):
 
         sources = self.load_sources(file_name='geo_sources.csv')
         for name, spec in sources.iteritems():
-            print name
             if name == 'highways':
                 # it is already tested. Skip.
                 continue
 
             source = get_source(spec, cache_fs)
+            next(source._get_row_gen())
 
             # now check its load to MPRows
             mpr = MPRowsFile(cache_fs, spec.name).load_rows(source)
+            first_row = next(iter(mpr.reader))
 
             # Are columns recognized properly?
-            columns = mpr.headers
+
+            NAME_INDEX = 1  # which element of the column description contains name.
+            # Collect all names from column descriptors. Skip first elem of the schema because
+            # it's descriptor of column descriptor elements.
+            columns = [x[NAME_INDEX] for x in mpr.meta['schema'][1:]]
             self.assertIn('id', columns)
             self.assertIn('geometry', columns)
 
             # Is first row valid?
-            first_row = next(iter(mpr.reader))
             self.assertEqual(len(columns), len(first_row))

@@ -62,13 +62,13 @@ Running tests
 Ignoring slow tests while developing (requires pytest installation).
 .. code-block:: bash
 
-py.test tests/test_sources -k-slow
+    py.test tests/test_sources -k-slow
 
 Installing Extras in Development
 --------------------------------
 
 The package defines two extras, geo, for geographic file formats, and fdw, for the Foreign Data Wrappers. To install
-these extras in develop:
+these extras in develop, run from the root of the distribution:
 
 .. code-block:: bash
 

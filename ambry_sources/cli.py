@@ -35,15 +35,14 @@ parser.add_argument('-j', '--json', action='store_true',
 parser.add_argument('-c', '--csv', help='Output the entire file as CSV')
 parser.add_argument('-l', '--limit', help='The number of rows to output for CSV or JSON')
 
-parser.add_argument('path', nargs='?', type=str, help='File path')
-
+parser.add_argument('path', nargs=1, type=str, help='File path')
 
 def main():
     from operator import itemgetter
     from datetime import datetime
     args = parser.parse_args()
 
-    f = MPRowsFile(args.path)
+    f = MPRowsFile(args.path[0])
 
     r = f.reader
 
@@ -85,7 +84,7 @@ def main():
             print "{:<12s}: {}".format(l,m)
 
     with f.reader as r:
-        pm("MPR File",args.path)
+        pm("MPR File",args.path[0])
         pm("Created", (r.meta['about']['create_time'] and datetime.fromtimestamp(r.meta['about']['create_time'])))
         pm("version", r.info['version'])
         pm("rows", r.info['rows'])

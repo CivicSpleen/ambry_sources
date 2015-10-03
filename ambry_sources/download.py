@@ -5,15 +5,22 @@ Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
 Revised BSD License, included in this distribution as LICENSE.txt
 """
 
+import functools
 from os.path import join
+import re
+import ssl
+
+from requests import HTTPError
 
 from six.moves.urllib.parse import urlparse
 from six.moves.urllib.request import urlopen
 
 from fs.zipfs import ZipFS
+from fs.s3fs import S3FS
 
-from ambry_sources.util import copy_file_or_flo, parse_url_to_dict
 from ambry_sources.exceptions import ConfigurationError, DownloadError
+from ambry_sources.mpf import MPRowsFile
+from ambry_sources.util import copy_file_or_flo, parse_url_to_dict
 
 from .sources import GoogleSource, CsvSource, TsvSource, FixedSource, ExcelSource, PartitionSource,\
     SourceError, DelayedOpen, ShapefileSource
@@ -30,8 +37,6 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False):
 
     :return: a SourceFile object.
     """
-
-    from requests import HTTPError
 
     try:
         cache_path, download_time = download(spec.url, cache_fs, account_accessor, clean=clean)
@@ -78,8 +83,6 @@ def import_source(spec, cache_fs,  file_path=None, account_accessor=None):
 
     s = get_source(spec, cache_fs,  account_accessor)
 
-    from ambry_sources.mpf import MPRowsFile
-
     if not file_path:
         file_path = spec.name
 
@@ -106,7 +109,6 @@ def extract_file_from_zip(cache_fs, cache_path, url):
     :param url:
     :return:
     """
-    import re
 
     fs = ZipFS(cache_fs.open(cache_path, 'rb'))
 
@@ -141,7 +143,7 @@ def download(url, cache_fs, account_accessor=None, clean=False):
 
     :param url:
     :param cache_fs:
-    :param account_accessor:
+    :param account_accessor: callable of one argument (url) returning dict with credentials.
     :param clean: Remove files from cache and re-download
     :return:
     """
@@ -218,9 +220,9 @@ def download(url, cache_fs, account_accessor=None, clean=False):
                     r.raise_for_status()
 
                     # Requests will auto decode gzip responses, but not when streaming. This following
-                    # monkey patch is recommended by a core developer at https://github.com/kennethreitz/requests/issues/2155
+                    # monkey patch is recommended by a core developer at
+                    # https://github.com/kennethreitz/requests/issues/2155
                     if r.headers.get('content-encoding') == 'gzip':
-                        import functools
                         r.raw.read = functools.partial(r.raw.read, decode_content=True)
 
                     with cache_fs.open(cache_path, 'wb') as f:
@@ -242,12 +244,22 @@ def download(url, cache_fs, account_accessor=None, clean=False):
 
 
 def get_s3(url, account_accessor):
+    """ Gets file from s3 storage.
+
+    Args:
+        url (str): url of the file
+        account_accessor (callable): callable returning dictionary with s3 credentials (access and secret
+            at least)
+
+    Example:
+        get_s3('s3://example.com/file1.csv', lambda url: {'access': '<access>': 'secret': '<secret>'})
+
+    Returns:
+        S3FS instance (file-like):
+    """
+
     # TODO: Hack the pyfilesystem fs.opener file to get credentials from a keychain
     # The monkey patch fixes a bug: https://github.com/boto/boto/issues/2836
-    from fs.s3fs import S3FS
-    from ambry.util import parse_url_to_dict
-
-    import ssl
 
     _old_match_hostname = ssl.match_hostname
 
@@ -262,13 +274,24 @@ def get_s3(url, account_accessor):
 
     pd = parse_url_to_dict(url)
 
+    if account_accessor is None or not callable(account_accessor):
+        raise TypeError('account_accessor argument has to be callable of one argument returning dict.')
+
     account = account_accessor(pd['netloc'])
+    aws_access_key = account.get('access')
+    aws_secret_key = account.get('secret')
+
+    if not aws_access_key:
+        raise ValueError('dict returned by account_accessor callable has to contain not empty `access` key')
+
+    if not aws_secret_key:
+        raise ValueError('dict returned by account_accessor callable has to contain not empty `secret` key')
 
     s3 = S3FS(
         bucket=pd['netloc'],
         # prefix=pd['path'],
-        aws_access_key=account['access'],
-        aws_secret_key=account['secret'],
+        aws_access_key=aws_access_key,
+        aws_secret_key=aws_secret_key
     )
 
     # ssl.match_hostname = _old_match_hostname

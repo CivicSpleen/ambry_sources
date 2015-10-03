@@ -275,17 +275,17 @@ def get_s3(url, account_accessor):
     pd = parse_url_to_dict(url)
 
     if account_accessor is None or not callable(account_accessor):
-        raise TypeError('account_accessor argument has to be callable of one argument returning dict.')
+        raise TypeError('account_accessor argument must be callable of one argument returning dict.')
 
     account = account_accessor(pd['netloc'])
     aws_access_key = account.get('access')
     aws_secret_key = account.get('secret')
 
     if not aws_access_key:
-        raise ValueError('dict returned by account_accessor callable has to contain not empty `access` key')
+        raise ValueError('dict returned by account_accessor callable must contain not empty `access` key')
 
     if not aws_secret_key:
-        raise ValueError('dict returned by account_accessor callable has to contain not empty `secret` key')
+        raise ValueError('dict returned by account_accessor callable must contain not empty `secret` key')
 
     s3 = S3FS(
         bucket=pd['netloc'],

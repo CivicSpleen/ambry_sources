@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from ambry_sources.exceptions import MissingCredentials
 from ambry_sources.download import get_s3
 
 from tests import TestBase
@@ -22,18 +23,18 @@ class GetS3Test(TestBase):
         except TypeError as exc:
             self.assertIn('must be callable', str(exc))
 
-    def test_raises_ValueError_on_missed_access(self):
+    def test_raises_MissingCredentials_on_missed_access(self):
         try:
             get_s3(
                 's3://example.com/file1.csv',
                 lambda url: {'secret': 'secret'})
-        except ValueError as exc:
-            self.assertIn('must contain not empty `access` key', str(exc))
+        except MissingCredentials as exc:
+            self.assertIn('access', str(exc))
 
-    def test_raises_ValueError_on_missed_secret(self):
+    def test_raises_MissingCredentials_on_missed_secret(self):
         try:
             get_s3(
                 's3://example.com/file1.csv',
                 lambda url: {'access': 'access'})
-        except ValueError as exc:
-            self.assertIn('must contain not empty `secret` key', str(exc))
+        except MissingCredentials as exc:
+            self.assertIn('secret', str(exc))

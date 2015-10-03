@@ -18,7 +18,7 @@ from six.moves.urllib.request import urlopen
 from fs.zipfs import ZipFS
 from fs.s3fs import S3FS
 
-from ambry_sources.exceptions import ConfigurationError, DownloadError
+from ambry_sources.exceptions import ConfigurationError, DownloadError, MissingCredentials
 from ambry_sources.mpf import MPRowsFile
 from ambry_sources.util import copy_file_or_flo, parse_url_to_dict
 
@@ -281,11 +281,18 @@ def get_s3(url, account_accessor):
     aws_access_key = account.get('access')
     aws_secret_key = account.get('secret')
 
+    missing_credentials = []
     if not aws_access_key:
-        raise ValueError('dict returned by account_accessor callable must contain not empty `access` key')
-
+        missing_credentials.append('access')
     if not aws_secret_key:
-        raise ValueError('dict returned by account_accessor callable must contain not empty `secret` key')
+        missing_credentials.append('secret')
+
+    if missing_credentials:
+        raise MissingCredentials(
+            'dict returned by account_accessor callable for {} must contain not empty {} key(s)'
+            .format(pd['netloc'], ', '.join(missing_credentials)),
+            location=pd['netloc'],
+            required_credentials=['access', 'secret'])
 
     s3 = S3FS(
         bucket=pd['netloc'],

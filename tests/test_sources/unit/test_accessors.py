@@ -67,9 +67,9 @@ class TestShapefileSource(unittest.TestCase):
         self.assertIn('geometry_type', types)
 
     @fudge.patch(
-        'ambry_sources.sources.accessors.fiona.open',
-        'ambry_sources.sources.accessors.shape',
-        'ambry_sources.sources.accessors.dumps')
+        'fiona.open',
+        'shapely.geometry.shape',
+        'shapely.wkt.dumps')
     def test_reads_first_layer_if_spec_segment_is_empty(self, fake_open, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
         fake_open.expects_call().with_args(arg.any(), vfs=arg.any(), layer=0).returns(fake_collection)
@@ -83,9 +83,9 @@ class TestShapefileSource(unittest.TestCase):
         next(source._get_row_gen())
 
     @fudge.patch(
-        'ambry_sources.sources.accessors.fiona.open',
-        'ambry_sources.sources.accessors.shape',
-        'ambry_sources.sources.accessors.dumps')
+        'fiona.open',
+        'shapely.geometry.shape',
+        'shapely.wkt.dumps')
     def test_reads_layer_specified_by_segment(self, fake_open, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
         fake_open.expects_call().with_args(arg.any(), vfs=arg.any(), layer=5).returns(fake_collection)
@@ -97,10 +97,10 @@ class TestShapefileSource(unittest.TestCase):
         next(source._get_row_gen())
 
     @fudge.patch(
-        'ambry_sources.sources.accessors.fiona.open',
+        'fiona.open',
         'ambry_sources.sources.accessors.ShapefileSource._get_columns',
-        'ambry_sources.sources.accessors.shape',
-        'ambry_sources.sources.accessors.dumps')
+        'shapely.geometry.shape',
+        'shapely.wkt.dumps')
     def test_populates_columns_of_the_spec(self, fake_open, fake_get, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
         fake_open.expects_call().returns(fake_collection)
@@ -114,10 +114,10 @@ class TestShapefileSource(unittest.TestCase):
         self.assertEquals(spec.columns, [{'name': 'col1', 'type': 'int'}])
 
     @fudge.patch(
-        'ambry_sources.sources.accessors.fiona.open',
+        'fiona.open',
         'ambry_sources.sources.accessors.ShapefileSource._get_columns',
-        'ambry_sources.sources.accessors.shape',
-        'ambry_sources.sources.accessors.dumps')
+        'shapely.geometry.shape',
+        'shapely.wkt.dumps')
     def test_converts_row_id_to_integer(self, fake_open, fake_get, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
         fake_open.expects_call().returns(fake_collection)
@@ -132,10 +132,10 @@ class TestShapefileSource(unittest.TestCase):
         self.assertEqual(first_row[0], 0)
 
     @fudge.patch(
-        'ambry_sources.sources.accessors.fiona.open',
+        'fiona.open',
         'ambry_sources.sources.accessors.ShapefileSource._get_columns',
-        'ambry_sources.sources.accessors.shape',
-        'ambry_sources.sources.accessors.dumps')
+        'shapely.geometry.shape',
+        'shapely.wkt.dumps')
     def test_saves_header(self, fake_open, fake_get, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
         fake_open.expects_call().returns(fake_collection)
@@ -152,10 +152,10 @@ class TestShapefileSource(unittest.TestCase):
         self.assertEqual(source._headers, ['id', 'col1', 'geometry'])
 
     @fudge.patch(
-        'ambry_sources.sources.accessors.fiona.open',
+        'fiona.open',
         'ambry_sources.sources.accessors.ShapefileSource._get_columns',
-        'ambry_sources.sources.accessors.shape',
-        'ambry_sources.sources.accessors.dumps')
+        'shapely.geometry.shape',
+        'shapely.wkt.dumps')
     def test_last_element_in_the_row_is_wkt(self, fake_open, fake_get, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
         fake_open.expects_call().returns(fake_collection)

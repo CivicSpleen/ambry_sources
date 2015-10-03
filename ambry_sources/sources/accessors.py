@@ -370,15 +370,15 @@ class ShapefileSource(GeoSourceBase):
             The last column is a string named geometry, which has the wkt value, the type is geometry_type.
 
         """
-        
+
         # These imports are nere, not at the module level, so the geo
         # support can be an extra
-        
+
         import fiona
 
         from shapely.geometry import shape
         from shapely.wkt import dumps
-        
+
         self.start()
 
         with fiona.drivers():

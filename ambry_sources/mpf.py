@@ -502,6 +502,22 @@ class MPRowsFile(object):
             self._reader = MPRReader(self, self._fs.open(self.path, mode='rb'), compress=self._compress)
         return self._reader
 
+    def __iter__(self):
+        """Iterate over a reader"""
+
+        # There is probably a more efficient way in python 2 to do this than to have another yield loop,
+        # but just returning the reader iterator doesn't work
+        with self.reader as r:
+            for row in r:
+                yield row
+
+    def select(self, predicate = None, getter = None):
+        """Iterate the results from the reader's select() method"""
+
+        with self.reader as r:
+            for row in r.select(predicate, getter):
+                yield row
+
     @property
     def writer(self):
         from os.path import dirname
@@ -779,7 +795,6 @@ class MPRWriter(object):
                 k = {'count': 'stat_count'}.get(k, k)
                 row[k] = v
 
-
     def set_source_spec(self, spec):
         """Set the metadata coresponding to the SourceSpec, excluding the row spec parts. """
 
@@ -793,6 +808,15 @@ class MPRWriter(object):
 
         me = self.meta['excel']
         me['workbook'] = spec.segment
+
+        if spec.columns:
+            for i, sc in enumerate(spec.columns, 1):
+                c = self.column(i)
+                if c.name:
+                    assert sc.name == c.name
+
+                c.start = sc.start
+                c.width = sc.width
 
     def set_row_spec(self, ri_or_ss):
         """Set the row spec and schema from a RowIntuiter object or a SourceSpec"""
@@ -1016,7 +1040,16 @@ class MPRReader(object):
 
 
     def __iter__(self):
-        """Iterator for reading rows as RowProxy objects"""
+        """Iterator for reading rows as RowProxy objects
+
+
+        WARNING: This routine returns RowProxy objects. RowProxy objects
+        are reused, so if you construct a list directly from the output from this method, the list will have
+        multiple copies of a single RowProxy, which will have as an inner row the last result row. If you will
+        be directly constructing a list, use a getter that extracts the inner row, or which converted the RowProxy
+        to a dict.
+
+        """
         from ambry_sources.sources import RowProxy
 
         self._fh.seek(self.data_start)
@@ -1037,9 +1070,61 @@ class MPRReader(object):
                 #if self._fh.tell() >= self.meta_start:
                 #    break
 
-
         finally:
             self._in_iteration = False
+
+    def select(self, predicate=None, getter=None):
+        """
+        Select rows from the reader using a predicate to select rows and and itemgetter to return a
+        subset of elements
+        :param predicate: If defined, a callable that is called for each rowm and if it returns true, the
+        row is included in the output.
+        :param getter: If defined, a callable or an iterable. If a callable itis applied to each returned row.
+        if an iterable, a getter is constructed that returns a dict or tuple  with only the fields listed in
+        the iterable. If the iterable is a set, the output is a dict. Otherwise, the output is a tuple.
+
+        Equivalent to:
+
+            from itertools import imap, ifilter
+
+            return imap(getter, ifilter(predicate, iter(self)))
+
+        :return: iterable of results
+
+        WARNING: This routine works from the reader iterator, which returns RowProxy objects. RowProxy objects
+        are reused, so if you construct a list directly from the output from this method, the list will have
+        multiple copies of a single RowProxy, which will have as an inner row the last result row. If you will
+        be directly constructing a list, use a getter that extracts the inner row, or which converted the RowProxy
+        to a dict:
+
+            list(s.datafile.select(lambda r: r.stusab == 'CA', lambda r: r.dict ))
+
+        """
+
+        from itertools import imap, ifilter
+
+        if getter:
+            try:
+                iter(getter)
+                from operator import itemgetter
+                header = list(getter)
+                ig = itemgetter(*header)
+                if isinstance(getter, set):
+                    getter = lambda r: dict(zip(header, ig(r.dict)))
+                else:
+                    getter = lambda r: ig(r.dict)
+
+            except TypeError:
+                pass
+
+        if getter is not None and predicate is not None:
+            return imap(getter, ifilter(predicate, iter(self)))
+        elif getter is not None and predicate is None:
+            return imap(getter, iter(self))
+        elif getter is None and predicate is not None:
+            return ifilter(predicate, self)
+        else:
+            return iter(self)
 
     def close(self):
         if self._fh:

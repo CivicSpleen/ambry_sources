@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 
+from six import string_types
 
 class ColumnSpec(object):
 
-    def __init__(self, name, position=None, start=None, width=None):
+    def __init__(self, name, position=None, start=None, width=None, **kwargs):
         """
 
         :param name:
@@ -22,7 +23,9 @@ class ColumnSpec(object):
         return str(self.__dict__)
 
     def __repr__(self):
-        return "ColumnSpec(**{})".format(str(self.__dict__))
+        return "ColumnSpec({})".format(','.join("{}={}".format(k,v if not isinstance(v,string_types)
+                                                else '"{}"'.format(v))
+                                                for k,v in self.__dict__.items()))
 
 
 class SourceSpec(object):
@@ -31,7 +34,7 @@ class SourceSpec(object):
                  header_lines=False, start_line=None, end_line=None,
                  urltype=None, filetype=None,
                  encoding=None,
-                 columns=None, name=None, **kwargs):
+                 columns=None, name=None, file = None, **kwargs):
         """
 
         The ``header_lines`` can be a list of header lines, or one of a few special values:
@@ -63,6 +66,7 @@ class SourceSpec(object):
         self.filetype = filetype
         self.encoding = encoding
         self.columns = columns
+        self.file = file
 
         self._header_lines_specified = False
 
@@ -70,7 +74,7 @@ class SourceSpec(object):
 
         self.encoding = self.encoding if self.encoding else None
 
-        # print '!!!', self.name, str(self.header_lines), type(self.header_lines)
+
 
         if isinstance(self.header_lines, basestring) and self.header_lines != 'none':
             self.header_lines = [int(e) for e in self.header_lines.split(',') if e.strip() != '']
@@ -108,7 +112,7 @@ class SourceSpec(object):
     def has_rowspec(self):
         """Return True if the spec defines header lines or the data start line"""
 
-        return self._header_lines_specified
+        return self._header_lines_specified or self.start_line != None
 
     def get_filetype(self, file_path):
         """Determine the format of the source file, by reporting the file extension"""

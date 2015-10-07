@@ -46,7 +46,7 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False):
     url_type = spec.get_urltype()
 
     if url_type == 'zip':
-        fstor = extract_file_from_zip(cache_fs, cache_path, spec.url)
+        fstor = extract_file_from_zip(cache_fs, cache_path, spec.url, spec.file)
 
     elif url_type == 'gs':
         raise NotImplementedError()
@@ -99,7 +99,7 @@ def import_source(spec, cache_fs,  file_path=None, account_accessor=None):
     return f
 
 
-def extract_file_from_zip(cache_fs, cache_path, url):
+def extract_file_from_zip(cache_fs, cache_path, url, fn_pattern = None):
     """
     For a zip archive, return the first file if no file_name is specified as a fragment in the url,
      or if a file_name is specified, use it as a regex to find a file in the archive
@@ -115,12 +115,14 @@ def extract_file_from_zip(cache_fs, cache_path, url):
     def walk_all(fs):
         return [join(e[0], x) for e in fs.walk() for x in e[1]]
 
-    if '#' not in url:
+    if not fn_pattern and '#' in url:
+        _, fn_pattern = url.split('#')
+
+    if not fn_pattern:
         first = walk_all(fs)[0]
         fstor = DelayedOpen(fs, first, 'rU', container=(cache_fs, cache_path))
 
     else:
-        _, fn_pattern = url.split('#')
 
         for file_name in walk_all(fs):
 
@@ -128,6 +130,7 @@ def extract_file_from_zip(cache_fs, cache_path, url):
                 continue
 
             if re.search(fn_pattern, file_name):
+
                 fstor = DelayedOpen(fs, file_name, 'rb', container=(cache_fs, cache_path))
                 break
 

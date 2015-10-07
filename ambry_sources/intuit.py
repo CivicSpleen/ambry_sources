@@ -556,7 +556,7 @@ class RowIntuiter(object):
 
         self.test_rows = []
 
-        self.debug = False
+        self.debug = True
 
     def picture(self, row):
         """Create a simplified character representation of the data row, which can be pattern matched

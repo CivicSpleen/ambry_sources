@@ -167,6 +167,7 @@ class FixedSource(SourceFile):
 
     @property
     def headers(self):
+
         return [c.name if c.name else i for i, c in enumerate(self.spec.columns)]
 
     def __iter__(self):
@@ -177,6 +178,7 @@ class FixedSource(SourceFile):
         parser = self.make_fw_row_parser()
 
         for line in self._fstor.open(mode='r', encoding=self.spec.encoding):
+
             yield [e.strip() for e in parser(line)]
 
         self.finish()

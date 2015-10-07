@@ -12,35 +12,42 @@ from itertools import islice
 import tabulate
 from __meta__ import __version__
 
-parser = argparse.ArgumentParser(
-    prog='ampr',
-    description='Ambry Message Pack Rows file access version:'.format(__version__))
+def make_arg_parser(parser=None):
 
-parser.add_argument('-m', '--meta', action='store_true',
-                    help='Show metadata')
-parser.add_argument('-s', '--schema', action='store_true',
-                    help='Show the schema')
-parser.add_argument('-S', '--stats', action='store_true',
-                    help='Show the statistics')
-parser.add_argument('-H', '--head', action='store_true',
-                    help='Display the first 10 records. Will only display 80 chars wide')
-parser.add_argument('-T', '--tail', action='store_true',
-                    help='Display the first last 10 records. Will only display 80 chars wide')
-parser.add_argument('-r', '--records', action='store_true',
-                    help='Output the records in tabular format')
-parser.add_argument('-R', '--raw', action='store_true',
-                    help='For the sample output, use the raw iterator')
-parser.add_argument('-j', '--json', action='store_true',
-                    help='Output the entire file as JSON')
-parser.add_argument('-c', '--csv', help='Output the entire file as CSV')
-parser.add_argument('-l', '--limit', help='The number of rows to output for CSV or JSON')
 
-parser.add_argument('path', nargs=1, type=str, help='File path')
+    if not parser:
+        parser = argparse.ArgumentParser(
+            prog='ampr',
+            description='Ambry Message Pack Rows file access version:'.format(__version__))
 
-def main():
+    parser.add_argument('-m', '--meta', action='store_true',
+                        help='Show metadata')
+    parser.add_argument('-s', '--schema', action='store_true',
+                        help='Show the schema')
+    parser.add_argument('-S', '--stats', action='store_true',
+                        help='Show the statistics')
+    parser.add_argument('-H', '--head', action='store_true',
+                        help='Display the first 10 records. Will only display 80 chars wide')
+    parser.add_argument('-T', '--tail', action='store_true',
+                        help='Display the first last 10 records. Will only display 80 chars wide')
+    parser.add_argument('-r', '--records', action='store_true',
+                        help='Output the records in tabular format')
+    parser.add_argument('-R', '--raw', action='store_true',
+                        help='For the sample output, use the raw iterator')
+    parser.add_argument('-j', '--json', action='store_true',
+                        help='Output the entire file as JSON')
+    parser.add_argument('-c', '--csv', help='Output the entire file as CSV')
+    parser.add_argument('-l', '--limit', help='The number of rows to output for CSV or JSON')
+
+    parser.add_argument('path', nargs=1, type=str, help='File path')
+
+def main(args=None):
     from operator import itemgetter
     from datetime import datetime
-    args = parser.parse_args()
+
+    if not args:
+        parser = make_arg_parser()
+        args = parser.parse_args()
 
     f = MPRowsFile(args.path[0])
 

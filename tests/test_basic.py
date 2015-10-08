@@ -417,7 +417,7 @@ class BasicTestSuite(TestBase):
             print spec.name, spec.url
 
             with Timer() as t:
-                f = MPRowsFile(cache_fs, source_name).load_rows(s, spec, run_stats=True)
+                f = MPRowsFile(cache_fs, source_name).load_rows(s, run_stats=True)
 
             with f.reader as r:
                 print 'Loaded ', r.n_rows, float(r.n_rows) / t.elapsed, 'rows/sec'
@@ -570,7 +570,14 @@ class BasicTestSuite(TestBase):
         self.assertEqual([3, 4, 5], d['header_rows'])
         self.assertEqual([u'a_b_c', u'b_c_d', u'c_d_e', u'd_e_f', u'e_f_g', u'f_g_h'], d['headers'])
 
-        f = MPRowsFile('mem://frh').load_rows(rows, SourceSpec(None, header_lines=(3, 4), start_line=5))
+        class Rows(object):
+            spec = SourceSpec(None, header_lines=(3, 4), start_line=5)
+
+            def __iter__(self):
+                return iter(rows)
+
+
+        f = MPRowsFile('mem://frh').load_rows(Rows())
 
         d = f.info
 

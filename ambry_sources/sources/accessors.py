@@ -23,7 +23,13 @@ class SourceFile(object):
         :return:
         """
 
-        self.spec = spec
+        from copy import deepcopy
+
+        try:
+            self.spec = deepcopy(spec)
+        except TypeError:
+            pass
+
         self._fstor = fstor
         self._headers = None # Reserved for subclasses that extract headers from data stream
 
@@ -163,8 +169,8 @@ class FixedSource(SourceFile):
             raise SourceError("For FixedSource, the start line must be 1 or unspecified; got '{}' "
                               .format(spec.start_line))
 
-        if not (spec.header_lines is None or spec.header_lines == [0] or spec.header_lines == []):
-            raise SourceError("For FixedSource, the start line must be [0] or unspecified; got '{}'"
+        if not ( not spec.header_lines or spec.header_lines == [0] or spec.header_lines == []):
+            raise SourceError("For FixedSource, the header_lines must be [0] or unspecified; got '{}'"
                               .format(spec.header_lines))
 
     def make_fw_row_parser(self):
@@ -337,6 +343,20 @@ class GeoSourceBase(SourceFile):
 class ShapefileSource(GeoSourceBase):
     """ Accessor for shapefiles (*.shp) with geo data. """
 
+    def __init__(self, spec, fstor):
+        super(ShapefileSource, self).__init__(spec, fstor)
+
+        if not (not spec.start_line or spec.start_line == 1):
+            raise SourceError("For ShapefileSource, the start line must be 1 or unspecified; got '{}' "
+                              .format(spec.start_line))
+
+        if not (not spec.header_lines or spec.header_lines == [0] or spec.header_lines == []):
+            raise SourceError("For ShapefileSource, the start line must be [0] or unspecified; got '{}'"
+                              .format(spec.header_lines))
+
+        self.spec.start_line = 0
+        self.spec.header_lines = None
+
     def _convert_column(self, shapefile_column):
         """ Converts column from a *.shp file to the column expected by ambry_sources.
 
@@ -404,6 +424,7 @@ class ShapefileSource(GeoSourceBase):
 
         from shapely.geometry import shape
         from shapely.wkt import dumps
+        from spec import ColumnSpec
 
         self.start()
 
@@ -414,7 +435,7 @@ class ShapefileSource(GeoSourceBase):
             with fiona.open('/', vfs=virtual_fs, layer=layer_index) as source:
                 # geometry_type = source.schema['geometry']
                 property_schema = source.schema['properties']
-                self.spec.columns = self._get_columns(property_schema)
+                self.spec.columns = [ ColumnSpec(**c) for c in self._get_columns(property_schema)]
                 self._headers = [x['name'] for x in self._get_columns(property_schema)]
 
                 for s in source:

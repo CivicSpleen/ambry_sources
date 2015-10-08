@@ -426,7 +426,10 @@ class MPRowsFile(object):
     def load_rows(self, source,  spec = None, intuit_rows=None, intuit_type=True, run_stats=True):
         try:
 
-            self._load_rows(source, spec=spec if spec else getattr(source,'spec',None),
+            # The spec should always be part of the source
+            assert spec is None
+
+            self._load_rows(source,
                             intuit_rows=intuit_rows,
                             intuit_type=intuit_type, run_stats=run_stats)
         except:
@@ -436,10 +439,12 @@ class MPRowsFile(object):
 
         return self
 
-    def _load_rows(self, source, spec=None, intuit_rows=None, intuit_type=True, run_stats=True):
+    def _load_rows(self, source,  intuit_rows=None, intuit_type=True, run_stats=True):
         from .exceptions import RowIntuitError
         if self.n_rows:
             raise MPRError("Can't load_rows; rows already loaded. n_rows = {}".format(self.n_rows))
+
+        spec = getattr(source, 'spec', None)
 
         # None means to determine True or False from the existence of a row spec
         if intuit_rows is None:
@@ -462,8 +467,6 @@ class MPRowsFile(object):
 
                 if spec:
                     w.set_source_spec(spec)
-
-                w.close()
 
             if intuit_rows:
                 try:
@@ -727,18 +730,20 @@ class MPRWriter(object):
     def load_rows(self, source):
         """Load rows from an iterator"""
 
+        for row in iter(source):
+            self.insert_row(row)
+
+        # If the source has a headers property, and it's defined, then
+        # use it for the headers. This often has to be called after iteration, because
+        # the source may have the header as the first row
         try:
             if source.headers:
                 self.headers = source.headers
         except AttributeError:
             pass
 
-        for row in iter(source):
-            self.insert_row(row)
-
-            # If the source has a headers property, and it's defined, then
-            # use it for the headers. This often has to be called after iteration, because
-            # the source may have the header as the first row
+        if len(self.cache):
+            self._write_rows()
 
 
     def close(self):
@@ -812,8 +817,10 @@ class MPRWriter(object):
         me['workbook'] = spec.segment
 
         if spec.columns:
+
             for i, sc in enumerate(spec.columns, 1):
                 c = self.column(i)
+
                 if c.name:
                     assert sc.name == c.name
 

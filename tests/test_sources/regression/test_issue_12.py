@@ -77,6 +77,6 @@ class Test(TestBase):
         if f.exists:
             f.remove()
 
-        f.load_rows(s, spec)
+        f.load_rows(s)
 
         self.assertEqual(119, f.reader.info['data_end_row'])

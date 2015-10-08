@@ -69,6 +69,13 @@ class SourceSpec(object):
             else:
                 return None
 
+        assert not isinstance(columns, dict)
+
+        try:
+            assert not isinstance(columns[0], dict)
+        except:
+            pass
+
         self.url = url
         self.name = name
         self.segment = segment
@@ -100,7 +107,7 @@ class SourceSpec(object):
 
         if not self.name:
             import hashlib
-            self.name = hashlib.md5(str(self.url)+str(self.segment))
+            self.name = hashlib.md5(str(self.url)+str(self.segment)).hexdigest()
 
     @property
     def has_rowspec(self):

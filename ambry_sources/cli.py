@@ -41,6 +41,8 @@ def make_arg_parser(parser=None):
 
     parser.add_argument('path', nargs=1, type=str, help='File path')
 
+    return parser
+
 def main(args=None):
     from operator import itemgetter
     from datetime import datetime

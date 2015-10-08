@@ -34,30 +34,47 @@ class BasicTestSuite(TestBase):
                 raise AssertionError('Failed to download {} source because of {} error.'
                                      .format(s.url, exc))
 
-    @unittest.skip('Useful for debugging, but doesnt add test coverage')
-    def test_just_load(self):
+
+    def test_load_check_headers(self):
         """Just check that all of the sources can be loaded without exceptions"""
 
         cache_fs = fsopendir('temp://')
 
         sources = self.load_sources()
 
+        headers = {
+            'mz_with_zip_xl': [u'id', u'gvid', u'renter_cost_gt_30', u'renter_cost_gt_30_cv', u'owner_cost_gt_30_pct', u'owner_cost_gt_30_pct_cv'],
+            'mz_no_zip': [u'id', u'uuid', u'int', u'float'],
+            'namesu8': [u'origin_english', u'name_english', u'origin_native', u'name_native'],
+            'sf_zip': [u'id', u'uuid', u'int', u'float'],
+            'simple': [u'id', u'uuid', u'int', u'float'],
+            'csv_no_csv': [u'id', u'uuid', u'int', u'float'],
+            'mz_with_zip': [u'id', u'uuid', u'int', u'float'],
+            'rpeople': [u'name', u'size'],
+            'rent07': [u'id', u'gvid', u'renter_cost_gt_30', u'renter_cost_gt_30_cv', u'owner_cost_gt_30_pct', u'owner_cost_gt_30_pct_cv'],
+            'simple_fixed': [u'id', u'uuid', u'int', u'float'],
+            'altname': [u'id', u'foo', u'bar', u'baz'],
+            'rentcsv': [u'id', u'gvid', u'renter_cost_gt_30', u'renter_cost_gt_30_cv', u'owner_cost_gt_30_pct', u'owner_cost_gt_30_pct_cv'],
+            'renttab': [u'id', u'gvid', u'renter_cost_gt_30', u'renter_cost_gt_30_cv', u'owner_cost_gt_30_pct', u'owner_cost_gt_30_pct_cv'],
+            'multiexcel': [u'id', u'gvid', u'renter_cost_gt_30', u'renter_cost_gt_30_cv', u'owner_cost_gt_30_pct', u'owner_cost_gt_30_pct_cv'],
+            'rent97': [u'id', u'gvid', u'renter_cost_gt_30', u'renter_cost_gt_30_cv', u'owner_cost_gt_30_pct', u'owner_cost_gt_30_pct_cv']
+        }
+
         for source_name, spec in sources.items():
 
             s = get_source(spec, cache_fs)
-
-            print spec.name
 
             f = MPRowsFile(cache_fs, spec.name)
 
             if f.exists:
                 f.remove()
 
-            with f.writer as w:
-                w.load_rows(s)
+            f.load_rows(s)
 
             with f.reader as r:
-                print r.headers
+
+                self.assertEquals(headers[spec.name],r.headers)
+
 
     #@unittest.skip('Useful for debugging, but doesnt add test coverage')
     def test_full_load(self):
@@ -91,6 +108,29 @@ class BasicTestSuite(TestBase):
         s = get_source(spec, cache_fs)
         f = MPRowsFile(cache_fs, spec.name).load_rows(s)
         self.assertEqual(f.headers, ['id', 'uuid', 'int', 'float'])
+
+    def test_generator(self):
+        from ambry_sources.sources import GeneratorSource, SourceSpec
+
+        cache_fs = fsopendir(self.setup_temp_dir())
+
+        def gen():
+
+            yield list('abcde')
+
+            for i in range(10):
+                yield [i, i+1, i+2, i+3, i+4]
+
+        f = MPRowsFile(cache_fs, 'foobar').load_rows(GeneratorSource(SourceSpec('foobar'), gen()))
+
+        self.assertEqual(1,  f.info['data_start_row'])
+        self.assertEqual(11, f.info['data_end_row'])
+        self.assertEqual([0],  f.info['header_rows'])
+
+        self.assertEqual(f.headers, list('abcde'))
+
+        print list(f.select())
+
 
     def test_type_intuit(self):
         """Just check that all of the sources can be downloaded without exceptions"""
@@ -339,23 +379,7 @@ class BasicTestSuite(TestBase):
 
         print "MSGPack raw   ", float(N) / t.elapsed
 
-    def x_test_mpr_meta(self):
 
-        # Saving code for later.
-        r = None
-        df = None
-
-        self.assertEqual('blah blah', r.meta['source']['url'])
-
-        w = df.writer
-
-        w.meta['source']['url'] = 'bingo'
-
-        w.close()
-
-        r = df.reader
-
-        self.assertEqual('bingo', r.meta['source']['url'])
 
     def generate_rows(self, N):
         import datetime

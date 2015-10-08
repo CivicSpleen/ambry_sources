@@ -75,7 +75,7 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False):
             "Failed to determine file type for source '{}'; unknown type '{}' "
             .format(spec.name, file_type))
 
-    return cls(spec, fstor, use_row_spec=False)
+    return cls(spec, fstor)
 
 
 def import_source(spec, cache_fs,  file_path=None, account_accessor=None):

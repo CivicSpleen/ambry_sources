@@ -12,6 +12,8 @@ __all__ = [
     ExcelSource, GoogleSource,
     DelayedOpen, RowProxy, GeneratorSource ]
 
+from .spec import *
+
 try:
     # Only if the underlying fiona and shapely libraries are installed with the [geo] extra
     from .accessors import  ShapefileSource

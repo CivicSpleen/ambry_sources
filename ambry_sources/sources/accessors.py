@@ -16,7 +16,7 @@ class SourceFile(object):
     Subclasses of SourceFile must override at lease _get_row_gen method.
     """
 
-    def __init__(self, spec, fstor, use_row_spec=True):
+    def __init__(self, spec, fstor):
         """
 
         :param fstor: A File-like object for the file, already opened.
@@ -94,8 +94,19 @@ class SourceFile(object):
 
 
 class GeneratorSource(SourceFile):
-    def __init__(self, spec, generator, use_row_spec=True):
-        super(GeneratorSource, self).__init__(spec, None, use_row_spec)
+    def __init__(self, spec, generator):
+        super(GeneratorSource, self).__init__(spec, None)
+
+        if not ( not spec.start_line or spec.start_line == 1):
+            raise SourceError("For GeneratorSource, the start line must be 1 or unspecified; got '{}' "
+                              .format(spec.start_line))
+
+        if not ( not spec.header_lines or spec.header_lines == [0] or spec.header_lines == []):
+            raise SourceError("For GeneratorSource, the start line must be [0] or unspecified; got '{}'"
+                              .format(spec.header_lines))
+
+        self.spec.start_line = 1
+        self.spec.header_lines = [0]
 
         self.gen = generator
 
@@ -142,6 +153,19 @@ class TsvSource(SourceFile):
 
 class FixedSource(SourceFile):
     """Generate rows from a fixed-width source"""
+
+    def __init__(self, spec, fstor):
+        from exceptions import SourceError
+
+        super(FixedSource, self).__init__(spec, fstor)
+
+        if not (spec.start_line is None or spec.start_line == 1):
+            raise SourceError("For FixedSource, the start line must be 1 or unspecified; got '{}' "
+                              .format(spec.start_line))
+
+        if not (spec.header_lines is None or spec.header_lines == [0] or spec.header_lines == []):
+            raise SourceError("For FixedSource, the start line must be [0] or unspecified; got '{}'"
+                              .format(spec.header_lines))
 
     def make_fw_row_parser(self):
 

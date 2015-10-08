@@ -235,10 +235,10 @@ class MPRowsFile(object):
     def write_file_header(cls, o, fh):
         """Write the magic number, version and the file_header dictionary.  """
 
+        int(o.data_start_row)
 
         hdf = cls.FILE_HEADER_FORMAT.pack(cls.MAGIC, cls.VERSION, o.n_rows, o.n_cols, o.meta_start,
-                                          o.data_start_row,
-                                          o.data_end_row if o.data_end_row else o.n_rows)
+                                          o.data_start_row,  o.data_end_row if o.data_end_row else o.n_rows)
 
         assert len(hdf) == cls.FILE_HEADER_FORMAT_SIZE
 
@@ -423,9 +423,11 @@ class MPRowsFile(object):
 
         return stats
 
-    def load_rows(self, source, spec=None, intuit_rows=None, intuit_type=True, run_stats=True):
+    def load_rows(self, source,  spec = None, intuit_rows=None, intuit_type=True, run_stats=True):
         try:
-            self._load_rows(source, spec=spec, intuit_rows=intuit_rows,
+
+            self._load_rows(source, spec=spec if spec else getattr(source,'spec',None),
+                            intuit_rows=intuit_rows,
                             intuit_type=intuit_type, run_stats=run_stats)
         except:
             self.writer.close()
@@ -722,7 +724,7 @@ class MPRWriter(object):
 
         self._write_rows(rows)
 
-    def load_rows(self, source, first_is_header=False):
+    def load_rows(self, source):
         """Load rows from an iterator"""
 
         try:
@@ -1025,6 +1027,7 @@ class MPRReader(object):
 
         _ = self.headers  # Get the header, but don't return it.
 
+
         try:
             self._in_iteration = True
 
@@ -1055,6 +1058,7 @@ class MPRReader(object):
         self._fh.seek(self.data_start)
 
         rp = RowProxy(self.headers)
+
 
         try:
             self._in_iteration = True

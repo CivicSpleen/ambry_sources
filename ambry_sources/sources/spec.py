@@ -56,12 +56,25 @@ class SourceSpec(object):
         :return:
         """
 
+        if 'reftype' in kwargs and not urltype:
+            urltype = kwargs['reftype'] # Ambry SourceFile object changed from urltype to reftype.
+
+        def norm(v):
+
+            if v == 0:
+                return 0
+
+            if bool(v):
+                return v
+            else:
+                return None
+
         self.url = url
         self.name = name
         self.segment = segment
         self.header_lines = header_lines
-        self.start_line = start_line
-        self.end_line = end_line
+        self.start_line = norm(start_line)
+        self.end_line = norm(end_line)
         self.urltype = urltype
         self.filetype = filetype
         self.encoding = encoding
@@ -74,35 +87,16 @@ class SourceSpec(object):
 
         self.encoding = self.encoding if self.encoding else None
 
-
-
+        # If the header lines is specified as a comma delimited list
         if isinstance(self.header_lines, basestring) and self.header_lines != 'none':
             self.header_lines = [int(e) for e in self.header_lines.split(',') if e.strip() != '']
 
+        # If it is an actual list.
         elif isinstance(self.header_lines, (list, tuple)):
             self.header_lines = [int(e) for e in self.header_lines if str(e).strip() != '']
 
-        if self.header_lines is False or self.header_lines == []:
-            # No header specified, so try to intuit
-            self._header_lines_specified = False
-            self.header_lines = None
-            self.start_line = 0
-            pass
-        elif self.header_lines is None or self.header_lines == 'none' or self.header_lines == [None]:
-            # No header, don't intuiit. There definitely isn't one
-            self._header_lines_specified = True
-            self.header_lines = None
-        else:
-            self._header_lines_specified = True
-
-            if self.start_line is None:
-                if len(self.header_lines) > 1:
-                    self.start_line = max(*self.header_lines) + 1
-                elif len(self.header_lines) == 1:
-                    self.start_line = self.header_lines[0] + 1
-                else:
-                    self.header_lines = None
-                    self.start_line = 0
+        if self.header_lines:
+            self.start_line = max(self.header_lines) + 1
 
         if not self.name:
             import hashlib

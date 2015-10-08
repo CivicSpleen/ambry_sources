@@ -8,3 +8,6 @@ Revised BSD License, included in this distribution as LICENSE.txt
 
 class SourceError(Exception):
     pass
+
+class SpecError(Exception):
+    pass

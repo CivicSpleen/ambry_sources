@@ -31,6 +31,8 @@ class TestShapefileSource(unittest.TestCase):
     # _convert_column tests
     def test_converts_shapefile_column(self):
         spec = fudge.Fake().is_a_stub()
+        spec.start_line = 0
+        spec.header_lines = []
         fstor = fudge.Fake().is_a_stub()
         source = ShapefileSource(spec, fstor)
         expected_column = {'name': 'name1', 'type': 'int'}
@@ -41,6 +43,8 @@ class TestShapefileSource(unittest.TestCase):
     # _get_columns tests
     def test_converts_given_columns(self):
         spec = fudge.Fake().is_a_stub()
+        spec.start_line = 0
+        spec.header_lines = []
         fstor = fudge.Fake().is_a_stub()
         source = ShapefileSource(spec, fstor)
         column1 = ('name1', 'int:10')
@@ -54,6 +58,8 @@ class TestShapefileSource(unittest.TestCase):
 
     def test_extends_with_id_and_geometry(self):
         spec = fudge.Fake().is_a_stub()
+        spec.start_line = 0
+        spec.header_lines = []
         fstor = fudge.Fake().is_a_stub()
         source = ShapefileSource(spec, fstor)
         shapefile_columns = OrderedDict()
@@ -111,7 +117,8 @@ class TestShapefileSource(unittest.TestCase):
         fstor = fudge.Fake().is_a_stub()
         source = ShapefileSource(spec, fstor)
         next(source._get_row_gen())
-        self.assertEquals(spec.columns, [{'name': 'col1', 'type': 'int'}])
+        self.assertEqual(len(source.spec.columns), 1)
+        self.assertEqual(source.spec.columns[0].name, 'col1')
 
     @fudge.patch(
         'fiona.open',

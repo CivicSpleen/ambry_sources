@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from .accessors import CsvSource, TsvSource, FixedSource, PartitionSource, ExcelSource,\
-    GoogleSource, GeneratorSource
+    GoogleSource, GeneratorSource, MPRSource
 from .exceptions import SourceError
 from .spec import ColumnSpec, SourceSpec
 from .util import DelayedOpen, RowProxy
@@ -10,7 +10,7 @@ __all__ = [
     SourceError, ColumnSpec, SourceSpec,
     CsvSource, TsvSource, FixedSource, PartitionSource,
     ExcelSource, GoogleSource,
-    DelayedOpen, RowProxy, GeneratorSource ]
+    DelayedOpen, RowProxy, GeneratorSource  ]
 
 from .spec import *
 

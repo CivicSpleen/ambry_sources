@@ -433,6 +433,7 @@ class MPRowsFile(object):
                             intuit_rows=intuit_rows,
                             intuit_type=intuit_type, run_stats=run_stats)
         except:
+            raise
             self.writer.close()
             self.remove()
             raise
@@ -516,11 +517,11 @@ class MPRowsFile(object):
             for row in r:
                 yield row
 
-    def select(self, predicate = None, getter = None):
+    def select(self, predicate = None, headers = None):
         """Iterate the results from the reader's select() method"""
 
         with self.reader as r:
-            for row in r.select(predicate, getter):
+            for row in r.select(predicate, headers):
                 yield row
 
     @property
@@ -742,16 +743,14 @@ class MPRWriter(object):
         except AttributeError:
             pass
 
-        if len(self.cache):
-            self._write_rows()
-
+        self._write_rows()
 
     def close(self):
 
-        if len(self.cache):
+        if self._fh:
+
             self._write_rows()
 
-        if self._fh:
             # First close the Gzip file, so it can flush, etc.
 
             if self._compress and self._zfh:
@@ -1066,7 +1065,6 @@ class MPRReader(object):
 
         rp = RowProxy(self.headers)
 
-
         try:
             self._in_iteration = True
             while True:
@@ -1084,15 +1082,13 @@ class MPRReader(object):
         finally:
             self._in_iteration = False
 
-    def select(self, predicate=None, getter=None):
+    def select(self, predicate=None, headers=None):
         """
         Select rows from the reader using a predicate to select rows and and itemgetter to return a
         subset of elements
         :param predicate: If defined, a callable that is called for each rowm and if it returns true, the
         row is included in the output.
-        :param getter: If defined, a callable or an iterable. If a callable itis applied to each returned row.
-        if an iterable, a getter is constructed that returns a dict or tuple  with only the fields listed in
-        the iterable. If the iterable is a set, the output is a dict. Otherwise, the output is a tuple.
+        :param getter: If defined, a list or tuple of header names to return from each row
 
         Equivalent to:
 
@@ -1114,26 +1110,29 @@ class MPRReader(object):
 
         from itertools import imap, ifilter
 
-        if getter:
-            try:
-                iter(getter)
-                from operator import itemgetter
-                header = list(getter)
-                ig = itemgetter(*header)
-                if isinstance(getter, set):
-                    getter = lambda r: dict(zip(header, ig(r.dict)))
-                else:
-                    getter = lambda r: ig(r.dict)
+        if headers:
 
-            except TypeError:
-                pass
+            from operator import itemgetter
+            from .sources import RowProxy
+
+            ig = itemgetter(*headers)
+            rp = RowProxy(headers)
+
+            getter = lambda r: rp.set_row(ig(r.dict))
+
+        else:
+
+            getter = None
 
         if getter is not None and predicate is not None:
             return imap(getter, ifilter(predicate, iter(self)))
+
         elif getter is not None and predicate is None:
             return imap(getter, iter(self))
+
         elif getter is None and predicate is not None:
             return ifilter(predicate, self)
+
         else:
             return iter(self)
 

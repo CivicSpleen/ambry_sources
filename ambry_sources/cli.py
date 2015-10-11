@@ -60,10 +60,10 @@ def main(args=None):
     types_fields =  ['header', 'count','length',  'floats',  'ints', 'unicode',  'strs', 'dates',
                      'times', 'datetimes', 'nones', 'has_codes', 'strvals',  ]
 
-    stats_fields_all = [ 'name', 'count', 'nuniques' , 'mean', 'min', 'p25', 'p50', 'p75' , 'max', 'std',
+    stats_fields_all = [ 'name', 'stat_count', 'nuniques' , 'mean', 'min', 'p25', 'p50', 'p75' , 'max', 'std',
                     'uvalues', 'lom',  'skewness','kurtosis', 'flags', 'hist', 'text_hist']
 
-    stats_fields = ['name', 'lom', 'count', 'nuniques', 'mean', 'min', 'p25', 'p50', 'p75',
+    stats_fields = ['name', 'lom', 'stat_count', 'nuniques', 'mean', 'min', 'p25', 'p50', 'p75',
                    'max', 'std', 'text_hist']
 
     stats_getter = itemgetter(*stats_fields)
@@ -80,7 +80,6 @@ def main(args=None):
 
                     if limit and i>= limit:
                         break
-
 
         return
 

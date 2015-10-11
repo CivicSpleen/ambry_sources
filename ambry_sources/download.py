@@ -43,6 +43,8 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False):
         spec.download_time = download_time
     except HTTPError as e:
         raise DownloadError("Failed to download {}; {}".format(spec.url, e))
+
+    # FIXME. urltype should be moved to reftype.
     url_type = spec.get_urltype()
 
     if url_type == 'zip':

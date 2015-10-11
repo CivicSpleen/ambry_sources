@@ -375,6 +375,12 @@ class TypeIntuiter(object):
         """Given a table with an original type, decide whether a new determination of a new applicable type
         should overide the existing one"""
 
+        if not new_type:
+            return orig_type
+
+        if not orig_type:
+            return new_type
+
         try:
             orig_type = orig_type.__name__
         except AttributeError:

@@ -129,6 +129,43 @@ class GeneratorSource(SourceFile):
 
         self.finish()
 
+class MPRSource(SourceFile):
+
+    def __init__(self, spec, datafile, predicate=None, headers=None):
+        super(MPRSource, self).__init__(spec, None)
+
+        if not ( not spec.start_line or spec.start_line == 1):
+            raise SourceError("For MPRSource, the start line must be 1 or unspecified; got '{}' "
+                              .format(spec.start_line))
+
+        if not ( not spec.header_lines or spec.header_lines == [0] or spec.header_lines == []):
+            raise SourceError("For MPRSource, the start line must be [0] or unspecified; got '{}'"
+                              .format(spec.header_lines))
+
+        self.datafile = datafile
+
+        self.spec.start_line = 1
+        self.spec.header_lines = [0]
+
+        self.predicate = predicate
+        self.return_headers = headers
+
+
+    def __iter__(self):
+        """Iterate over all of the lines in the file"""
+
+        self.start()
+
+        with self.datafile.reader as r:
+            for i, row in enumerate(r.select(predicate=self.predicate, headers=self.return_headers)):
+
+                if i == 0:
+                    yield row.headers
+
+                yield row.row  # select returns a RowProxy
+
+        self.finish()
+
 class CsvSource(SourceFile):
     """Generate rows from a CSV source"""
 

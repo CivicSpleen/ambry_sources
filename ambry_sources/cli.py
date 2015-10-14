@@ -108,13 +108,13 @@ def main(args=None):
     if args.schema:
         print "\nSCHEMA"
         with f.reader as r:
-            print tabulate.tabulate((schema_getter(row.dict) for row in r.columns), schema_fields)
+            print (tabulate.tabulate((schema_getter(row.dict) for row in r.columns), schema_fields))
 
     if args.stats:
         with f.reader as r:
-            print "\nSTATS"
+            print ("\nSTATS")
 
-            print tabulate.tabulate((stats_getter(row.dict) for row in r.columns), stats_fields)
+            print(tabulate.tabulate((stats_getter(row.dict) for row in r.columns), stats_fields))
 
     if args.head or args.tail:
         with f.reader as r:
@@ -139,7 +139,7 @@ def main(args=None):
 
             rows = [(i,)+row[:len(headers)] for i, row in enumerate(slc, start if start else 0)]
 
-            print tabulate.tabulate(rows, ['#'] + headers)
+            print(tabulate.tabulate(rows, ['#'] + headers))
 
     elif args.records:
 
@@ -147,13 +147,22 @@ def main(args=None):
 
             acc = []
             try:
-                for i , row in enumerate(r.rows):
+                for i , row in enumerate(r.rows,1):
 
                     if i % 30 == 0:
-                        print tabulate.tabulate(acc, r.headers)
+                        print (tabulate.tabulate(acc, r.headers))
                         acc = []
                     else:
                         acc.append(row)
+
+                    if args.limit and i > int(args.limit):
+                        if acc:
+                            print (tabulate.tabulate(acc, r.headers))
+                            acc = []
+                        break
+                if acc:
+                    print (tabulate.tabulate(acc, r.headers))
+
             except KeyboardInterrupt:
                 import sys
                 sys.exit(0)

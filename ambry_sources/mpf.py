@@ -660,7 +660,7 @@ class MPRWriter(object):
 
         for i, row in enumerate(MPRowsFile._columns(self, len(headers))):
             assert isinstance(headers[i], string_types)
-            row.name = headers[i]
+            row.name = headers[i] if headers[i] else 'column{}'.format(i)
 
         assert self.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
 
@@ -682,7 +682,7 @@ class MPRWriter(object):
                 d = dict(h.items())
                 raise NotImplementedError()
             else:
-                row.name = h
+                row.name = h if h else 'column{}'.format(i)
 
     def column(self, name_or_pos):
 
@@ -1089,13 +1089,6 @@ class MPRReader(object):
         :param predicate: If defined, a callable that is called for each rowm and if it returns true, the
         row is included in the output.
         :param getter: If defined, a list or tuple of header names to return from each row
-
-        Equivalent to:
-
-            from itertools import imap, ifilter
-
-            return imap(getter, ifilter(predicate, iter(self)))
-
         :return: iterable of results
 
         WARNING: This routine works from the reader iterator, which returns RowProxy objects. RowProxy objects

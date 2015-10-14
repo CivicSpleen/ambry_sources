@@ -786,7 +786,7 @@ class MPRWriter(object):
         results = {int(r['position']): r for r in ti._dump()}
         for i in range(len(results)):
 
-            for k, v in iteritems(list(results[i])):
+            for k, v in iteritems(results[i]):
                 k = {'count': 'type_count'}.get(k, k)
                 self.column(i+1)[k] = v
 

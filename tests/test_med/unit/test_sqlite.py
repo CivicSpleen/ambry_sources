@@ -130,10 +130,15 @@ class GetModuleClassTest(unittest.TestCase):
         self.assertTrue(hasattr(cls, 'Create'))
         self.assertTrue(six.callable(cls.Create))
 
+    def _get_fake_partition(self, type_):
+        partition = AttrDict({
+            'reader': AttrDict({
+                'columns': [{'type': type_, 'name': 'column1', 'pos': 0}]})})
+        return partition
+
     # Source.Create tests
     def test_returns_create_table_query_and_table(self):
-        partition = AttrDict({
-            'schema': [{'type': 'int', 'name': 'column1', 'pos': 0}]})
+        partition = self._get_fake_partition('int')
         cls = _get_module_class(partition)
         ret = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertEqual(len(ret), 2)
@@ -142,43 +147,37 @@ class GetModuleClassTest(unittest.TestCase):
         self.assertTrue(hasattr(table, 'Open'))
 
     def test_converts_int_to_integer_sqlite_type(self):
-        partition = AttrDict({
-            'schema': [{'type': 'int', 'name': 'column1', 'pos': 0}]})
+        partition = self._get_fake_partition('int')
         cls = _get_module_class(partition)
         query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertIn('(column1 INTEGER)', query)
 
     def test_converts_float_to_real_sqlite_type(self):
-        partition = AttrDict({
-            'schema': [{'type': 'int', 'name': 'column1', 'pos': 0}]})
+        partition = self._get_fake_partition('float')
         cls = _get_module_class(partition)
         query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
-        self.assertIn('(column1 INTEGER)', query)
+        self.assertIn('(column1 REAL)', query)
 
     def test_converts_str_to_text_sqlite_type(self):
-        partition = AttrDict({
-            'schema': [{'type': 'str', 'name': 'column1', 'pos': 0}]})
+        partition = self._get_fake_partition('str')
         cls = _get_module_class(partition)
         query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertIn('(column1 TEXT)', query)
 
     def test_converts_date_to_date_sqlite_type(self):
-        partition = AttrDict({
-            'schema': [{'type': 'date', 'name': 'column1', 'pos': 0}]})
+        partition = self._get_fake_partition('date')
         cls = _get_module_class(partition)
         query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertIn('(column1 DATE)', query)
 
     def test_converts_datetime_to_timestamp_sqlite_type(self):
-        partition = AttrDict({
-            'schema': [{'type': 'datetime', 'name': 'column1', 'pos': 0}]})
+        partition = self._get_fake_partition('datetime')
         cls = _get_module_class(partition)
         query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertIn('(column1 TIMESTAMP WITHOUT TIME ZONE)', query)
 
     def test_raises_exception_if_type_conversion_failed(self):
-        partition = AttrDict({
-            'schema': [{'type': 'unknown', 'name': 'column1', 'pos': 0}]})
+        partition = self._get_fake_partition('unknown')
         cls = _get_module_class(partition)
         try:
             cls().Create('db', 'modulename', 'dbname', 'table1')

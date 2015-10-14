@@ -122,7 +122,7 @@ def _get_module_class(partition):
         def Create(self, db, modulename, dbname, tablename, *args):
             columns_types = []
             column_names = []
-            for column in sorted(partition.schema, key=lambda x: x['pos']):
+            for column in sorted(partition.reader.columns, key=lambda x: x['pos']):
                 sqlite_type = TYPE_MAP.get(column['type'])
                 if not sqlite_type:
                     raise Exception('Do not know how to convert {} to sql column.'.format(column['type']))

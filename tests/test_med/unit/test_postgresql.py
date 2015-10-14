@@ -152,7 +152,7 @@ class MPRForeignDataWrapperTest(TestBase):
 
 def _get_fake_partition(type_='str'):
     class FakePartition(object):
-        schema = [{'type': type_, 'name': 'column1', 'pos': 0}]
+        reader = AttrDict({'columns': [{'type': type_, 'name': 'column1', 'pos': 0}]})
         path = 'name1'
         _fs = AttrDict({'root_path': '/tmp'})
     return FakePartition()

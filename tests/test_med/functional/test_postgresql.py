@@ -24,9 +24,9 @@ class Test(TestBase):
 
         # first make sure file not changed.
         expected_names = ['id', 'uuid', 'int', 'float']
-        expected_types = ['str', 'str', 'str', 'float']
-        self.assertEqual(sorted([x['name'] for x in partition.schema]), sorted(expected_names))
-        self.assertEqual(sorted([x['type'] for x in partition.schema]), sorted(expected_types))
+        expected_types = ['int', 'str', 'int', 'float']
+        self.assertEqual(sorted([x['name'] for x in partition.reader.columns]), sorted(expected_names))
+        self.assertEqual(sorted([x['type'] for x in partition.reader.columns]), sorted(expected_types))
 
         try:
             # create foreign data table

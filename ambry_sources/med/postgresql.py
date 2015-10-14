@@ -48,7 +48,7 @@ def _get_create_query(partition, vid):
         str: sql query to craete foreign table.
     """
     columns = []
-    for column in sorted(partition.schema, key=lambda x: x['pos']):
+    for column in sorted(partition.reader.columns, key=lambda x: x['pos']):
         postgres_type = TYPE_MAP.get(column['type'])
         if not postgres_type:
             raise Exception('Do not know how to convert {} to postgresql type.'.format(column['type']))

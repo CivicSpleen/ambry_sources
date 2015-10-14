@@ -6,6 +6,8 @@ from fs.opener import fsopendir
 
 import pytest
 
+from six import u
+
 from ambry_sources import get_source
 from ambry_sources.mpf import MPRowsFile
 
@@ -43,21 +45,33 @@ class BasicTestSuite(TestBase):
         sources = self.load_sources()
 
         headers = {
-            'mz_with_zip_xl': [u'id', u'gvid', u'renter_cost_gt_30', u'renter_cost_gt_30_cv', u'owner_cost_gt_30_pct', u'owner_cost_gt_30_pct_cv'],
-            'mz_no_zip': [u'id', u'uuid', u'int', u'float'],
-            'namesu8': [u'origin_english', u'name_english', u'origin_native', u'name_native'],
-            'sf_zip': [u'id', u'uuid', u'int', u'float'],
-            'simple': [u'id', u'uuid', u'int', u'float'],
-            'csv_no_csv': [u'id', u'uuid', u'int', u'float'],
-            'mz_with_zip': [u'id', u'uuid', u'int', u'float'],
-            'rpeople': [u'name', u'size'],
-            'rent07': [u'id', u'gvid', u'renter_cost_gt_30', u'renter_cost_gt_30_cv', u'owner_cost_gt_30_pct', u'owner_cost_gt_30_pct_cv'],
-            'simple_fixed': [u'id', u'uuid', u'int', u'float'],
-            'altname': [u'id', u'foo', u'bar', u'baz'],
-            'rentcsv': [u'id', u'gvid', u'renter_cost_gt_30', u'renter_cost_gt_30_cv', u'owner_cost_gt_30_pct', u'owner_cost_gt_30_pct_cv'],
-            'renttab': [u'id', u'gvid', u'renter_cost_gt_30', u'renter_cost_gt_30_cv', u'owner_cost_gt_30_pct', u'owner_cost_gt_30_pct_cv'],
-            'multiexcel': [u'id', u'gvid', u'renter_cost_gt_30', u'renter_cost_gt_30_cv', u'owner_cost_gt_30_pct', u'owner_cost_gt_30_pct_cv'],
-            'rent97': [u'id', u'gvid', u'renter_cost_gt_30', u'renter_cost_gt_30_cv', u'owner_cost_gt_30_pct', u'owner_cost_gt_30_pct_cv']
+            'mz_with_zip_xl': [
+                u('id'), u('gvid'), u('renter_cost_gt_30'), u('renter_cost_gt_30_cv'),
+                u('owner_cost_gt_30_pct'), u('owner_cost_gt_30_pct_cv')],
+            'mz_no_zip': [u('id'), u('uuid'), u('int'), u('float')],
+            'namesu8': [u('origin_english'), u('name_english'), u('origin_native'), u('name_native')],
+            'sf_zip': [u('id'), u('uuid'), u('int'), u('float')],
+            'simple': [u('id'), u('uuid'), u('int'), u('float')],
+            'csv_no_csv': [u('id'), u('uuid'), u('int'), u('float')],
+            'mz_with_zip': [u('id'), u('uuid'), u('int'), u('float')],
+            'rpeople': [u('name'), u('size')],
+            'rent07': [
+                u('id'), u('gvid'), u('renter_cost_gt_30'), u('renter_cost_gt_30_cv'),
+                u('owner_cost_gt_30_pct'), u('owner_cost_gt_30_pct_cv')],
+            'simple_fixed': [u('id'), u('uuid'), u('int'), u('float')],
+            'altname': [u('id'), u('foo'), u('bar'), u('baz')],
+            'rentcsv': [
+                u('id'), u('gvid'), u('renter_cost_gt_30'), u('renter_cost_gt_30_cv'),
+                u('owner_cost_gt_30_pct'), u('owner_cost_gt_30_pct_cv')],
+            'renttab': [
+                u('id'), u('gvid'), u('renter_cost_gt_30'), u('renter_cost_gt_30_cv'),
+                u('owner_cost_gt_30_pct'), u('owner_cost_gt_30_pct_cv')],
+            'multiexcel': [
+                u('id'), u('gvid'), u('renter_cost_gt_30'), u('renter_cost_gt_30_cv'),
+                u('owner_cost_gt_30_pct'), u('owner_cost_gt_30_pct_cv')],
+            'rent97': [
+                u('id'), u('gvid'), u('renter_cost_gt_30'), u('renter_cost_gt_30_cv'),
+                u('owner_cost_gt_30_pct'), u('owner_cost_gt_30_pct_cv')]
         }
 
         for source_name, spec in sources.items():
@@ -72,11 +86,9 @@ class BasicTestSuite(TestBase):
             f.load_rows(s)
 
             with f.reader as r:
+                self.assertEquals(headers[spec.name], r.headers)
 
-                self.assertEquals(headers[spec.name],r.headers)
-
-
-    #@unittest.skip('Useful for debugging, but doesnt add test coverage')
+    # @unittest.skip('Useful for debugging, but doesnt add test coverage')
     def test_full_load(self):
         """Just check that all of the sources can be loaded without exceptions"""
 
@@ -88,7 +100,7 @@ class BasicTestSuite(TestBase):
 
             s = get_source(spec, cache_fs)
 
-            print spec.name
+            print(spec.name)
 
             f = MPRowsFile(cache_fs, spec.name)
 
@@ -98,8 +110,7 @@ class BasicTestSuite(TestBase):
             f.load_rows(s)
 
             with f.reader as r:
-                print r.headers
-
+                print(r.headers)
 
     def test_fixed(self):
         cache_fs = fsopendir(self.setup_temp_dir())
@@ -129,8 +140,7 @@ class BasicTestSuite(TestBase):
 
         self.assertEqual(f.headers, list('abcde'))
 
-        print list(f.select())
-
+        print(list(f.select()))
 
     def test_type_intuit(self):
         """Just check that all of the sources can be downloaded without exceptions"""
@@ -154,7 +164,7 @@ class BasicTestSuite(TestBase):
 
         with f.reader as w:
             for col in w.columns:
-                print col.pos, col.name, col.type
+                print(col.pos, col.name, col.type)
 
     def test_row_intuit(self):
         """Check that the sources can be loaded and analyzed without exceptions and that the
@@ -163,12 +173,11 @@ class BasicTestSuite(TestBase):
         from ambry_sources.intuit import RowIntuiter
 
         cache_fs = fsopendir('temp://')
-        #cache_fs = fsopendir('/tmp/ritest/')
+        # cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
-            print source_name
             s = get_source(spec, cache_fs)
             ri = RowIntuiter().run(s)
 
@@ -188,17 +197,14 @@ class BasicTestSuite(TestBase):
 
         cache_fs = fsopendir('temp://')
         cache_fs.makedir('/mpr')
-        #cache_fs = fsopendir('/tmp/ritest/')
+        # cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
-
-            #if source_name != 'ed_cohort': continue
+            # if source_name != 'ed_cohort': continue
 
             s = get_source(spec, cache_fs)
-
-            print source_name
 
             f = MPRowsFile(cache_fs, '/mpr/'+source_name)
 
@@ -225,10 +231,9 @@ class BasicTestSuite(TestBase):
             self.assertEqual(row1, row3)
 
             with f.reader as r:
-                raw_rows = list(islice(r.raw,None,40))
+                raw_rows = list(islice(r.raw, None, 40))
 
             self.assertEqual(row2, raw_rows[f.info['data_start_row']])
-
 
     def test_headers(self):
 
@@ -253,12 +258,12 @@ class BasicTestSuite(TestBase):
             self.assertEqual('5-e', schema(5, 3))
             self.assertEqual('9-i', schema(9, 3))
 
-            w.column(1).description  = 'one'
+            w.column(1).description = 'one'
             w.column(2).description = 'two'
             w.column('c').description = 'C'
             w.column('d')['description'] = 'D'
 
-            self.assertEqual('one', schema(1,3))
+            self.assertEqual('one', schema(1, 3))
             self.assertEqual('two', schema(2, 3))
             self.assertEqual('C', schema(3, 3))
             self.assertEqual('D', schema(4, 3))
@@ -266,13 +271,14 @@ class BasicTestSuite(TestBase):
         with df.reader as r:
             schema = lambda row, col: r.meta['schema'][row][col]
 
-            self.assertEqual([u'a', u'b', u'c', u'd', u'e', u'f', u'g', u'h', u'i'], r.headers)
+            self.assertEqual(
+                [u('a'), u('b'), u('c'), u('d'), u('e'), u('f'), u('g'), u('h'), u('i')],
+                r.headers)
 
             self.assertEqual('one', schema(1, 3))
             self.assertEqual('two', schema(2, 3))
             self.assertEqual('C', schema(3, 3))
             self.assertEqual('D', schema(4, 3))
-
 
     @pytest.mark.slow
     def test_datafile_read_write(self):
@@ -298,7 +304,7 @@ class BasicTestSuite(TestBase):
         def rand_date_b():
             return (datetime.date(randint(2000, 2015), randint(1, 12), 10) - epoch).total_seconds()
 
-        row = lambda: (None, 1, random(), str(uuid4()), rand_date_b(), rand_date_b() )
+        row = lambda: (None, 1, random(), str(uuid4()), rand_date_b(), rand_date_b())
 
         headers = list('abcdefghi')[:len(row())]
 
@@ -315,7 +321,7 @@ class BasicTestSuite(TestBase):
                 w.headers = headers
                 w.insert_rows(rows)
 
-            print "MSGPack write ", float(N) / t.elapsed, w.n_rows
+            print('MSGPack write ', float(N) / t.elapsed, w.n_rows)
 
         def write_small_blocks():
             df = MPRowsFile(fs, 'foobar')
@@ -329,7 +335,7 @@ class BasicTestSuite(TestBase):
                     w.headers = headers
                     w.insert_row(rows[i])
 
-            print "MSGPack write ", float(N) / t.elapsed, w.n_rows
+            print('MSGPack write ', float(N) / t.elapsed, w.n_rows)
 
         write_large_blocks()
 
@@ -348,11 +354,9 @@ class BasicTestSuite(TestBase):
 
             for i, row in enumerate(r):
                 count += 1
-
-
             r.close()
 
-        print "MSGPack read  ", float(N) / t.elapsed, i, count, s
+        print('MSGPack read  ', float(N) / t.elapsed, i, count, s)
 
         with Timer() as t:
             count = 0
@@ -365,7 +369,7 @@ class BasicTestSuite(TestBase):
 
             r.close()
 
-        print "MSGPack rows  ", float(N) / t.elapsed
+        print('MSGPack rows  ', float(N) / t.elapsed)
 
         with Timer() as t:
             count = 0
@@ -377,9 +381,7 @@ class BasicTestSuite(TestBase):
 
             r.close()
 
-        print "MSGPack raw   ", float(N) / t.elapsed
-
-
+        print('MSGPack raw   ', float(N) / t.elapsed)
 
     def generate_rows(self, N):
         import datetime
@@ -414,13 +416,13 @@ class BasicTestSuite(TestBase):
 
             # if source_name != 'immunize': continue
 
-            print spec.name, spec.url
+            print(spec.name, spec.url)
 
             with Timer() as t:
                 f = MPRowsFile(cache_fs, source_name).load_rows(s, run_stats=True)
 
             with f.reader as r:
-                print 'Loaded ', r.n_rows, float(r.n_rows) / t.elapsed, 'rows/sec'
+                print('Loaded ', r.n_rows, float(r.n_rows) / t.elapsed, 'rows/sec')
 
             # with f.reader as r:
             #    stats = r.meta['stats']
@@ -458,7 +460,9 @@ class BasicTestSuite(TestBase):
 
             w.close()
 
-            self.assertEqual((u'a', u'b', u'c', u'd', u'e', u'f'), tuple(w.parent.reader.headers))
+            self.assertEqual(
+                (u('a'), u('b'), u('c'), u('d'), u('e'), u('f')),
+                tuple(w.parent.reader.headers))
 
             w.parent.reader.close()
 
@@ -492,7 +496,7 @@ class BasicTestSuite(TestBase):
             f = MPRowsFile('mem://sh')
             w = f.writer
 
-            w.headers = [ 'x' + str(e) for e in range(len(headers))]
+            w.headers = ['x' + str(e) for e in range(len(headers))]
 
             for row in rows:
                 w.insert_row(row)
@@ -505,7 +509,9 @@ class BasicTestSuite(TestBase):
 
             w.close()
 
-            self.assertEqual((u'x0', u'x1', u'x2', u'x3', u'x4', u'x5'),tuple(w.parent.reader.headers))
+            self.assertEqual(
+                (u('x0'), u('x1'), u('x2'), u('x3'), u('x4'), u('x5')),
+                tuple(w.parent.reader.headers))
 
             w.parent.reader.close()
 
@@ -514,7 +520,6 @@ class BasicTestSuite(TestBase):
         # Try a few header start / data start values.
 
         for ff in (first_row_header, schema_header, no_header):
-            print '===', ff
             f = ff()
 
             with f.reader as r:
@@ -527,7 +532,6 @@ class BasicTestSuite(TestBase):
                 map(lambda f: self.assertEqual(f[0], f[1][0]), enumerate(islice(r.rows, 5), 1))
 
         for ff in (first_row_header, schema_header, no_header):
-            print '===', ff
             data_start_row = 5
             data_end_row = 15
             f = ff(data_start_row, data_end_row)
@@ -568,14 +572,15 @@ class BasicTestSuite(TestBase):
         self.assertEqual(6, d['data_start_row'])
         self.assertEqual(506, d['data_end_row'])
         self.assertEqual([3, 4, 5], d['header_rows'])
-        self.assertEqual([u'a_b_c', u'b_c_d', u'c_d_e', u'd_e_f', u'e_f_g', u'f_g_h'], d['headers'])
+        self.assertEqual(
+            [u('a_b_c'), u('b_c_d'), u('c_d_e'), u('d_e_f'), u('e_f_g'), u('f_g_h')],
+            d['headers'])
 
         class Rows(object):
             spec = SourceSpec(None, header_lines=(3, 4), start_line=5)
 
             def __iter__(self):
                 return iter(rows)
-
 
         f = MPRowsFile('mem://frh').load_rows(Rows())
 
@@ -584,4 +589,6 @@ class BasicTestSuite(TestBase):
         self.assertEqual(5, d['data_start_row'])
         self.assertEqual(506, d['data_end_row'])
         self.assertEqual([3, 4], d['header_rows'])
-        self.assertEqual([u'a_b', u'b_c', u'c_d', u'd_e', u'e_f', u'f_g'], d['headers'])
+        self.assertEqual(
+            [u('a_b'), u('b_c'), u('c_d'), u('d_e'), u('e_f'), u('f_g')],
+            d['headers'])

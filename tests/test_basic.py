@@ -37,7 +37,7 @@ class BasicTestSuite(TestBase):
                 raise AssertionError('Failed to download {} source because of {} error.'
                                      .format(s.url, exc))
 
-
+    @pytest.mark.slow
     def test_load_check_headers(self):
         """Just check that all of the sources can be loaded without exceptions"""
 
@@ -90,6 +90,7 @@ class BasicTestSuite(TestBase):
                 self.assertEqual(headers[spec.name], r.headers)
 
     # @unittest.skip('Useful for debugging, but doesnt add test coverage')
+    @pytest.mark.slow
     def test_full_load(self):
         """Just check that all of the sources can be loaded without exceptions"""
 
@@ -167,6 +168,7 @@ class BasicTestSuite(TestBase):
             for col in w.columns:
                 print(col.pos, col.name, col.type)
 
+    @pytest.mark.slow
     def test_row_intuit(self):
         """Check that the sources can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
@@ -190,8 +192,9 @@ class BasicTestSuite(TestBase):
                 spec.expect_start, ri.start_line,
                 'Start line of {} source does not match to row intuiter start line.'.format(spec.name))
 
+    @pytest.mark.slow
     def test_row_load_intuit(self):
-        """Check that the soruces can be loaded and analyzed without exceptions and that the
+        """Check that the sources can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
 
         from itertools import islice

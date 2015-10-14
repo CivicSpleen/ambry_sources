@@ -59,7 +59,7 @@ class SourceSpec(object):
         """
 
         if 'reftype' in kwargs and not urltype:
-            urltype = kwargs['reftype'] # Ambry SourceFile object changed from urltype to reftype.
+            urltype = kwargs['reftype']  # Ambry SourceFile object changed from urltype to reftype.
 
         def norm(v):
 
@@ -108,22 +108,15 @@ class SourceSpec(object):
             self.start_line = max(self.header_lines) + 1
 
         if not self.name:
-            url = self.url
-            segment = self.segment or ''
-
-            if isinstance(url, text_type):
-                url = url.encode('utf-8')
-            if isinstance(segment, text_type):
-                segment = segment.encode('utf-8')
-
-            raw_name = url + segment
+            raw_name = '{}{}'.format(self.url, self.segment)
+            if isinstance(raw_name, text_type):
+                raw_name = raw_name.encode('utf-8')
             self.name = hashlib.md5(raw_name).hexdigest()
 
     @property
     def has_rowspec(self):
         """Return True if the spec defines header lines or the data start line"""
-
-        return self._header_lines_specified or self.start_line != None
+        return self._header_lines_specified or self.start_line is not None
 
     def get_filetype(self, file_path):
         """Determine the format of the source file, by reporting the file extension"""

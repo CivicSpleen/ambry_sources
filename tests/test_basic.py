@@ -6,6 +6,7 @@ from fs.opener import fsopendir
 
 import pytest
 
+import six
 from six import u
 
 from ambry_sources import get_source
@@ -86,7 +87,7 @@ class BasicTestSuite(TestBase):
             f.load_rows(s)
 
             with f.reader as r:
-                self.assertEquals(headers[spec.name], r.headers)
+                self.assertEqual(headers[spec.name], r.headers)
 
     # @unittest.skip('Useful for debugging, but doesnt add test coverage')
     def test_full_load(self):
@@ -193,7 +194,7 @@ class BasicTestSuite(TestBase):
         """Check that the soruces can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
 
-        from itertools import ifilter, islice
+        from itertools import islice
 
         cache_fs = fsopendir('temp://')
         cache_fs.makedir('/mpr')
@@ -217,7 +218,7 @@ class BasicTestSuite(TestBase):
 
             with f.reader as r:
                 # First row, marked with metadata, that is marked as a data row
-                m1, row1 = next(ifilter(lambda e: e[0][2] == 'D', r.meta_raw))
+                m1, row1 = next(six.moves.filter(lambda e: e[0][2] == 'D', r.meta_raw))
 
             with f.reader as r:
                 # First row

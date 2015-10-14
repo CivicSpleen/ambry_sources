@@ -12,9 +12,10 @@ import gzip
 from functools import reduce
 import struct
 import time
+import zlib
 
 import six
-from six import string_types, iteritems
+from six import string_types, iteritems, text_type
 
 import msgpack
 
@@ -52,7 +53,10 @@ class GzipFile(gzip.GzipFile):
         """Alters the _read method to stop reading new gzip members when we've reached the end of the row data. """
 
         if self._new_member and self._end_of_data and self.fileobj.tell() >= self._end_of_data:
-            raise EOFError('Reached EOF')
+            if six.PY3:
+                return None
+            else:
+                raise EOFError('Reached EOF')
         else:
             return super(GzipFile, self)._read(size)
 
@@ -211,19 +215,19 @@ class MPRowsFile(object):
     @staticmethod
     def decode_obj(obj):
 
-        if b'__datetime__' in obj:
+        if '__datetime__' in obj:
             try:
-                obj = datetime.datetime.strptime(obj["as_str"], "%Y-%m-%dT%H:%M:%S")
+                obj = datetime.datetime.strptime(obj['as_str'], '%Y-%m-%dT%H:%M:%S')
             except ValueError:
                 # The preferred format is without the microseconds, but there are some lingering
                 # bundle that still have it.
-                obj = datetime.datetime.strptime(obj["as_str"], "%Y-%m-%dT%H:%M:%S.%f")
-        elif b'__time__' in obj:
-            obj = datetime.time(*list(time.strptime(obj["as_str"], "%H:%M:%S"))[3:6])
-        elif b'__date__' in obj:
-            obj = datetime.datetime.strptime(obj["as_str"], "%Y-%m-%d").date()
+                obj = datetime.datetime.strptime(obj['as_str'], '%Y-%m-%dT%H:%M:%S.%f')
+        elif '__time__' in obj:
+            obj = datetime.time(*list(time.strptime(obj['as_str'], '%H:%M:%S'))[3:6])
+        elif '__date__' in obj:
+            obj = datetime.datetime.strptime(obj['as_str'], '%Y-%m-%d').date()
         else:
-            raise Exception("Unknown type on decode: {} ".format(obj))
+            raise Exception('Unknown type on decode: {} '.format(obj))
 
         return obj
 
@@ -240,8 +244,11 @@ class MPRowsFile(object):
         """Write the magic number, version and the file_header dictionary.  """
 
         int(o.data_start_row)
+        magic = cls.MAGIC
+        if isinstance(magic, text_type):
+            magic = magic.encode('utf-8')
 
-        hdf = cls.FILE_HEADER_FORMAT.pack(cls.MAGIC, cls.VERSION, o.n_rows, o.n_cols, o.meta_start,
+        hdf = cls.FILE_HEADER_FORMAT.pack(magic, cls.VERSION, o.n_rows, o.n_cols, o.meta_start,
                                           o.data_start_row,  o.data_end_row if o.data_end_row else o.n_rows)
 
         assert len(hdf) == cls.FILE_HEADER_FORMAT_SIZE
@@ -263,16 +270,11 @@ class MPRowsFile(object):
         # get screwed up if you read from a new position
 
         data = fh.read()
-
         if data:
-
-            meta = msgpack.unpackb(data.decode('zlib'), encoding='utf-8')
-
+            meta = msgpack.unpackb(zlib.decompress(data), encoding='utf-8')
         else:
             meta = {}
-
         fh.seek(pos)
-
         return meta
 
     @classmethod
@@ -281,8 +283,7 @@ class MPRowsFile(object):
         o.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
 
         fh.seek(o.meta_start)  # Should probably already be there.
-
-        fhb = msgpack.packb(o.meta, encoding='utf-8').encode('zlib')
+        fhb = zlib.compress(msgpack.packb(o.meta, encoding='utf-8'))
         fh.write(fhb)
 
     @classmethod
@@ -613,7 +614,7 @@ class MPRWriter(object):
 
             data = self._fh.read()
 
-            self.meta = msgpack.unpackb(data.decode('zlib'), encoding='utf-8')
+            self.meta = msgpack.unpackb(zlib.decompress(data), encoding='utf-8')
 
             self._fh.seek(self.meta_start)
 

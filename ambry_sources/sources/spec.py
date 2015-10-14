@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
+import hashlib
 
-from six import string_types
+from six import string_types, binary_type, text_type
+
 
 class ColumnSpec(object):
 
@@ -100,14 +102,22 @@ class SourceSpec(object):
 
         # If it is an actual list.
         elif isinstance(self.header_lines, (list, tuple)):
-            self.header_lines = [int(e) for e in self.header_lines if str(e).strip() != '']
+            self.header_lines = [int(e) for e in self.header_lines if binary_type(e).strip() != '']
 
         if self.header_lines:
             self.start_line = max(self.header_lines) + 1
 
         if not self.name:
-            import hashlib
-            self.name = hashlib.md5(str(self.url)+str(self.segment)).hexdigest()
+            url = self.url
+            segment = self.segment or ''
+
+            if isinstance(url, text_type):
+                url = url.encode('utf-8')
+            if isinstance(segment, text_type):
+                segment = segment.encode('utf-8')
+
+            raw_name = url + segment
+            self.name = hashlib.md5(raw_name).hexdigest()
 
     @property
     def has_rowspec(self):

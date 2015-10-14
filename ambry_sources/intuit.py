@@ -422,24 +422,23 @@ class TypeIntuiter(object):
     def _dump(self):
 
         for v in self.columns:
-
-            d = dict(
-                position=v.position,
-                header=v.header,
-                length=v.length,
-                resolved_type=v.resolved_type_name,
-                has_codes=v.has_codes,
-                count=v.count,
-                ints=v.type_counts.get(int, None),
-                floats=v.type_counts.get(float, None),
-                strs=v.type_counts.get(binary_type, None),
-                nones=v.type_counts.get(None, None),
-                datetimes=v.type_counts.get(datetime.datetime, None),
-                dates=v.type_counts.get(datetime.date, None),
-                times=v.type_counts.get(datetime.time, None),
-                strvals=','.join(list(v.strings)[:20])
-            )
-            d[text_type.__name__] = v.type_counts.get(text_type, None)
+            d = {
+                'position': v.position,
+                'header': v.header,
+                'length': v.length,
+                'resolved_type': v.resolved_type_name,
+                'has_codes': v.has_codes,
+                'count': v.count,
+                'ints': v.type_counts.get(int, None),
+                'floats': v.type_counts.get(float, None),
+                'strs': v.type_counts.get(binary_type, None),
+                'unicode': v.type_counts.get(text_type, None),
+                'nones': v.type_counts.get(None, None),
+                'datetimes': v.type_counts.get(datetime.datetime, None),
+                'dates': v.type_counts.get(datetime.date, None),
+                'times': v.type_counts.get(datetime.time, None),
+                'strvals': ','.join(list(v.strings)[:20])
+            }
             yield d
 
 

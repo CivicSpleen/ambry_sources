@@ -108,7 +108,7 @@ class StatSet(object):
         except UnicodeError:
             unival = v.decode('ascii', 'ignore')
 
-        self.size = max(self.size, len(unival))
+        self.size = max(self.size or 0, len(unival))
 
         if self.lom == self.LOM.NOMINAL or self.lom == self.LOM.ORDINAL:
             if self.is_time or self.is_date:

@@ -36,7 +36,7 @@ class SourceSpec(object):
                  header_lines=False, start_line=None, end_line=None,
                  urltype=None, filetype=None,
                  encoding=None,
-                 columns=None, name=None, file = None, **kwargs):
+                 columns=None, name=None, file=None, **kwargs):
         """
 
         The ``header_lines`` can be a list of header lines, or one of a few special values:

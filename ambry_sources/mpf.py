@@ -204,13 +204,13 @@ class MPRowsFile(object):
         elif isinstance(obj, datetime.date):
             return {'__date__': True, 'as_str': obj.isoformat()}
         elif isinstance(obj, datetime.time):
-            return {'__time__': True, 'as_str': obj.strftime("%H:%M:%S")}
+            return {'__time__': True, 'as_str': obj.strftime('%H:%M:%S')}
         elif hasattr(obj, 'render'):
             return obj.render()
         elif hasattr(obj, '__str__'):
             return str(obj)
         else:
-            raise Exception("Unknown type on encode: {}, {}".format(type(obj), obj))
+            raise Exception('Unknown type on encode: {}, {}'.format(type(obj), obj))
 
     @staticmethod
     def decode_obj(obj):
@@ -789,10 +789,10 @@ class MPRWriter(object):
 
             for k, v in iteritems(results[i]):
                 k = {'count': 'type_count'}.get(k, k)
-                self.column(i+1)[k] = v
+                self.column(i + 1)[k] = v
 
-            if not self.column(i+1).type:
-                self.column(i+1).type = results[i]['resolved_type']
+            if not self.column(i + 1).type:
+                self.column(i + 1).type = results[i]['resolved_type']
 
     def set_stats(self, stats):
         """Copy stats into the schema"""

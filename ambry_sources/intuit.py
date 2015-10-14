@@ -162,7 +162,7 @@ class Column(object):
             return None
 
         try:
-            v = binary_type(v)
+            v = v.encode('ascii')
         except UnicodeEncodeError:
             self.type_counts[text_type] += 1
             return text_type

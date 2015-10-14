@@ -137,16 +137,15 @@ class StatSet(object):
                     self.bin_width = (self.bin_max - self.bin_min) / self.num_bins
 
                     for v, count in iteritems(self.counts):
-                        if v >= self.bin_min and v <= self.bin_max:
-                            bin_ = int((v - self.bin_min) / self.bin_width)
+                        if float(v) >= self.bin_min and float(v) <= self.bin_max:
+                            bin_ = int((float(v) - self.bin_min) / self.bin_width)
                             self.bins[bin_] += count
 
                 self.counts = Counter()
 
-            elif self.n > self.bin_primer_count and v >= self.bin_min and v <= self.bin_max:
-                bin_ = int((v - self.bin_min) / self.bin_width)
+            elif self.n > self.bin_primer_count and float(v) >= self.bin_min and float(v) <= self.bin_max:
+                bin_ = int((float(v) - self.bin_min) / self.bin_width)
                 self.bins[bin_] += 1
-
             try:
                 self.stats.add(float(v))
             except (ValueError, TypeError):
@@ -311,6 +310,7 @@ class Stats(object):
         self._func, self._func_code = self.build()
 
         def process_row(row):
+
             try:
                 self._func(self._stats, row)
             except TypeError as e:

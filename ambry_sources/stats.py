@@ -122,6 +122,10 @@ class StatSet(object):
             # not collect all of the values. So, collect the first 5K, then use that
             # to determine the 4sigma range of the histogram.
             # HACK There are probably a lot of 1-off errors in this
+            if v == 'NA':
+                float_v = 0
+            else:
+                float_v = float(v or 0)
 
             if self.n < self.bin_primer_count:
                 self.counts[unival] += 1
@@ -137,21 +141,25 @@ class StatSet(object):
                     self.bin_width = (self.bin_max - self.bin_min) / self.num_bins
 
                     for v, count in iteritems(self.counts):
-                        if float(v) >= self.bin_min and float(v) <= self.bin_max:
-                            bin_ = int((float(v) - self.bin_min) / self.bin_width)
+                        if v == 'NA':
+                            float_v = 0
+                        else:
+                            float_v = float(v or 0)
+                        if float_v >= self.bin_min and float_v <= self.bin_max:
+                            bin_ = int((float_v - self.bin_min) / self.bin_width)
                             self.bins[bin_] += count
 
                 self.counts = Counter()
 
-            elif self.n > self.bin_primer_count and float(v) >= self.bin_min and float(v) <= self.bin_max:
-                bin_ = int((float(v) - self.bin_min) / self.bin_width)
+            elif self.n > self.bin_primer_count and float(v or 0) >= self.bin_min and float(v or 0) <= self.bin_max:
+                bin_ = int((float(v or 0) - self.bin_min) / self.bin_width)
                 self.bins[bin_] += 1
             try:
                 self.stats.add(float(v))
             except (ValueError, TypeError):
                 self.counts[unival] += 1
         else:
-            assert False, "Really should be one or the other ... "
+            assert False, 'Really should be one or the other ... '
 
     @property
     def uniques(self):

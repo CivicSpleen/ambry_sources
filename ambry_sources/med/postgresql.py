@@ -4,7 +4,7 @@ import operator
 import re
 from fs.opener import fsopendir
 
-from six import binary_type
+from six import binary_type, text_type
 
 from multicorn import ForeignDataWrapper
 from multicorn.utils import log_to_postgres, ERROR, WARNING
@@ -21,6 +21,7 @@ TYPE_MAP = {
     'int': 'INTEGER',
     'float': 'NUMERIC',
     binary_type.__name__: 'TEXT',
+    text_type.__name__: 'TEXT',
     'date': 'DATE',
     'datetime': 'TIMESTAMP WITHOUT TIME ZONE'
 }

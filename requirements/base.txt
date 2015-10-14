@@ -1,6 +1,7 @@
 attrdict==2.0.0
 boto==2.38.0
 python-dateutil==2.4.2
+requests==2.8.1
 msgpack-python==0.4.6
 six==1.9.0
 gspread==0.2.5
@@ -14,6 +15,7 @@ livestats==1.0
 # Geographic, moved to extras
 #Fiona==1.6.1
 #Shapely==1.5.12
+
 # Foreign Data and Virtual Tables. Moved to extras
 #psycopg2
 #apsw

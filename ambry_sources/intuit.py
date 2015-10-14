@@ -1,12 +1,11 @@
 """Intuit data types for rows of values."""
 
-
-from collections import deque
+from collections import deque, OrderedDict
 import datetime
 import logging
 
 import six
-from six import string_types, iteritems, binary_type, text_type
+from six import string_types, iteritems, binary_type, text_type, b
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +56,8 @@ def test_int(v):
 
 def test_string(v):
     if isinstance(v, string_types):
+        return 1
+    if isinstance(v, binary_type):
         return 1
     else:
         return 0
@@ -188,7 +189,7 @@ class Column(object):
                     if v not in self.strings:
                         self.strings.append(v)
 
-                    if (self.count < 1000 or self.date_successes != 0) and any((c in '-/:T') for c in v):
+                    if (self.count < 1000 or self.date_successes != 0) and any((c in b('-/:T')) for c in v):
                         try:
                             maybe_dt = parser.parse(
                                 v, default=datetime.datetime.fromtimestamp(0))
@@ -282,8 +283,6 @@ class TypeIntuiter(object):
     counts = None
 
     def __init__(self):
-        from collections import OrderedDict
-
         self._columns = OrderedDict()
 
     def process_header(self, row):
@@ -325,10 +324,8 @@ class TypeIntuiter(object):
             skip_rows = None
 
         for i, row in enumerate(iter(source)):
-
             if skip_rows and i % skip_rows != 0:
                 continue
-
             self.process_row(i, row)
 
         return self
@@ -437,7 +434,7 @@ class TypeIntuiter(object):
                 'datetimes': v.type_counts.get(datetime.datetime, None),
                 'dates': v.type_counts.get(datetime.date, None),
                 'times': v.type_counts.get(datetime.time, None),
-                'strvals': ','.join(list(v.strings)[:20])
+                'strvals': b(',').join(list(v.strings)[:20])
             }
             yield d
 

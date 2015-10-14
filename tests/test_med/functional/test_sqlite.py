@@ -4,6 +4,8 @@ import apsw
 
 from fs.opener import fsopendir
 
+from six import binary_type
+
 from ambry_sources import get_source
 from ambry_sources.med.sqlite import add_partition, table_name
 from ambry_sources.mpf import MPRowsFile
@@ -23,7 +25,7 @@ class Test(TestBase):
 
         # first make sure file not changed.
         expected_names = ['id', 'uuid', 'int', 'float']
-        expected_types = ['int', 'str', 'int', 'float']
+        expected_types = ['int', binary_type.__name__, 'int', 'float']
         self.assertEqual([x['name'] for x in partition.reader.columns], expected_names)
         self.assertEqual([x['type'] for x in partition.reader.columns], expected_types)
 

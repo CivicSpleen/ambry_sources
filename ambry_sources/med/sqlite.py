@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime, date
 
+from six import binary_type
+
 from apsw import MisuseError
 
 # Documents used to implement module and function:
@@ -11,7 +13,7 @@ from apsw import MisuseError
 TYPE_MAP = {
     'int': 'INTEGER',
     'float': 'REAL',
-    'str': 'TEXT',
+    binary_type.__name__: 'TEXT',
     'date': 'DATE',
     'datetime': 'TIMESTAMP WITHOUT TIME ZONE'
 }

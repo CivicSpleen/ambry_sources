@@ -159,7 +159,7 @@ class MPRowsFile(object):
         }
     }
 
-    def __init__(self,  url_or_fs, path=None):
+    def __init__(self, url_or_fs, path=None):
         """
 
         :param url_or_fs:

@@ -6,12 +6,15 @@ Revised BSD License, included in this distribution as LICENSE.txt
 """
 
 import functools
+import hashlib
 from os.path import join
 import re
 import ssl
 
 from requests import HTTPError
 
+import six
+from six import binary_type, b
 from six.moves.urllib.parse import urlparse
 from six.moves.urllib.request import urlopen
 
@@ -160,14 +163,13 @@ def download(url, cache_fs, account_accessor=None, clean=False):
     import filelock
     import time
 
-    parsed = urlparse(str(url))
+    parsed = urlparse(url)
 
     # Create a name for the file in the cache, based on the URL
     cache_path = os.path.join(parsed.netloc, parsed.path.strip('/'))
 
     # If there is a query, hash it and add it to the path
     if parsed.query:
-        import hashlib
         hash = hashlib.sha224(parsed.query).hexdigest()
         cache_path = os.path.join(cache_path, hash)
 
@@ -285,7 +287,7 @@ def get_s3(url, account_accessor):
 
     pd = parse_url_to_dict(url)
 
-    if account_accessor is None or not callable(account_accessor):
+    if account_accessor is None or not six.callable(account_accessor):
         raise TypeError('account_accessor argument must be callable of one argument returning dict.')
 
     account = account_accessor(pd['netloc'])

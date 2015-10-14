@@ -5,11 +5,11 @@ Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
 Revised BSD License, included in this distribution as LICENSE.txt
 """
 
-from  __meta__ import *
+from  .__meta__ import *
 
 from .download import get_source, import_source
-from mpf import MPRowsFile
-from sources import RowProxy
+from .mpf import MPRowsFile
+from .sources import RowProxy
 
 import logging
 

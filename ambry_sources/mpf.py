@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Writing data to a partition. The MPR file format is a conversion format that stores tabular data in rows and associates
-it with metadata
+Writing data to a partition. The MPR file format is a conversion format that stores
+tabular data in rows and associates it with metadata.
 
 Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
 Revised BSD License, included in this distribution as LICENSE.txt
@@ -9,11 +9,15 @@ Revised BSD License, included in this distribution as LICENSE.txt
 
 import datetime
 import gzip
-import math
-import time
-from six import string_types
-import msgpack
+from functools import reduce
 import struct
+import time
+import zlib
+
+import six
+from six import string_types, iteritems, text_type
+
+import msgpack
 
 
 def new_mpr(fs, path, stats=None):
@@ -49,9 +53,13 @@ class GzipFile(gzip.GzipFile):
         """Alters the _read method to stop reading new gzip members when we've reached the end of the row data. """
 
         if self._new_member and self._end_of_data and self.fileobj.tell() >= self._end_of_data:
-            raise EOFError('Reached EOF')
+            if six.PY3:
+                return None
+            else:
+                raise EOFError('Reached EOF')
         else:
             return super(GzipFile, self)._read(size)
+
 
 class MPRowsFile(object):
     """The Message Pack Rows File format holds a collection of arrays, in message pack format, along with a
@@ -151,7 +159,7 @@ class MPRowsFile(object):
         }
     }
 
-    def __init__(self,  url_or_fs, path=None):
+    def __init__(self, url_or_fs, path=None):
         """
 
         :param url_or_fs:
@@ -196,30 +204,30 @@ class MPRowsFile(object):
         elif isinstance(obj, datetime.date):
             return {'__date__': True, 'as_str': obj.isoformat()}
         elif isinstance(obj, datetime.time):
-            return {'__time__': True, 'as_str': obj.strftime("%H:%M:%S")}
+            return {'__time__': True, 'as_str': obj.strftime('%H:%M:%S')}
         elif hasattr(obj, 'render'):
             return obj.render()
         elif hasattr(obj, '__str__'):
             return str(obj)
         else:
-            raise Exception("Unknown type on encode: {}, {}".format(type(obj), obj))
+            raise Exception('Unknown type on encode: {}, {}'.format(type(obj), obj))
 
     @staticmethod
     def decode_obj(obj):
 
-        if b'__datetime__' in obj:
+        if '__datetime__' in obj:
             try:
-                obj = datetime.datetime.strptime(obj["as_str"], "%Y-%m-%dT%H:%M:%S")
+                obj = datetime.datetime.strptime(obj['as_str'], '%Y-%m-%dT%H:%M:%S')
             except ValueError:
                 # The preferred format is without the microseconds, but there are some lingering
                 # bundle that still have it.
-                obj = datetime.datetime.strptime(obj["as_str"], "%Y-%m-%dT%H:%M:%S.%f")
-        elif b'__time__' in obj:
-            obj = datetime.time(*list(time.strptime(obj["as_str"], "%H:%M:%S"))[3:6])
-        elif b'__date__' in obj:
-            obj = datetime.datetime.strptime(obj["as_str"], "%Y-%m-%d").date()
+                obj = datetime.datetime.strptime(obj['as_str'], '%Y-%m-%dT%H:%M:%S.%f')
+        elif '__time__' in obj:
+            obj = datetime.time(*list(time.strptime(obj['as_str'], '%H:%M:%S'))[3:6])
+        elif '__date__' in obj:
+            obj = datetime.datetime.strptime(obj['as_str'], '%Y-%m-%d').date()
         else:
-            raise Exception("Unknown type on decode: {} ".format(obj))
+            raise Exception('Unknown type on decode: {} '.format(obj))
 
         return obj
 
@@ -236,8 +244,11 @@ class MPRowsFile(object):
         """Write the magic number, version and the file_header dictionary.  """
 
         int(o.data_start_row)
+        magic = cls.MAGIC
+        if isinstance(magic, text_type):
+            magic = magic.encode('utf-8')
 
-        hdf = cls.FILE_HEADER_FORMAT.pack(cls.MAGIC, cls.VERSION, o.n_rows, o.n_cols, o.meta_start,
+        hdf = cls.FILE_HEADER_FORMAT.pack(magic, cls.VERSION, o.n_rows, o.n_cols, o.meta_start,
                                           o.data_start_row,  o.data_end_row if o.data_end_row else o.n_rows)
 
         assert len(hdf) == cls.FILE_HEADER_FORMAT_SIZE
@@ -259,16 +270,11 @@ class MPRowsFile(object):
         # get screwed up if you read from a new position
 
         data = fh.read()
-
         if data:
-
-            meta = msgpack.unpackb(data.decode('zlib'), encoding='utf-8')
-
+            meta = msgpack.unpackb(zlib.decompress(data), encoding='utf-8')
         else:
             meta = {}
-
         fh.seek(pos)
-
         return meta
 
     @classmethod
@@ -277,8 +283,7 @@ class MPRowsFile(object):
         o.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
 
         fh.seek(o.meta_start)  # Should probably already be there.
-
-        fhb = msgpack.packb(o.meta, encoding='utf-8').encode('zlib')
+        fhb = zlib.compress(msgpack.packb(o.meta, encoding='utf-8'))
         fh.write(fhb)
 
     @classmethod
@@ -348,7 +353,6 @@ class MPRowsFile(object):
         with self.reader as r:
             return r.meta
 
-
     @property
     def stats(self):
         return (self.meta or {}).get('stats')
@@ -413,7 +417,7 @@ class MPRowsFile(object):
             self._start_time = time.time()
 
             with self.reader as r:
-                stats = Stats([(c.name, c.type) for c in r.columns ]).run(r, sample_from=r.n_rows)
+                stats = Stats([(c.name, c.type) for c in r.columns]).run(r, sample_from=r.n_rows)
 
             with self.writer as w:
                 w.set_stats(stats)
@@ -423,7 +427,7 @@ class MPRowsFile(object):
 
         return stats
 
-    def load_rows(self, source,  spec = None, intuit_rows=None, intuit_type=True, run_stats=True):
+    def load_rows(self, source,  spec=None, intuit_rows=None, intuit_type=True, run_stats=True):
         try:
 
             # The spec should always be part of the source
@@ -517,7 +521,7 @@ class MPRowsFile(object):
             for row in r:
                 yield row
 
-    def select(self, predicate = None, headers = None):
+    def select(self, predicate=None, headers=None):
         """Iterate the results from the reader's select() method"""
 
         with self.reader as r:
@@ -603,14 +607,14 @@ class MPRWriter(object):
         self.cache = []
 
         try:
-           #  Try to read an existing file
+            #  Try to read an existing file
             MPRowsFile.read_file_header(self, self._fh)
 
             self._fh.seek(self.meta_start)
 
             data = self._fh.read()
 
-            self.meta = msgpack.unpackb(data.decode('zlib'), encoding='utf-8')
+            self.meta = msgpack.unpackb(zlib.decompress(data), encoding='utf-8')
 
             self._fh.seek(self.meta_start)
 
@@ -679,7 +683,6 @@ class MPRWriter(object):
             h = headers[i]
 
             if isinstance(h, dict):
-                d = dict(h.items())
                 raise NotImplementedError()
             else:
                 row.name = h if h else 'column{}'.format(i)
@@ -693,9 +696,9 @@ class MPRWriter(object):
 
         raise KeyError("Didn't find '{}' as either a name nor a position ".format(name_or_pos))
 
-    def _write_rows(self, rows = None):
+    def _write_rows(self, rows=None):
 
-        rows, clear_cache = (self.cache, True) if not rows else (rows, False )
+        rows, clear_cache = (self.cache, True) if not rows else (rows, False)
 
         if not rows:
             return
@@ -707,7 +710,7 @@ class MPRWriter(object):
 
         # Hope that the max # of cols is found in the first 100 rows
         # FIXME! This won't work if rows is an interator.
-        self.n_cols = reduce(max, ( len(e) for e in rows[:100]), self.n_cols)
+        self.n_cols = reduce(max, (len(e) for e in rows[:100]), self.n_cols)
 
         if clear_cache:
             self.cache = []
@@ -784,20 +787,20 @@ class MPRWriter(object):
         results = {int(r['position']): r for r in ti._dump()}
         for i in range(len(results)):
 
-            for k, v in results[i].items():
-                k = {'count': 'type_count'}.get(k,k)
-                self.column(i+1)[k] = v
+            for k, v in iteritems(results[i]):
+                k = {'count': 'type_count'}.get(k, k)
+                self.column(i + 1)[k] = v
 
-            if not self.column(i+1).type:
-                self.column(i+1).type = results[i]['resolved_type']
+            if not self.column(i + 1).type:
+                self.column(i + 1).type = results[i]['resolved_type']
 
     def set_stats(self, stats):
         """Copy stats into the schema"""
 
-        for name, stat_set in stats.dict.items():
+        for name, stat_set in iteritems(stats.dict):
             row = self.column(name)
 
-            for k, v in stat_set.dict.items():
+            for k, v in iteritems(stat_set.dict):
                 k = {'count': 'stat_count'}.get(k, k)
                 row[k] = v
 
@@ -982,7 +985,6 @@ class MPRReader(object):
 
         return [e.name for e in MPRowsFile._columns(self)]
 
-
     @property
     def raw(self):
         """A raw iterator, which ignores the data start and stop rows and returns all rows, as rows"""
@@ -1033,12 +1035,11 @@ class MPRReader(object):
 
         _ = self.headers  # Get the header, but don't return it.
 
-
         try:
             self._in_iteration = True
 
             while True:
-                for row in  next(self.unpacker):
+                for row in next(self.unpacker):
                     if self.data_start_row <= self.pos <= self.data_end_row:
                         yield row
 
@@ -1047,10 +1048,8 @@ class MPRReader(object):
         finally:
             self._in_iteration = False
 
-
     def __iter__(self):
         """Iterator for reading rows as RowProxy objects
-
 
         WARNING: This routine returns RowProxy objects. RowProxy objects
         are reused, so if you construct a list directly from the output from this method, the list will have
@@ -1101,8 +1100,6 @@ class MPRReader(object):
 
         """
 
-        from itertools import imap, ifilter
-
         if headers:
 
             from operator import itemgetter
@@ -1118,13 +1115,13 @@ class MPRReader(object):
             getter = None
 
         if getter is not None and predicate is not None:
-            return imap(getter, ifilter(predicate, iter(self)))
+            return six.moves.map(getter, filter(predicate, iter(self)))
 
         elif getter is not None and predicate is None:
-            return imap(getter, iter(self))
+            return six.moves.map(getter, iter(self))
 
         elif getter is None and predicate is not None:
-            return ifilter(predicate, self)
+            return six.moves.filter(predicate, self)
 
         else:
             return iter(self)

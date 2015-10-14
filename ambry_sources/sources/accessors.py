@@ -5,6 +5,8 @@ Revised BSD License, included in this distribution as LICENSE.txt
 
 import petl
 
+import six
+
 from ambry_sources.util import copy_file_or_flo
 
 from .exceptions import SourceError
@@ -31,7 +33,7 @@ class SourceFile(object):
             pass
 
         self._fstor = fstor
-        self._headers = None # Reserved for subclasses that extract headers from data stream
+        self._headers = None  # Reserved for subclasses that extract headers from data stream
 
     @property
     def headers(self):
@@ -44,7 +46,7 @@ class SourceFile(object):
         return None
 
     @headers.setter
-    def headers(self,v):
+    def headers(self, v):
         raise NotImplementedError
 
     def coalesce_headers(self, header_lines):
@@ -103,11 +105,11 @@ class GeneratorSource(SourceFile):
     def __init__(self, spec, generator):
         super(GeneratorSource, self).__init__(spec, None)
 
-        if not ( not spec.start_line or spec.start_line == 1):
+        if not (not spec.start_line or spec.start_line == 1):
             raise SourceError("For GeneratorSource, the start line must be 1 or unspecified; got '{}' "
                               .format(spec.start_line))
 
-        if not ( not spec.header_lines or spec.header_lines == [0] or spec.header_lines == []):
+        if not (not spec.header_lines or spec.header_lines == [0] or spec.header_lines == []):
             raise SourceError("For GeneratorSource, the start line must be [0] or unspecified; got '{}'"
                               .format(spec.header_lines))
 
@@ -116,7 +118,7 @@ class GeneratorSource(SourceFile):
 
         self.gen = generator
 
-        if callable(self.gen):
+        if six.callable(self.gen):
             self.gen = self.gen()
 
     def __iter__(self):
@@ -129,16 +131,17 @@ class GeneratorSource(SourceFile):
 
         self.finish()
 
+
 class MPRSource(SourceFile):
 
     def __init__(self, spec, datafile, predicate=None, headers=None):
         super(MPRSource, self).__init__(spec, None)
 
-        if not ( not spec.start_line or spec.start_line == 1):
+        if not (not spec.start_line or spec.start_line == 1):
             raise SourceError("For MPRSource, the start line must be 1 or unspecified; got '{}' "
                               .format(spec.start_line))
 
-        if not ( not spec.header_lines or spec.header_lines == [0] or spec.header_lines == []):
+        if not (not spec.header_lines or spec.header_lines == [0] or spec.header_lines == []):
             raise SourceError("For MPRSource, the start line must be [0] or unspecified; got '{}'"
                               .format(spec.header_lines))
 
@@ -149,7 +152,6 @@ class MPRSource(SourceFile):
 
         self.predicate = predicate
         self.return_headers = headers
-
 
     def __iter__(self):
         """Iterate over all of the lines in the file"""
@@ -165,6 +167,7 @@ class MPRSource(SourceFile):
                 yield row.row  # select returns a RowProxy
 
         self.finish()
+
 
 class CsvSource(SourceFile):
     """Generate rows from a CSV source"""
@@ -198,7 +201,7 @@ class FixedSource(SourceFile):
     """Generate rows from a fixed-width source"""
 
     def __init__(self, spec, fstor):
-        from exceptions import SourceError
+        from .exceptions import SourceError
 
         super(FixedSource, self).__init__(spec, fstor)
 
@@ -206,7 +209,7 @@ class FixedSource(SourceFile):
             raise SourceError("For FixedSource, the start line must be 1 or unspecified; got '{}' "
                               .format(spec.start_line))
 
-        if not ( not spec.header_lines or spec.header_lines == [0] or spec.header_lines == []):
+        if not (not spec.header_lines or spec.header_lines == [0] or spec.header_lines == []):
             raise SourceError("For FixedSource, the header_lines must be [0] or unspecified; got '{}'"
                               .format(spec.header_lines))
 
@@ -304,7 +307,7 @@ class ExcelSource(SourceFile):
                 for col in range(s.ncols):
                     values.append(s.cell(row_num, col).value)
             except:
-                print '!!!!', row_num
+                print('!!!!', row_num)
                 raise
 
             return values
@@ -429,7 +432,7 @@ class ShapefileSource(GeoSourceBase):
         columns = [{'name': 'id', 'type': 'int'}]
 
         # extend with *.shp file columns converted to ambry_sources format.
-        columns.extend(map(self._convert_column, shapefile_columns.iteritems()))
+        columns.extend(list(map(self._convert_column, iter(shapefile_columns.items()))))
 
         # last column is wkt value.
         columns.append({'name': 'geometry', 'type': 'geometry_type'})
@@ -461,7 +464,7 @@ class ShapefileSource(GeoSourceBase):
 
         from shapely.geometry import shape
         from shapely.wkt import dumps
-        from spec import ColumnSpec
+        from .spec import ColumnSpec
 
         self.start()
 
@@ -480,7 +483,7 @@ class ShapefileSource(GeoSourceBase):
                     shp = shape(s['geometry'])
                     wkt = dumps(shp)
                     row = [int(s['id'])]
-                    for col_name, elem in row_data.iteritems():
+                    for col_name, elem in six.iteritems(row_data):
                         row.append(elem)
                     row.append(wkt)
                     yield row

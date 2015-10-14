@@ -5,15 +5,18 @@ Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
 Revised BSD License, included in this distribution as LICENSE.txt
 """
 
-
 import argparse
-from .mpf import MPRowsFile
 from itertools import islice
+
+from six import binary_type
+
 import tabulate
-from __meta__ import __version__
+
+from .mpf import MPRowsFile
+from .__meta__ import __version__
+
 
 def make_arg_parser(parser=None):
-
 
     if not parser:
         parser = argparse.ArgumentParser(
@@ -39,9 +42,10 @@ def make_arg_parser(parser=None):
     parser.add_argument('-c', '--csv', help='Output the entire file as CSV')
     parser.add_argument('-l', '--limit', help='The number of rows to output for CSV or JSON')
 
-    parser.add_argument('path', nargs=1, type=str, help='File path')
+    parser.add_argument('path', nargs=1, type=binary_type, help='File path')
 
     return parser
+
 
 def main(args=None):
     from operator import itemgetter
@@ -55,16 +59,16 @@ def main(args=None):
 
     r = f.reader
 
-    schema_fields = ['pos','name', 'type','resolved_type', 'description', 'start','width']
+    schema_fields = ['pos', 'name', 'type', 'resolved_type', 'description', 'start', 'width']
     schema_getter = itemgetter(*schema_fields)
-    types_fields =  ['header', 'count','length',  'floats',  'ints', 'unicode',  'strs', 'dates',
-                     'times', 'datetimes', 'nones', 'has_codes', 'strvals',  ]
+    types_fields = ['header', 'count', 'length',  'floats',  'ints', 'unicode',  'strs', 'dates',
+                    'times', 'datetimes', 'nones', 'has_codes', 'strvals']
 
-    stats_fields_all = [ 'name', 'stat_count', 'nuniques' , 'mean', 'min', 'p25', 'p50', 'p75' , 'max', 'std',
-                    'uvalues', 'lom',  'skewness','kurtosis', 'flags', 'hist', 'text_hist']
+    stats_fields_all = ['name', 'stat_count', 'nuniques', 'mean', 'min', 'p25', 'p50', 'p75', 'max', 'std',
+                        'uvalues', 'lom',  'skewness', 'kurtosis', 'flags', 'hist', 'text_hist']
 
     stats_fields = ['name', 'lom', 'stat_count', 'nuniques', 'mean', 'min', 'p25', 'p50', 'p75',
-                   'max', 'std', 'text_hist']
+                    'max', 'std', 'text_hist']
 
     stats_getter = itemgetter(*stats_fields)
 
@@ -78,22 +82,23 @@ def main(args=None):
                 for i, row in enumerate(r.rows):
                     w.writerow(row)
 
-                    if limit and i>= limit:
+                    if limit and i >= limit:
                         break
 
         return
 
-    def pm(l,m):
+    def pm(l, m):
         """Print, maybe"""
         if not m:
             return
-        m = str(m).strip()
+        m = binary_type(m).strip()
         if m:
-            print "{:<12s}: {}".format(l,m)
+            print('{:<12s}: {}'.format(l, m))
 
     with f.reader as r:
-        pm("MPR File",args.path[0])
-        pm("Created", (r.meta['about']['create_time'] and datetime.fromtimestamp(r.meta['about']['create_time'])))
+        pm("MPR File", args.path[0])
+        pm("Created",
+           (r.meta['about']['create_time'] and datetime.fromtimestamp(r.meta['about']['create_time'])))
         pm("version", r.info['version'])
         pm("rows", r.info['rows'])
         pm("cols", r.info['cols'])
@@ -106,21 +111,19 @@ def main(args=None):
         pm("encoding", ss['encoding'])
 
     if args.schema:
-        print "\nSCHEMA"
+        print('\nSCHEMA')
         with f.reader as r:
-            print (tabulate.tabulate((schema_getter(row.dict) for row in r.columns), schema_fields))
+            print(tabulate.tabulate((schema_getter(row.dict) for row in r.columns), schema_fields))
 
     if args.stats:
         with f.reader as r:
-            print ("\nSTATS")
-
+            print('\nSTATS')
             print(tabulate.tabulate((stats_getter(row.dict) for row in r.columns), stats_fields))
 
     if args.head or args.tail:
         with f.reader as r:
-            print ("\nHEAD" if args.head else "\nTAIL")
+            print('\nHEAD' if args.head else '\nTAIL')
             MAX_LINE = 80
-            ll = 0
             headers = []
 
             # Only show so may cols as will fit in an 80 char line.
@@ -133,9 +136,9 @@ def main(args=None):
 
             rows = []
 
-            start, end = (None,10) if args.head else (r.n_rows-10, r.n_rows )
+            start, end = (None, 10) if args.head else (r.n_rows-10, r.n_rows)
 
-            slc = islice(itr,start,end)
+            slc = islice(itr, start, end)
 
             rows = [(i,)+row[:len(headers)] for i, row in enumerate(slc, start if start else 0)]
 
@@ -168,7 +171,5 @@ def main(args=None):
                 sys.exit(0)
 
 
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

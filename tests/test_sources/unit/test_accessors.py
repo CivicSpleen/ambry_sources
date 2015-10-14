@@ -5,6 +5,8 @@ from collections import OrderedDict
 import fudge
 from fudge.inspector import arg
 
+from six import u
+
 from ambry_sources.sources import SourceSpec, ShapefileSource
 
 
@@ -37,7 +39,7 @@ class TestShapefileSource(unittest.TestCase):
         source = ShapefileSource(spec, fstor)
         expected_column = {'name': 'name1', 'type': 'int'}
         self.assertEqual(
-            source._convert_column((u'name1', 'int:3')),
+            source._convert_column((u('name1'), 'int:3')),
             expected_column)
 
     # _get_columns tests

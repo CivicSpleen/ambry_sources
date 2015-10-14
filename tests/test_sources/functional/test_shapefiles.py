@@ -69,7 +69,7 @@ class Test(TestBase):
         cache_fs = fsopendir(self.setup_temp_dir())
 
         sources = self.load_sources(file_name='geo_sources.csv')
-        for name, spec in sources.iteritems():
+        for name, spec in sources.items():
             if name == 'highways':
                 # it is already tested. Skip.
                 continue

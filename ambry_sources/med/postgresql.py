@@ -4,6 +4,8 @@ import operator
 import re
 from fs.opener import fsopendir
 
+from six import binary_type, text_type
+
 from multicorn import ForeignDataWrapper
 from multicorn.utils import log_to_postgres, ERROR, WARNING
 
@@ -18,7 +20,8 @@ logger = logging.getLogger(__name__)
 TYPE_MAP = {
     'int': 'INTEGER',
     'float': 'NUMERIC',
-    'str': 'TEXT',
+    binary_type.__name__: 'TEXT',
+    text_type.__name__: 'TEXT',
     'date': 'DATE',
     'datetime': 'TIMESTAMP WITHOUT TIME ZONE'
 }
@@ -48,7 +51,7 @@ def _get_create_query(partition, vid):
         str: sql query to craete foreign table.
     """
     columns = []
-    for column in sorted(partition.schema, key=lambda x: x['pos']):
+    for column in sorted(partition.reader.columns, key=lambda x: x['pos']):
         postgres_type = TYPE_MAP.get(column['type'])
         if not postgres_type:
             raise Exception('Do not know how to convert {} to postgresql type.'.format(column['type']))

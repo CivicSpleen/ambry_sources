@@ -3,6 +3,8 @@ from decimal import Decimal
 
 import psycopg2
 
+from six import binary_type
+
 from fs.opener import fsopendir
 
 from ambry_sources import get_source
@@ -22,11 +24,11 @@ class Test(TestBase):
         s = get_source(spec, cache_fs)
         partition = MPRowsFile(cache_fs, spec.name).load_rows(s)
 
-        # first make sure file not changed.
+        # first make sure file was not changed.
         expected_names = ['id', 'uuid', 'int', 'float']
-        expected_types = ['str', 'str', 'str', 'float']
-        self.assertEqual(sorted([x['name'] for x in partition.schema]), sorted(expected_names))
-        self.assertEqual(sorted([x['type'] for x in partition.schema]), sorted(expected_types))
+        expected_types = ['int', binary_type.__name__, 'int', 'float']
+        self.assertEqual(sorted([x['name'] for x in partition.reader.columns]), sorted(expected_names))
+        self.assertEqual(sorted([x['type'] for x in partition.reader.columns]), sorted(expected_types))
 
         try:
             # create foreign data table

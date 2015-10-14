@@ -73,5 +73,3 @@ these extras in develop, run from the root of the distribution:
 .. code-block:: bash
 
     pip install -e .[geo,fdw]
-
-

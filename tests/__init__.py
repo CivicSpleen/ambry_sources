@@ -81,7 +81,7 @@ class TestBase(unittest.TestCase):
                         ('float', 44, 14),
                         )
 
-        fw_columns = [ColumnSpec(**dict(zip('name start width'.split(), e))) for e in fixed_widths]
+        fw_columns = [ColumnSpec(**dict(list(zip('name start width'.split(), e)))) for e in fixed_widths]
 
         with test_data.open(file_name) as f:
             r = csv.DictReader(f)

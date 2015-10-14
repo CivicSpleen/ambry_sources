@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime, date
 
+from six import binary_type, text_type
+
 from apsw import MisuseError
 
 # Documents used to implement module and function:
@@ -11,7 +13,8 @@ from apsw import MisuseError
 TYPE_MAP = {
     'int': 'INTEGER',
     'float': 'REAL',
-    'str': 'TEXT',
+    binary_type.__name__: 'TEXT',
+    text_type.__name__: 'TEXT',
     'date': 'DATE',
     'datetime': 'TIMESTAMP WITHOUT TIME ZONE'
 }
@@ -122,7 +125,7 @@ def _get_module_class(partition):
         def Create(self, db, modulename, dbname, tablename, *args):
             columns_types = []
             column_names = []
-            for column in sorted(partition.schema, key=lambda x: x['pos']):
+            for column in sorted(partition.reader.columns, key=lambda x: x['pos']):
                 sqlite_type = TYPE_MAP.get(column['type'])
                 if not sqlite_type:
                     raise Exception('Do not know how to convert {} to sql column.'.format(column['type']))

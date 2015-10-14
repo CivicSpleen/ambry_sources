@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
+import hashlib
 
-from six import string_types
+from six import string_types, binary_type, text_type
+
 
 class ColumnSpec(object):
 
@@ -23,9 +25,9 @@ class ColumnSpec(object):
         return str(self.__dict__)
 
     def __repr__(self):
-        return "ColumnSpec({})".format(','.join("{}={}".format(k,v if not isinstance(v,string_types)
+        return 'ColumnSpec({})'.format(','.join('{}={}'.format(k, v if not isinstance(v, string_types)
                                                 else '"{}"'.format(v))
-                                                for k,v in self.__dict__.items()))
+                                                for k, v in self.__dict__.items()))
 
 
 class SourceSpec(object):
@@ -34,7 +36,7 @@ class SourceSpec(object):
                  header_lines=False, start_line=None, end_line=None,
                  urltype=None, filetype=None,
                  encoding=None,
-                 columns=None, name=None, file = None, **kwargs):
+                 columns=None, name=None, file=None, **kwargs):
         """
 
         The ``header_lines`` can be a list of header lines, or one of a few special values:
@@ -57,7 +59,7 @@ class SourceSpec(object):
         """
 
         if 'reftype' in kwargs and not urltype:
-            urltype = kwargs['reftype'] # Ambry SourceFile object changed from urltype to reftype.
+            urltype = kwargs['reftype']  # Ambry SourceFile object changed from urltype to reftype.
 
         def norm(v):
 
@@ -95,25 +97,26 @@ class SourceSpec(object):
         self.encoding = self.encoding if self.encoding else None
 
         # If the header lines is specified as a comma delimited list
-        if isinstance(self.header_lines, basestring) and self.header_lines != 'none':
+        if isinstance(self.header_lines, string_types) and self.header_lines != 'none':
             self.header_lines = [int(e) for e in self.header_lines.split(',') if e.strip() != '']
 
         # If it is an actual list.
         elif isinstance(self.header_lines, (list, tuple)):
-            self.header_lines = [int(e) for e in self.header_lines if str(e).strip() != '']
+            self.header_lines = [int(e) for e in self.header_lines if binary_type(e).strip() != '']
 
         if self.header_lines:
             self.start_line = max(self.header_lines) + 1
 
         if not self.name:
-            import hashlib
-            self.name = hashlib.md5(str(self.url)+str(self.segment)).hexdigest()
+            raw_name = '{}{}'.format(self.url, self.segment)
+            if isinstance(raw_name, text_type):
+                raw_name = raw_name.encode('utf-8')
+            self.name = hashlib.md5(raw_name).hexdigest()
 
     @property
     def has_rowspec(self):
         """Return True if the spec defines header lines or the data start line"""
-
-        return self._header_lines_specified or self.start_line != None
+        return self._header_lines_specified or self.start_line is not None
 
     def get_filetype(self, file_path):
         """Determine the format of the source file, by reporting the file extension"""

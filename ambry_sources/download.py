@@ -12,6 +12,8 @@ import ssl
 
 from requests import HTTPError
 
+import six
+from six import binary_type
 from six.moves.urllib.parse import urlparse
 from six.moves.urllib.request import urlopen
 
@@ -158,7 +160,7 @@ def download(url, cache_fs, account_accessor=None, clean=False):
     import filelock
     import time
 
-    parsed = urlparse(str(url))
+    parsed = urlparse(binary_type(url))
 
     # Create a name for the file in the cache, based on the URL
     cache_path = os.path.join(parsed.netloc, parsed.path.strip('/'))
@@ -279,7 +281,7 @@ def get_s3(url, account_accessor):
 
     pd = parse_url_to_dict(url)
 
-    if account_accessor is None or not callable(account_accessor):
+    if account_accessor is None or not six.callable(account_accessor):
         raise TypeError('account_accessor argument must be callable of one argument returning dict.')
 
     account = account_accessor(pd['netloc'])

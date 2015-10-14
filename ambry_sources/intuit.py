@@ -1,11 +1,12 @@
 """Intuit data types for rows of values."""
-from __future__ import unicode_literals
+
 
 from collections import deque
 import datetime
 import logging
 
-from six import string_types, iteritems
+import six
+from six import string_types, iteritems, binary_type, text_type
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ class NoMatchError(Exception):
     pass
 
 
-class unknown(str):
+class unknown(binary_type):
 
     __name__ = 'unknown'
 
@@ -25,7 +26,7 @@ class unknown(str):
         return self.__name__
 
     def __eq__(self, other):
-        return str(self) == str(other)
+        return binary_type(self) == binary_type(other)
 
 
 def test_float(v):
@@ -120,7 +121,7 @@ def test_date(v):
 tests = [
     (int, test_int),
     (float, test_float),
-    (str, test_string),
+    (binary_type, test_string),
 ]
 
 
@@ -139,7 +140,7 @@ class Column(object):
         self.type_counts[datetime.date] = 0
         self.type_counts[datetime.time] = 0
         self.type_counts[None] = 0
-        self.type_counts[unicode] = 0
+        self.type_counts[text_type] = 0
         self.strings = deque(maxlen=1000)
         self.position = None
         self.header = None
@@ -161,10 +162,10 @@ class Column(object):
             return None
 
         try:
-            v = str(v)
+            v = binary_type(v)
         except UnicodeEncodeError:
-            self.type_counts[unicode] += 1
-            return unicode
+            self.type_counts[text_type] += 1
+            return text_type
 
         self.length = max(self.length, len(v))
 
@@ -183,7 +184,7 @@ class Column(object):
             if t > 0:
                 type_ = test
 
-                if test == str:
+                if test == binary_type:
                     if v not in self.strings:
                         self.strings.append(v)
 
@@ -221,8 +222,8 @@ class Column(object):
                             for test, testf in tests + [(None, None)]}
 
         # If it is more than 20% str, it's a str
-        if self.type_ratios[str] > .2:
-            return str, False
+        if self.type_ratios[binary_type] > .2:
+            return binary_type, False
 
         # If more than 70% None, it's also a str, because ...
         #if self.type_ratios[None] > .7:
@@ -243,17 +244,16 @@ class Column(object):
         elif self.type_counts[int] > 0:
             num_type = int
 
-        # FIXME; need a better method of str/unicode that's compatible with Python3
-        elif self.type_counts[str] > 0:
-            num_type = str
+        elif self.type_counts[binary_type] > 0:
+            num_type = binary_type
 
-        elif self.type_counts[unicode] > 0:
-            num_type = unicode
+        elif self.type_counts[text_type] > 0:
+            num_type = text_type
 
         else:
             num_type = unknown
 
-        if self.type_counts[str] > 0 and num_type != str:
+        if self.type_counts[binary_type] > 0 and num_type != binary_type:
             has_codes = True
         else:
             has_codes = False
@@ -310,11 +310,10 @@ class TypeIntuiter(object):
             except Exception as e:
                 # This usually doesn't matter, since there are usually plenty of other rows to intuit from
                 # print 'Failed to add row: {}: {} {}'.format(row, type(e), e)
-                print i, value, e
-                pass
+                print(i, value, e)
                 raise
 
-    def run(self, source, total_rows = None):
+    def run(self, source, total_rows=None):
 
         MIN_SKIP_ROWS = 10000
 
@@ -328,7 +327,7 @@ class TypeIntuiter(object):
 
         for i, row in enumerate(iter(source)):
 
-            if skip_rows and i%skip_rows != 0:
+            if skip_rows and i % skip_rows != 0:
                 continue
 
             self.process_row(i, row)
@@ -350,21 +349,21 @@ class TypeIntuiter(object):
         results = self.results_table()
 
         if len(results) > 1:
-            o = '\n' + str(tabulate(results[1:], results[0], tablefmt='pipe'))
+            o = '\n' + binary_type(tabulate(results[1:], results[0], tablefmt='pipe'))
         else:
             o = ''
 
-        return "TypeIntuiter " + o
+        return 'TypeIntuiter ' + o
 
     @staticmethod
     def normalize_type(typ):
 
-        if isinstance(typ, basestring):
+        if isinstance(typ, string_types):
             import datetime
 
-            m = dict(__builtins__.items() + datetime.__dict__.items())
+            m = dict(list(__builtins__.items()) + list(datetime.__dict__.items()))
             if typ == 'unknown':
-                typ = str
+                typ = binary_type
             else:
                 typ = m[typ]
 
@@ -434,8 +433,8 @@ class TypeIntuiter(object):
                 count=v.count,
                 ints=v.type_counts.get(int, None),
                 floats=v.type_counts.get(float, None),
-                strs=v.type_counts.get(str, None),
-                unicode=v.type_counts.get(unicode, None),
+                strs=v.type_counts.get(binary_type, None),
+                text_type=v.type_counts.get(text_type, None),
                 nones=v.type_counts.get(None, None),
                 datetimes=v.type_counts.get(datetime.datetime, None),
                 dates=v.type_counts.get(datetime.date, None),
@@ -473,14 +472,14 @@ class ClusterHeaders(object):
                 r = SequenceMatcher(None, ca, cb).ratio()
 
                 if r > .9:
-                    print ca, cb
+                    print(ca, cb)
                     break
 
     def add_header(self, name, headers):
         self._headers[name] = headers
 
     def pairs(self):
-        return set([ (name1, name2) for name1 in list(self._headers) for name2 in list(self._headers) if name2 > name1])
+        return set([(name1, name2) for name1 in list(self._headers) for name2 in list(self._headers) if name2 > name1])
 
     @classmethod
     def long_substr(cls, data):
@@ -538,7 +537,9 @@ class RowIntuiter(object):
 
     N_TEST_ROWS = 150
 
-    type_map = {unicode: str, float: int}
+    type_map = {
+        text_type: binary_type,
+        float: int}
 
     def __init__(self):
         import re
@@ -557,7 +558,6 @@ class RowIntuiter(object):
             ('H', re.compile(r'^X+$')),
             ('H', re.compile(r'^_{,6}X+$')),  # A few starting blanks, the rest are strings.
             ('H', re.compile(r"(?:X_)")),
-
         )
 
         self.test_rows = []
@@ -569,16 +569,16 @@ class RowIntuiter(object):
         with a regex """
 
         template = '_Xn'
-        types = (type(None), str, int)
+        types = (type(None), binary_type, int)
 
         def guess_type(v):
 
-            v = unicode(v).strip()
+            v = text_type(v).strip()
 
             if not bool(v):
                 return type(None)
 
-            for t in (float, int, str, unicode):
+            for t in (float, int, binary_type, text_type):
                 try:
                     return type(t(v))
                 except:
@@ -696,7 +696,7 @@ class RowIntuiter(object):
                 label = 'H'
 
             if self.debug:
-                print label, picture, row
+                print(label, picture, row)
 
             if label == 'C':
                 self.comment_lines.append(i)
@@ -715,18 +715,17 @@ class RowIntuiter(object):
         raise NotImplementedError()
 
         import re
-        from itertools import ifilterfalse
         from operator import itemgetter
 
         pattern = re.compile(self.data_pattern_source)
 
         # Return the first row where the pattern fails.
         try:
-            pos, row = min(ifilterfalse(lambda row: pattern.match(self.picture(row)),
-                                        enumerate(end_rows)), key=itemgetter(1))
+            pos, row = min(six.moves.filterfalse(lambda row: pattern.match(self.picture(row)),
+                                                 enumerate(end_rows)), key=itemgetter(1))
 
             for row in end_rows:
-                print self.picture(row), bool(pattern.match(self.picture(row)))
+                print(self.picture(row), bool(pattern.match(self.picture(row))))
 
             rpos = pos - len(end_rows) - 1
 
@@ -759,7 +758,7 @@ class RowIntuiter(object):
 
                 header_lines[0] = hl1
 
-            headers = [' '.join(unicode(col_val).strip() if col_val else '' for col_val in col_set)
+            headers = [' '.join(text_type(col_val).strip() if col_val else '' for col_val in col_set)
                        for col_set in zip(*header_lines)]
 
             headers = [h.strip() for h in headers]
@@ -772,10 +771,8 @@ class RowIntuiter(object):
         else:
             return []
 
-    def run(self, source, total_rows = None):
+    def run(self, source, total_rows=None):
         from itertools import islice
         self.test_rows = list(islice(iter(source), self.N_TEST_ROWS))
-
-
         self.classify(self.test_rows)
         return self

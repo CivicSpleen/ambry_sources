@@ -23,9 +23,9 @@ class ColumnSpec(object):
         return str(self.__dict__)
 
     def __repr__(self):
-        return "ColumnSpec({})".format(','.join("{}={}".format(k,v if not isinstance(v,string_types)
+        return 'ColumnSpec({})'.format(','.join('{}={}'.format(k, v if not isinstance(v, string_types)
                                                 else '"{}"'.format(v))
-                                                for k,v in self.__dict__.items()))
+                                                for k, v in self.__dict__.items()))
 
 
 class SourceSpec(object):
@@ -95,7 +95,7 @@ class SourceSpec(object):
         self.encoding = self.encoding if self.encoding else None
 
         # If the header lines is specified as a comma delimited list
-        if isinstance(self.header_lines, basestring) and self.header_lines != 'none':
+        if isinstance(self.header_lines, string_types) and self.header_lines != 'none':
             self.header_lines = [int(e) for e in self.header_lines.split(',') if e.strip() != '']
 
         # If it is an actual list.

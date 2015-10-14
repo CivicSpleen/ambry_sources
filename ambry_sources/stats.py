@@ -7,9 +7,10 @@ Copyright (c) 2015 Civic Knowledge. This file is licensed under the terms of the
 Revised BSD License, included in this distribution as LICENSE.txt
 """
 
-from collections import Counter
+from collections import Counter, OrderedDict
 from livestats import livestats
-from six import iteritems, iterkeys
+
+from six import iteritems, iterkeys, u, string_types, binary_type, text_type
 
 from .sources import SourceError
 
@@ -17,9 +18,9 @@ from .sources import SourceError
 def text_hist(nums, ascii=False):
 
     if ascii:
-        parts = u' _.,,-=T#'
+        parts = u(' _.,,-=T#')
     else:
-        parts = u' ▁▂▃▄▅▆▇▉'
+        parts = u(' ▁▂▃▄▅▆▇▉')
 
     nums = list(nums)
     fraction = max(nums) / float(len(parts) - 1)
@@ -27,6 +28,7 @@ def text_hist(nums, ascii=False):
         return ''.join(parts[int(round(x / fraction))] for x in nums)
     else:
         return ''
+
 
 class Constant:
     """Organizes constants in a class."""
@@ -39,28 +41,29 @@ class Constant:
             raise self.ConstError("Can't rebind const(%s)" % name)
         self.__dict__[name] = value
 
+
 class StatSet(object):
     LOM = Constant()  # Level of Measurement, More or Less
 
-    LOM.NOMINAL = 'n' # Categorical, usually strings.
-    LOM.ORDINAL = 'o' # A number which counts or ranks. Subtraction is not defined. Times and Dates
-    LOM.INTERVAL = 'i' # A number, for which subtraction is defined, but not division
-    LOM.RATIO = 'r' # A number, for which division is defined and zero means "nothing".  Kelvin, but not Celsius
+    LOM.NOMINAL = 'n'  # Categorical, usually strings.
+    LOM.ORDINAL = 'o'  # A number which counts or ranks. Subtraction is not defined. Times and Dates
+    LOM.INTERVAL = 'i'  # A number, for which subtraction is defined, but not division
+    LOM.RATIO = 'r'  # A number, for which division is defined and zero means "nothing". Kelvin, but not Celsius
 
     def __init__(self, name, typ):
 
-        if isinstance(typ, basestring):
+        if isinstance(typ, string_types):
             import datetime
-            m = dict(__builtins__.items() + datetime.__dict__.items())
+            m = dict(list(__builtins__.items()) + list(datetime.__dict__.items()))
             if typ == 'unknown':
-                typ = str
+                typ = binary_type
             else:
                 typ = m[typ]
 
         from datetime import date, time, datetime
 
-        self.is_gvid = bool("gvid" in name) # A special name in Ambry
-        self.is_year = bool("year" in name)
+        self.is_gvid = bool('gvid' in name)  # A special name in Ambry
+        self.is_year = bool('year' in name)
         self.is_time = typ == time
         self.is_date = typ == date or typ == datetime
 
@@ -69,7 +72,7 @@ class StatSet(object):
 
         if self.is_year or self.is_time or self.is_date:
             lom = StatSet.LOM.ORDINAL
-        elif typ == str or typ == unicode:
+        elif typ == binary_type or typ == text_type:
             lom = StatSet.LOM.NOMINAL
         elif typ == int or typ == float:
             lom = StatSet.LOM.INTERVAL
@@ -101,7 +104,7 @@ class StatSet(object):
         self.n += 1
 
         try:
-            unival = unicode(v)
+            unival = u('{}').format(v)
         except UnicodeError:
             unival = v.decode('ascii', 'ignore')
 
@@ -219,7 +222,6 @@ class StatSet(object):
     @property
     def dict(self):
         """Return a  dict that can be passed into the ColumnStats constructor"""
-        from collections import OrderedDict
 
         try:
             skewness = self.skewness
@@ -245,15 +247,13 @@ class StatSet(object):
             ('hist', self.bins),
             ('text_hist',  text_hist(self.bins)),
             ('uvalues', dict(self.counts.most_common(100)))
-        ]
-        )
+        ])
 
 
 class Stats(object):
     """ Stats object reads rows from the input iterator, processes the row, and yields it back out"""
 
     def __init__(self, schema):
-        from collections import OrderedDict
 
         self._stats = {}
         self._func = None
@@ -298,16 +298,15 @@ class Stats(object):
     def stats(self):
         return [(name, self._stats[name]) for name, stat in iteritems(self._stats)]
 
-    def run(self, source, sample_from = None):
+    def run(self, source, sample_from=None):
         """
          Run the stats. The source must yield Row proxies
 
         :param source:
-        :param sample_from: If not None, an integer givning the total number of rows. The run will sample 10,000 rows.
+        :param sample_from: If not None, an integer givning the total number of rows. The
+            run will sample 10,000 rows.
         :return:
         """
-
-        from itertools import islice
 
         self._func, self._func_code = self.build()
 
@@ -318,7 +317,8 @@ class Stats(object):
                 raise TypeError("Failed for '{}'; {}".format(self._func_code, e))
             except KeyError:
                 raise KeyError(
-                    'Failed to find key in row. headers = "{}", code = "{}" '.format(row.keys(), self._func_code))
+                    'Failed to find key in row. headers = "{}", code = "{}" '
+                    .format(list(row.keys()), self._func_code))
 
         if sample_from is None:
             for row in source:
@@ -340,8 +340,6 @@ class Stats(object):
 
         return self
 
-
-
     def __str__(self):
         from tabulate import tabulate
 
@@ -356,6 +354,6 @@ class Stats(object):
 
             rows.append(list(stats_dict.values()))
         if rows:
-            return 'Statistics \n' + str(tabulate(rows[1:], rows[0], tablefmt="pipe"))
+            return 'Statistics \n' + binary_type(tabulate(rows[1:], rows[0], tablefmt='pipe'))
         else:
             return 'Statistics: None \n'

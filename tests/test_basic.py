@@ -403,8 +403,9 @@ class BasicTestSuite(TestBase):
 
         return rows, headers
 
+    @pytest.mark.slow
     def test_stats(self):
-        """Check that the soruces can be loaded and analyzed without exceptions and that the
+        """Check that the sources can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
 
         from contexttimer import Timer

@@ -9,10 +9,13 @@ Revised BSD License, included in this distribution as LICENSE.txt
 
 from collections import Counter, OrderedDict
 from livestats import livestats
+import logging
 
 from six import iteritems, iterkeys, u, string_types, binary_type, text_type
 
 from .sources import SourceError
+
+logger = logging.getLogger(__name__)
 
 
 def text_hist(nums, ascii=False):
@@ -122,10 +125,7 @@ class StatSet(object):
             # not collect all of the values. So, collect the first 5K, then use that
             # to determine the 4sigma range of the histogram.
             # HACK There are probably a lot of 1-off errors in this
-            if v == 'NA':
-                float_v = 0
-            else:
-                float_v = float(v or 0)
+            float_v = _force_float(v)
 
             if self.n < self.bin_primer_count:
                 self.counts[unival] += 1
@@ -141,18 +141,15 @@ class StatSet(object):
                     self.bin_width = (self.bin_max - self.bin_min) / self.num_bins
 
                     for v, count in iteritems(self.counts):
-                        if v == 'NA':
-                            float_v = 0
-                        else:
-                            float_v = float(v or 0)
+                        float_v = _force_float(v)
                         if float_v >= self.bin_min and float_v <= self.bin_max:
                             bin_ = int((float_v - self.bin_min) / self.bin_width)
                             self.bins[bin_] += count
 
                 self.counts = Counter()
 
-            elif self.n > self.bin_primer_count and float(v or 0) >= self.bin_min and float(v or 0) <= self.bin_max:
-                bin_ = int((float(v or 0) - self.bin_min) / self.bin_width)
+            elif self.n > self.bin_primer_count and float_v >= self.bin_min and float_v <= self.bin_max:
+                bin_ = int((float_v - self.bin_min) / self.bin_width)
                 self.bins[bin_] += 1
             try:
                 self.stats.add(float(v))
@@ -365,3 +362,21 @@ class Stats(object):
             return 'Statistics \n' + binary_type(tabulate(rows[1:], rows[0], tablefmt='pipe'))
         else:
             return 'Statistics: None \n'
+
+
+def _force_float(v):
+    """ Converts given argument to float. On fail logs warning and returns 0.0.
+
+    Args:
+        v (any): value to convert to float
+
+    Returns:
+        float: converted v or 0.0 if conversion failed.
+
+    """
+    try:
+        return float(v)
+    except Exception as exc:
+        logger.warning(
+            'Failed to convert {} to float with {} error. Using 0 instead.'.format(v, exc))
+    return 0.0

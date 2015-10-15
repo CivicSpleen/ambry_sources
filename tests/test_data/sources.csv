@@ -14,3 +14,4 @@
 "simple",,,,,,"http://public.source.civicknowledge.com/example.com/sources/simple-example.csv","Simple Random Data"
 "simple_fixed",,,,,,"http://public.source.civicknowledge.com/example.com/sources/simple-example.txt","Simple Random Data, fixed width format"
 "mz_no_zip",,,"zip",,,"http://public.source.civicknowledge.com/example.com/sources/test_data.foo#simple-example.csv","Multi-file Zipfile without zip extension"
+"simple_stats",,0,,,,"http://public.source.civicknowledge.com/example.com/stats/simple_stats.csv","Data for simple statistics tests"

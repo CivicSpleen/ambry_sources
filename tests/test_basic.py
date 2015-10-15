@@ -87,7 +87,8 @@ class BasicTestSuite(TestBase):
             f.load_rows(s)
 
             with f.reader as r:
-                self.assertEqual(headers[spec.name], r.headers)
+                if spec.name in headers:
+                    self.assertEqual(headers[spec.name], r.headers)
 
     # @unittest.skip('Useful for debugging, but doesnt add test coverage')
     @pytest.mark.slow
@@ -403,7 +404,6 @@ class BasicTestSuite(TestBase):
 
         return rows, headers
 
-    @pytest.mark.slow
     def test_stats(self):
         """Check that the sources can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
@@ -411,27 +411,28 @@ class BasicTestSuite(TestBase):
         from contexttimer import Timer
 
         cache_fs = fsopendir('temp://')
-        # cache_fs = fsopendir('/tmp/ritest/')
+        #cache_fs = fsopendir('/tmp/ritest/')
 
-        sources = self.load_sources('sources-non-std-headers.csv')
+        sources = self.load_sources('sources.csv')
 
-        for source_name, spec in sources.items():
+        s = get_source(sources['simple_stats'], cache_fs)
 
-            s = get_source(spec, cache_fs)
+        f = MPRowsFile(cache_fs, s.spec.name).load_rows(s, run_stats=True)
 
-            # if source_name != 'immunize': continue
+        vals = {u'str_a':   (30, None, None, None, 10),
+                u'str_b':   (30, None, None, None, 10),
+                u'float_a': (30, 1.0, 5.5, 10.0, 10),
+                u'float_b': (30, 1.1, 5.5, 9.9, 10),
+                u'float_c': (30, 1.1, 5.5, 9.9, 10),
+                u'int_b':   (30, 1.0, 5.0, 9.0, 10),
+                u'int_a':   (30, 1.0, 5.5, 10.0, 10)}
 
-            print(spec.name, spec.url)
+        with f.reader as r:
 
-            with Timer() as t:
-                f = MPRowsFile(cache_fs, source_name).load_rows(s, run_stats=True)
-
-            with f.reader as r:
-                print('Loaded ', r.n_rows, float(r.n_rows) / t.elapsed, 'rows/sec')
-
-            # with f.reader as r:
-            #    stats = r.meta['stats']
-            #    print [ sd['mean'] for col_name, sd in r.meta['stats'].items() ]
+            for col in r.columns:
+                for a,b in zip(vals[col.name],(col.stat_count, col.min, round(col.mean,1) if col.mean else None,
+                                               col.max, col.nuniques)):
+                    self.assertEqual(a,b,col.name)
 
     def test_datafile(self):
         """

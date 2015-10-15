@@ -152,6 +152,7 @@ class StatSet(object):
                 bin_ = int((float_v - self.bin_min) / self.bin_width)
                 self.bins[bin_] += 1
             try:
+
                 self.stats.add(float(v))
             except (ValueError, TypeError):
                 self.counts[unival] += 1
@@ -377,6 +378,7 @@ def _force_float(v):
     try:
         return float(v)
     except Exception as exc:
-        logger.warning(
-            'Failed to convert {} to float with {} error. Using 0 instead.'.format(v, exc))
-    return 0.0
+        return float('nan')
+        logger.warning('Failed to convert {} to float with {} error. Using 0 instead.'.format(v, exc))
+
+

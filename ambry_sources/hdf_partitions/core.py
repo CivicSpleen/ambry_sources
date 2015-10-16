@@ -9,7 +9,7 @@ import struct
 import time
 import zlib
 
-from tables import open_file, StringCol, Int64Col, Float64Col
+from tables import open_file, StringCol, Int64Col, Float64Col, BoolCol
 
 import six
 from six import string_types, iteritems, text_type
@@ -234,15 +234,6 @@ class HDFPartition(object):
             meta = {}
         fh.seek(pos)
         return meta
-
-    @classmethod
-    def write_meta(cls, o, fh):
-
-        o.meta['schema'][0] == HDFPartition.SCHEMA_TEMPLATE
-
-        fh.seek(o.meta_start)  # Should probably already be there.
-        fhb = zlib.compress(msgpack.packb(o.meta, encoding='utf-8'))
-        fh.write(fhb)
 
     @classmethod
     def _columns(cls, o, n_cols=0):
@@ -650,19 +641,15 @@ class HDFWriter(object):
 
     def _write_rows(self, rows=None):
         if self._is_new:
-            partition_group = self._h5_file.create_group('/', 'partition', 'Meta information')
-            meta_descriptor = {
-                'col1': StringCol(16),
-                'col2': Int64Col()
-            }
-            self._h5_file.create_table(
-                partition_group, 'meta', meta_descriptor, 'Meta information of the partition.')
+            # partition_group = self._h5_file.create_group('/', 'partition', 'Meta information')
+            self.write_meta()
 
             # create column descriptor
             rows_descriptor = _get_rows_descriptor(self.columns)
 
             self._h5_file.create_table(
-                partition_group, 'rows', rows_descriptor, 'Rows (data) of the partition.')
+                '/partition', 'rows', rows_descriptor, 'Rows (data) of the partition.',
+                createparents=True)
 
         rows, clear_cache = (self.cache, True) if not rows else (rows, False)
 
@@ -736,7 +723,123 @@ class HDFWriter(object):
         HDFPartition.write_file_header(self, self._h5_file)
 
     def write_meta(self):
-        HDFPartition.write_meta(self, self._h5_file)
+        assert self.meta['schema'][0] == HDFPartition.SCHEMA_TEMPLATE
+        if self._is_new:
+            self._h5_file.create_group(
+                '/partition', 'meta', 'Meta information of the partition.',
+                createparents=True)
+            self._create_about_table()
+            self._create_comments_table()
+            self._create_excel_table()
+            self._create_geo_table()
+            self._create_row_spec_table()
+            self._create_schema_table()
+            self._create_source_table()
+
+        # FIXME: populate meta data
+
+    def _create_about_table(self):
+        descriptor = {
+            'load_time': Float64Col(),
+            'create_time': Float64Col()
+        }
+        self._h5_file.create_table(
+            '/partition/meta', 'about',
+            descriptor, 'meta.about')
+
+    def _create_schema_table(self):
+        # FIXME: do we really need to store schema? Try to retrieve it from file.
+        descriptor = {
+            'pos': Int64Col(),
+            'name': StringCol(itemsize=255),
+            'type': StringCol(itemsize=255),
+            'description': StringCol(itemsize=1024),
+            'start': Int64Col(),  # FIXME: Ask Eric about type.
+            'width': Int64Col(),
+            'position': Int64Col(),
+            'header': Int64Col(),
+            'length': Int64Col(),
+            'has_codes': BoolCol(),
+            'type_count': Int64Col(),
+            'ints': Int64Col(),
+            'floats': Int64Col(),
+            'strs': Int64Col(),
+            'unicode': Int64Col(),
+            'nones': Int64Col(),
+            'datetimes': Int64Col(),
+            'dates': Int64Col(),
+            'times': Int64Col(),
+            'strvals': Int64Col(),
+            'flags': Int64Col(),  # FIXME: Ask Eric about type.
+            'lom': Int64Col(),  # FIXME: Ask Eric about type.
+            'resolved_type': StringCol(itemsize=40),
+            'stat_count': Int64Col(),
+            'nuniques': Int64Col(),
+            'mean': Float64Col(),
+            'std': Float64Col(),
+            'min': Float64Col(),
+            'p25': Float64Col(),
+            'p50': Float64Col(),
+            'p75': Float64Col(),
+            'max': Float64Col(),
+            'skewness': Float64Col(),  # Ask Eric about type.
+            'kurtosis': Float64Col(),  # Ask Eric about type.
+            'hist': Float64Col(),  # Ask Eric about type.
+            'text_hist': StringCol(itemsize=255),
+            'uvalues': StringCol(itemsize=255)  # Ask Eric about type.
+        }
+        self._h5_file.create_table(
+            '/partition/meta', 'schema', descriptor, 'meta.schema.')
+
+    def _create_excel_table(self):
+        # FIXME: do we really need to store schema? Try to retrieve it from file.
+        descriptor = {
+            'worksheet': StringCol(itemsize=255),
+            'datemode': StringCol(itemsize=255)  # FIXME: Check datemode again. Is it string?
+        }
+        self._h5_file.create_table(
+            '/partition/meta', 'excel', descriptor, 'meta.excel')
+
+    def _create_comments_table(self):
+        # FIXME: do we really need to store header and footer? HDF can contains rows only.
+        descriptor = {
+            'header': StringCol(itemsize=255),
+            'footer': StringCol(itemsize=255)
+        }
+        self._h5_file.create_table(
+            '/partition/meta', 'comments', descriptor, 'meta.comments')
+
+    def _create_source_table(self):
+        descriptor = {
+            'fetch_time': Float64Col(),
+            'encoding': StringCol(itemsize=255),
+            'url': StringCol(itemsize=1024),  # FIXME: Ask Eric about max length of the url.
+            'file_type': StringCol(itemsize=50),
+            'inner_file': StringCol(itemsize=255),  # FIXME: Ask Eric about length.
+            'url_type': StringCol(itemsize=255),  # FIXME: Ask Eric about length.
+        }
+        self._h5_file.create_table(
+            '/partition/meta', 'source', descriptor, 'meta.source')
+
+    def _create_row_spec_table(self):
+        descriptor = {
+            'end_row': Int64Col(),
+            'header_rows': Int64Col(),
+            'start_row': Int64Col(),
+            'comment_rows': Int64Col(),
+            'data_pattern': StringCol(itemsize=255)  # FIXME: Ask Eric about size.
+        }
+
+        self._h5_file.create_table(
+            '/partition/meta', 'row_spec', descriptor, 'meta.row_spec')
+
+    def _create_geo_table(self):
+        descriptor = {
+            'srs': Int64Col(),  # FIXME: Ask Eric about type.
+            'bb': Int64Col(),  # FIXME: Ask Eric about type.
+        }
+        self._h5_file.create_table(
+            '/partition/meta', 'geo', descriptor, 'meta.geo')
 
     def set_types(self, ti):
         """Set Types from a type intuiter object"""

@@ -103,3 +103,90 @@ class TestHDFWriter(TestBase):
         fake_write_rows.assert_called_once_with()
         self.assertEqual(
             fake_insert.mock_calls, [call(['row1']), call(['row2'])])
+
+    # write_meta tests
+    def test_writes_meta_to_h5_file(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer.write_meta()
+
+        self.assertEqual(writer.cache, [])
+        self.assertTrue(writer._h5_file.root.partition, 'meta')
+
+    def test_writes_meta_about_to_h5_file(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer.write_meta()
+
+        self.assertEqual(writer.cache, [])
+        self.assertTrue(writer._h5_file.root.partition, 'meta')
+        self.assertTrue(writer._h5_file.root.partition.meta, 'about')
+        # FIXME: Check saved values.
+
+    def test_writes_meta_comments_to_h5_file(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer.write_meta()
+
+        self.assertEqual(writer.cache, [])
+        self.assertTrue(writer._h5_file.root.partition, 'meta')
+        self.assertTrue(writer._h5_file.root.partition.meta, 'comments')
+        # FIXME: Check saved values.
+
+    def test_writes_meta_excel_to_h5_file(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer.write_meta()
+
+        self.assertEqual(writer.cache, [])
+        self.assertTrue(writer._h5_file.root.partition, 'meta')
+        self.assertTrue(writer._h5_file.root.partition.meta, 'excel')
+        # FIXME: Check saved values.
+
+    def test_writes_meta_geo_to_h5_file(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer.write_meta()
+
+        self.assertEqual(writer.cache, [])
+        self.assertTrue(writer._h5_file.root.partition, 'meta')
+        self.assertTrue(writer._h5_file.root.partition.meta, 'geo')
+        # FIXME: Check saved values.
+
+    def test_writes_meta_row_spec_to_h5_file(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer.write_meta()
+
+        self.assertEqual(writer.cache, [])
+        self.assertTrue(writer._h5_file.root.partition, 'meta')
+        self.assertTrue(writer._h5_file.root.partition.meta, 'row_spec')
+        # FIXME: Check saved values.
+
+    def test_writes_meta_schema_to_h5_file(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer.write_meta()
+
+        self.assertEqual(writer.cache, [])
+        self.assertTrue(writer._h5_file.root.partition, 'meta')
+        self.assertTrue(writer._h5_file.root.partition.meta, 'schema')
+        # FIXME: Check saved values.
+
+    def test_writes_meta_source_to_h5_file(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer.write_meta()
+
+        self.assertEqual(writer.cache, [])
+        self.assertTrue(writer._h5_file.root.partition, 'meta')
+        self.assertTrue(writer._h5_file.root.partition.meta, 'source')
+        # FIXME: Check saved values.

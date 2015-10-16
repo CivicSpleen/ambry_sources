@@ -728,26 +728,40 @@ class HDFWriter(object):
             self._h5_file.create_group(
                 '/partition', 'meta', 'Meta information of the partition.',
                 createparents=True)
-            self._create_about_table()
-            self._create_comments_table()
-            self._create_excel_table()
-            self._create_geo_table()
-            self._create_row_spec_table()
-            self._create_schema_table()
-            self._create_source_table()
+            self._save_about(create=True)
+            self._save_comments(create=True)
+            self._save_excel(create=True)
+            self._save_geo(create=True)
+            self._save_row_spec(create=True)
+            self._save_schema(create=True)
+            self._save_source(create=True)
 
         # FIXME: populate meta data
 
-    def _create_about_table(self):
+    def _save_meta_child(self, child, descriptor, create=False):
+        if child == 'schema':
+            # Special case - should not include first line.
+            print('hey')
+            return
+        if create:
+            self._h5_file.create_table(
+                '/partition/meta', child,
+                descriptor, 'meta.{}'.format(child))
+        table = getattr(self._h5_file.root.partition.meta, child)
+        row = table.row
+        for k, v in self.meta[child].items():
+            row[k] = v or _get_default(descriptor[k].__class__)  # FIXME: what about dflt (default) of the field
+        row.append()
+        table.flush()
+
+    def _save_about(self, create=False):
         descriptor = {
             'load_time': Float64Col(),
             'create_time': Float64Col()
         }
-        self._h5_file.create_table(
-            '/partition/meta', 'about',
-            descriptor, 'meta.about')
+        self._save_meta_child('about', descriptor, create=create)
 
-    def _create_schema_table(self):
+    def _save_schema(self, create=False):
         # FIXME: do we really need to store schema? Try to retrieve it from file.
         descriptor = {
             'pos': Int64Col(),
@@ -788,28 +802,24 @@ class HDFWriter(object):
             'text_hist': StringCol(itemsize=255),
             'uvalues': StringCol(itemsize=255)  # Ask Eric about type.
         }
-        self._h5_file.create_table(
-            '/partition/meta', 'schema', descriptor, 'meta.schema.')
+        self._save_meta_child('schema', descriptor, create=create)
 
-    def _create_excel_table(self):
-        # FIXME: do we really need to store schema? Try to retrieve it from file.
+    def _save_excel(self, create=False):
         descriptor = {
             'worksheet': StringCol(itemsize=255),
             'datemode': StringCol(itemsize=255)  # FIXME: Check datemode again. Is it string?
         }
-        self._h5_file.create_table(
-            '/partition/meta', 'excel', descriptor, 'meta.excel')
+        self._save_meta_child('excel', descriptor, create=create)
 
-    def _create_comments_table(self):
+    def _save_comments(self, create=False):
         # FIXME: do we really need to store header and footer? HDF can contains rows only.
         descriptor = {
             'header': StringCol(itemsize=255),
             'footer': StringCol(itemsize=255)
         }
-        self._h5_file.create_table(
-            '/partition/meta', 'comments', descriptor, 'meta.comments')
+        self._save_meta_child('comments', descriptor, create=create)
 
-    def _create_source_table(self):
+    def _save_source(self, create=False):
         descriptor = {
             'fetch_time': Float64Col(),
             'encoding': StringCol(itemsize=255),
@@ -818,10 +828,9 @@ class HDFWriter(object):
             'inner_file': StringCol(itemsize=255),  # FIXME: Ask Eric about length.
             'url_type': StringCol(itemsize=255),  # FIXME: Ask Eric about length.
         }
-        self._h5_file.create_table(
-            '/partition/meta', 'source', descriptor, 'meta.source')
+        self._save_meta_child('source', descriptor, create=create)
 
-    def _create_row_spec_table(self):
+    def _save_row_spec(self, create=False):
         descriptor = {
             'end_row': Int64Col(),
             'header_rows': Int64Col(),
@@ -830,16 +839,14 @@ class HDFWriter(object):
             'data_pattern': StringCol(itemsize=255)  # FIXME: Ask Eric about size.
         }
 
-        self._h5_file.create_table(
-            '/partition/meta', 'row_spec', descriptor, 'meta.row_spec')
+        self._save_meta_child('row_spec', descriptor, create=create)
 
-    def _create_geo_table(self):
+    def _save_geo(self, create=False):
         descriptor = {
             'srs': Int64Col(),  # FIXME: Ask Eric about type.
             'bb': Int64Col(),  # FIXME: Ask Eric about type.
         }
-        self._h5_file.create_table(
-            '/partition/meta', 'geo', descriptor, 'meta.geo')
+        self._save_meta_child('geo', descriptor, create=create)
 
     def set_types(self, ti):
         """Set Types from a type intuiter object"""
@@ -1230,3 +1237,13 @@ def _get_rows_descriptor(columns):
                 'Failed to convert {} ambry_sources type to pytables type.'.format(column['type']))
         descriptor[column['name']] = pytables_type()
     return descriptor
+
+
+def _get_default(pytables_type):
+    """ Returns default value for given pytable type. """
+    TYPE_MAP = {
+        Int64Col: 0,
+        Float64Col: 0.0,
+        StringCol: ''
+    }
+    return TYPE_MAP[pytables_type]

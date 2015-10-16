@@ -183,9 +183,6 @@ class BasicTestSuite(TestBase):
 
         for source_name, spec in sources.items():
 
-            if source_name != 'integers':
-                continue
-
             print source_name
             s = get_source(spec, cache_fs)
             ri = RowIntuiter().run(s)

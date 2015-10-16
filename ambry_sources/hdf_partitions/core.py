@@ -9,7 +9,7 @@ import struct
 import time
 import zlib
 
-from tables import open_file, StringCol, Int64Col
+from tables import open_file, StringCol, Int64Col, Float64Col
 
 import six
 from six import string_types, iteritems, text_type
@@ -659,10 +659,7 @@ class HDFWriter(object):
                 partition_group, 'meta', meta_descriptor, 'Meta information of the partition.')
 
             # create column descriptor
-            rows_descriptor = {
-                'col1': Int64Col(),
-                'col2': StringCol(16)
-            }
+            rows_descriptor = _get_rows_descriptor(self.columns)
 
             self._h5_file.create_table(
                 partition_group, 'rows', rows_descriptor, 'Rows (data) of the partition.')
@@ -1103,3 +1100,30 @@ class MPRReader(object):
 
         if exc_val:
             return False
+
+
+def _get_rows_descriptor(columns):
+    """ Converts columns specifications from ambry_sources format to pytables descriptor.
+
+    Args:
+        columns FIXME: with example
+
+    Returns:
+        dict: FIXME: with example
+    """
+    # FIXME: Add tests.
+    TYPE_MAP = {
+        'int': Int64Col,
+        'long': Int64Col,
+        'str': lambda: StringCol(itemsize=255),  # FIXME: What is the size?
+        'float': lambda: Float64Col(shape=(2, 3))
+    }
+    descriptor = {}
+
+    for column in columns:
+        pytables_type = TYPE_MAP.get(column['type'])
+        if not pytables_type:
+            raise Exception(
+                'Failed to convert {} ambry_sources type to pytables type.'.format(column['type']))
+        descriptor[column['name']] = pytables_type()
+    return descriptor

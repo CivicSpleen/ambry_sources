@@ -31,8 +31,7 @@ class TestHDFWriter(TestBase):
         return col
 
     # _write_rows test
-    @patch('ambry_sources.hdf_partitions.core.HDFWriter.write_file_header')
-    def test_writes_given_rows_to_h5_file(self, fake_write):
+    def test_writes_given_rows_to_h5_file(self):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
         writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
@@ -42,6 +41,26 @@ class TestHDFWriter(TestBase):
         writer._write_rows(
             rows=[[1, 'row1'], [2, 'row2']])
 
+        # rows are written
+        self.assertEqual(writer._h5_file.root.partition.rows.nrows, 2)
+        self.assertEqual(
+            [x['col1'] for x in writer._h5_file.root.partition.rows.iterrows()],
+            [1, 2])
+        self.assertEqual(
+            [x['col2'] for x in writer._h5_file.root.partition.rows.iterrows()],
+            ['row1', 'row2'])
+
+    def test_writes_cached_rows_to_h5_file(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        # add two columns
+        writer.meta['schema'].append(self._get_column('col1', 'int'))
+        writer.meta['schema'].append(self._get_column('col2', 'str'))
+        writer.cache = [[1, 'row1'], [2, 'row2']]
+        writer._write_rows()
+
+        self.assertEqual(writer.cache, [])
         # rows are written
         self.assertEqual(writer._h5_file.root.partition.rows.nrows, 2)
         self.assertEqual(

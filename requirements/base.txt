@@ -1,7 +1,7 @@
 attrdict==2.0.0
-boto==2.38.0
+boto>=2.38.0
 python-dateutil==2.4.2
-requests==2.8.1
+requests>=2.6.0
 msgpack-python==0.4.6
 six==1.9.0
 gspread==0.2.5
@@ -9,9 +9,10 @@ filelock==2.0.4
 petl==1.0.11
 openpyxl==2.2.5
 xlrd==0.9.3
-unicodecsv==0.12.0
-fs==0.5.2
+unicodecsv>=0.12.0
+fs>=0.5.2
 livestats==1.0
+pyOpenSSL==0.15.1
 # Geographic, moved to extras
 #Fiona==1.6.1
 #Shapely==1.5.12

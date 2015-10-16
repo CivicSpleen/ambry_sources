@@ -116,7 +116,7 @@ class RowProxy(object):
         try:
             return self.__row[self.__pos_map[key]]
         except KeyError:
-            raise KeyError("Failed to find key {}; has {}".format(key, self.__keys))
+            raise KeyError("Failed to find key '{}'; has {}".format(key, self.__keys))
 
     def __delitem__(self, key):
         raise NotImplementedError()

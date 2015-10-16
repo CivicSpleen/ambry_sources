@@ -41,25 +41,27 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False):
     :return: a SourceFile object.
     """
 
-    try:
-        cache_path, download_time = download(spec.url, cache_fs, account_accessor, clean=clean)
-        spec.download_time = download_time
-    except HTTPError as e:
-        raise DownloadError("Failed to download {}; {}".format(spec.url, e))
-
     # FIXME. urltype should be moved to reftype.
     url_type = spec.get_urltype()
 
+    if url_type != 'gs': #FIXME. Need to clean up the logic for gs types.
+        try:
+            cache_path, download_time = download(spec.url, cache_fs, account_accessor, clean=clean)
+            spec.download_time = download_time
+        except HTTPError as e:
+            raise DownloadError("Failed to download {}; {}".format(spec.url, e))
+    else:
+        cache_path, download_time = None, None
+
     if url_type == 'zip':
         fstor = extract_file_from_zip(cache_fs, cache_path, spec.url, spec.file)
-
+        file_type = spec.get_filetype(fstor.path)
     elif url_type == 'gs':
-        raise NotImplementedError()
         fstor = get_gs(spec.url, spec.segment, account_accessor)
+        file_type = 'gs'
     else:
         fstor = DelayedOpen(cache_fs, cache_path, 'rb')
-
-    file_type = spec.get_filetype(fstor.path)
+        file_type = spec.get_filetype(fstor.path)
 
     spec.filetype = file_type
 
@@ -157,7 +159,7 @@ def download(url, cache_fs, account_accessor=None, clean=False):
     """
     import os.path
     import requests
-    from fs.errors import NoSysPathError
+    from fs.errors import NoSysPathError, ResourceInvalidError
     import filelock
     import time
 
@@ -174,7 +176,11 @@ def download(url, cache_fs, account_accessor=None, clean=False):
     download_time = False
 
     if clean and cache_fs.exists(cache_path):
-        cache_fs.remove(cache_path)
+        try:
+            cache_fs.remove(cache_path)
+        except ResourceInvalidError:
+            pass # Well, we tried.
+
 
     if not cache_fs.exists(cache_path):
 

@@ -150,13 +150,22 @@ def main(args=None):
 
             acc = []
             try:
-                for i, row in enumerate(r.rows):
+                for i , row in enumerate(r.rows,1):
 
                     if i % 30 == 0:
-                        print(tabulate.tabulate(acc, r.headers))
+                        print (tabulate.tabulate(acc, r.headers))
                         acc = []
                     else:
                         acc.append(row)
+
+                    if args.limit and i > int(args.limit):
+                        if acc:
+                            print (tabulate.tabulate(acc, r.headers))
+                            acc = []
+                        break
+                if acc:
+                    print (tabulate.tabulate(acc, r.headers))
+
             except KeyboardInterrupt:
                 import sys
                 sys.exit(0)

@@ -16,6 +16,8 @@ from six import string_types, iteritems, text_type
 
 import msgpack
 
+from ambry_sources.sources import RowProxy
+
 # FIXME: rename to H5 - H5Partition, H5Writer
 
 
@@ -224,9 +226,6 @@ class HDFPartition(object):
 
     @classmethod
     def _columns(cls, o, n_cols=0):
-
-        from ambry_sources.sources.util import RowProxy
-
         s = o.meta['schema']
 
         assert len(s) >= 1  # Should always have header row.
@@ -1036,31 +1035,34 @@ class HDFReader(object):
 
     @property
     def columns(self):
-        """ Return the headers rows. """
+        """ Returns columns specifications in the ambry_source format.
+
+        Returns:
+            list of FIXME:
+
+        """
         return HDFPartition._columns(self)
 
     @property
     def headers(self):
-        """Return the headers rows
+        """ Returns header (column names).
+
+        Returns:
+            list of str:
 
         """
-
         return [e.name for e in HDFPartition._columns(self)]
 
     @property
     def raw(self):
-        """A raw iterator, which ignores the data start and stop rows and returns all rows, as rows"""
-
-        self._fh.seek(self.data_start)
-
+        """ A raw iterator, which ignores the data start and stop rows and returns all rows, as rows. """
+        # FIXME: Seems useless because start and stop rows are not used for HDF.
         try:
             self._in_iteration = True
-
-            for rows in self.unpacker:
-                for row in rows:
-                    yield row
-                    self.pos += 1
-
+            table = self._h5_file.root.partition.rows
+            for row in table.iterrows():
+                yield [row[c] for c in table.colnames]
+                self.pos += 1
         finally:
             self._in_iteration = False
             self.close()
@@ -1068,6 +1070,7 @@ class HDFReader(object):
     @property
     def meta_raw(self):
         """self self.raw interator, but returns a tuple with the rows classified"""
+        # FIXME: Seems useless.
 
         rs = self.meta['row_spec']
 
@@ -1091,55 +1094,30 @@ class HDFReader(object):
 
     @property
     def rows(self):
-        """Iterator for reading rows"""
+        """ Iterator for reading rows. """
 
-        self._fh.seek(self.data_start)
-
-        _ = self.headers  # Get the header, but don't return it.
-
-        try:
-            self._in_iteration = True
-
-            while True:
-                for row in next(self.unpacker):
-                    if self.data_start_row <= self.pos <= self.data_end_row:
-                        yield row
-
-                    self.pos += 1
-
-        finally:
-            self._in_iteration = False
+        # it's exactly the same as raw iterator for HDF.
+        return self.raw
 
     def __iter__(self):
-        """Iterator for reading rows as RowProxy objects
+        """ Iterator for reading rows as RowProxy objects
 
         WARNING: This routine returns RowProxy objects. RowProxy objects
-        are reused, so if you construct a list directly from the output from this method, the list will have
-        multiple copies of a single RowProxy, which will have as an inner row the last result row. If you will
-        be directly constructing a list, use a getter that extracts the inner row, or which converted the RowProxy
-        to a dict.
+            are reused, so if you construct a list directly from the output from this method,
+            the list will have multiple copies of a single RowProxy, which will
+            have as an inner row the last result row. If you will be directly constructing
+            a list, use a getter that extracts the inner row, or which converted the RowProxy
+            to a dict.
 
         """
-        from ambry_sources.sources import RowProxy
-
-        self._fh.seek(self.data_start)
-
         rp = RowProxy(self.headers)
-
         try:
             self._in_iteration = True
-            while True:
-                rows = next(self.unpacker)
-
-                for row in rows:
-                    if self.data_start_row <= self.pos <= self.data_end_row:
-                        yield rp.set_row(row)
-
-                    self.pos += 1
-
-                #if self._fh.tell() >= self.meta_start:
-                #    break
-
+            table = self._h5_file.root.partition.rows
+            for row in table.iterrows():
+                r = [row[c] for c in table.colnames]
+                yield rp.set_row(r)
+                self.pos += 1
         finally:
             self._in_iteration = False
 
@@ -1162,10 +1140,10 @@ class HDFReader(object):
         WARNING: This routine works from the reader iterator, which returns RowProxy objects. RowProxy objects
         are reused, so if you construct a list directly from the output from this method, the list will have
         multiple copies of a single RowProxy, which will have as an inner row the last result row. If you will
-        be directly constructing a list, use a getter that extracts the inner row, or which converted the RowProxy
-        to a dict:
+        be directly constructing a list, use a getter that extracts the inner row, or which
+        converted the RowProxy to a dict:
 
-            list(s.datafile.select(lambda r: r.stusab == 'CA', lambda r: r.dict ))
+            list(s.datafile.select(lambda r: r.stusab == 'CA', lambda r: r.dict))
 
         """
 
@@ -1196,10 +1174,10 @@ class HDFReader(object):
             return iter(self)
 
     def close(self):
-        if self._fh:
+        if self._h5_file:
             self.meta  # In case caller wants to read mea after close.
-            self._fh.close()
-            self._fh = None
+            self._h5_file.close()
+            self._h5_file = None
             if self.parent:
                 self.parent._reader = None
 

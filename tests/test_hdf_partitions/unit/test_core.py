@@ -3,6 +3,8 @@
 from fs.opener import fsopendir
 from tables import open_file, StringCol, Int64Col, Float64Col, BoolCol
 
+from ambry_sources.sources.util import RowProxy
+
 try:
     # py3
     from unittest.mock import MagicMock, patch, call
@@ -342,3 +344,125 @@ class HDFReaderTest(TestBase):
 
         self.assertIn('create_time', ret)
         self.assertEqual(ret['create_time'], 1.1)
+
+    # columns test
+    def test_contains_columns_specifications(self):
+        # FIXME:
+        pass
+
+    # headers test
+    def test_contains_columns_names(self):
+        # FIXME:
+        pass
+
+    # raw tests
+    @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta')
+    def test_contains_all_rows(self, fake_read):
+        fake_read.return_value = {}
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+
+        # save meta.about to the file.
+        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
+            descriptor = {
+                'field1': Float64Col(),
+                'field2': Float64Col(),
+                'field3': Float64Col()
+            }
+            h5.create_group('/', 'partition')
+            h5.create_table('/partition', 'rows', descriptor)
+            table = h5.root.partition.rows
+            row = table.row
+            for i in range(5):
+                row['field1'] = float(i)
+                row['field2'] = float(i)
+                row['field2'] = float(i)
+                row.append()
+            table.flush()
+
+        # now read it from file.
+        reader = HDFReader(parent, temp_fs.getsyspath('temp.h5'))
+        raw_iter = reader.raw
+        first = raw_iter.next()
+        self.assertEqual(first, [0.0, 0.0, 0.0])
+        self.assertTrue(reader._in_iteration)
+        rows = list(raw_iter)
+        self.assertEqual(len(rows), 4)
+        self.assertFalse(reader._in_iteration)
+
+    # rows tests
+    @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta')
+    def test_generates_all_rows(self, fake_read):
+        fake_read.return_value = {}
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+
+        # save meta.about to the file.
+        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
+            descriptor = {
+                'field1': Float64Col(),
+                'field2': Float64Col(),
+                'field3': Float64Col()
+            }
+            h5.create_group('/', 'partition')
+            h5.create_table('/partition', 'rows', descriptor)
+            table = h5.root.partition.rows
+            row = table.row
+            for i in range(5):
+                row['field1'] = float(i)
+                row['field2'] = float(i)
+                row['field2'] = float(i)
+                row.append()
+            table.flush()
+
+        # now read it from file.
+        reader = HDFReader(parent, temp_fs.getsyspath('temp.h5'))
+        rows_iter = reader.rows
+        first = rows_iter.next()
+        self.assertEqual(first, [0.0, 0.0, 0.0])
+        self.assertTrue(reader._in_iteration)
+
+        rows = list(rows_iter)
+        self.assertEqual(len(rows), 4)
+        self.assertFalse(reader._in_iteration)
+
+    # __iter__ tests
+    def test_generates_rows_as_RowProxy_instances(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+
+        # save meta.about to the file.
+        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
+            descriptor = {
+                'field1': Float64Col(),
+                'field2': Float64Col(),
+                'field3': Float64Col()
+            }
+            h5.create_group('/', 'partition')
+            h5.create_table('/partition', 'rows', descriptor)
+            table = h5.root.partition.rows
+            row = table.row
+            for i in range(5):
+                row['field1'] = float(i)
+                row['field2'] = float(i)
+                row['field2'] = float(i)
+                row.append()
+            table.flush()
+
+        # now read it from file.
+        reader = HDFReader(parent, temp_fs.getsyspath('temp.h5'))
+        with patch.object(HDFReader, 'headers', ['field1', 'field2', 'field3']):
+            rows_iter = iter(reader)
+            first = rows_iter.next()
+            self.assertIsInstance(first, RowProxy)
+            self.assertEqual(first.field1, 0.0)
+            self.assertEqual(first.field2, 0.0)
+            self.assertEqual(first.field3, 0.0)
+            self.assertTrue(reader._in_iteration)
+
+            rows = []
+            for row in rows_iter:
+                self.assertIsInstance(row, RowProxy)
+                rows.append(row)
+            self.assertEqual(len(rows), 4)
+            self.assertFalse(reader._in_iteration)

@@ -5,11 +5,13 @@ Writing data to a HDF partition.
 
 import datetime
 from functools import reduce
+import logging
 import struct
 import time
 import zlib
 
 from tables import open_file, StringCol, Int64Col, Float64Col, BoolCol
+from tables.exceptions import NoSuchNodeError
 
 import six
 from six import string_types, iteritems, text_type
@@ -17,6 +19,8 @@ from six import string_types, iteritems, text_type
 import msgpack
 
 from ambry_sources.sources import RowProxy
+
+logger = logging.getLogger(__name__)
 
 # FIXME: rename to H5 - H5Partition, H5Writer
 
@@ -232,7 +236,7 @@ class HDFPartition(object):
         assert o.meta['schema'][0] == HDFPartition.SCHEMA_TEMPLATE, (o.meta['schema'][0], HDFPartition.SCHEMA_TEMPLATE)
 
         # n_cols here is for columns in the data table, which are rows in the headers table
-        n_cols = max(n_cols, o.n_cols, len(s)-1)
+        n_cols = max(n_cols, o.n_cols, len(s) - 1)
 
         for i in range(1, n_cols+1):
             # Normally, we'd only create one of these, and set the row on the singleton for
@@ -1010,13 +1014,17 @@ class HDFReader(object):
         # FIXME: move to the private methods.
         from copy import deepcopy
         meta = deepcopy(HDFPartition.META_TEMPLATE)
-        for key, value in meta.items():
-            saved_data = self._read_meta_child(key)
-            if key == 'schema':
+        for child, group in meta.items():
+            if child == 'schema':
                 # FIXME: Special case. Implement
                 continue
-            for k, default_value in value.items():
-                meta[key][k] = saved_data.get(k, default_value)
+            try:
+                saved_data = self._read_meta_child(child)
+            except NoSuchNodeError:
+                logger.warning('meta.{} table does not exist. Using default values.'.format(child))
+                saved_data = {}
+            for k, default_value in group.items():
+                meta[child][k] = saved_data.get(k, default_value)
         return meta
 
     def _read_meta_child(self, child):
@@ -1122,43 +1130,33 @@ class HDFReader(object):
             self._in_iteration = False
 
     def select(self, predicate=None, headers=None):
-        """
-        Select rows from the reader using a predicate to select rows and and itemgetter to return a
-        subset of elements
-        :param predicate: If defined, a callable that is called for each rowm and if it returns true, the
-        row is included in the output.
-        :param getter: If defined, a list or tuple of header names to return from each row
+        """ Select rows from the reader using a predicate and itemgetter to return a subset of elements.
 
-        Equivalent to:
+        Args:
+            predicate (callable, optional): if defined, a callable that is called for each rowm and
+                if it returns true, the row is included in the output.
+            headers (list, optional): if defined, a list or tuple of header names to return from each row
 
-            from itertools import imap, ifilter
+        Returns:
+            iterable: iterable of results
 
-            return imap(getter, ifilter(predicate, iter(self)))
-
-        :return: iterable of results
-
-        WARNING: This routine works from the reader iterator, which returns RowProxy objects. RowProxy objects
-        are reused, so if you construct a list directly from the output from this method, the list will have
-        multiple copies of a single RowProxy, which will have as an inner row the last result row. If you will
-        be directly constructing a list, use a getter that extracts the inner row, or which
-        converted the RowProxy to a dict:
+        WARNING: This routine works from the reader iterator, which returns RowProxy objects. RowProxy
+            objects are reused, so if you construct a list directly from the output from
+            this method, the list will have multiple copies of a single RowProxy,
+            which will have as an inner row the last result row. If you will
+            be directly constructing a list, use a getter that extracts the inner row, or which
+            converted the RowProxy to a dict:
 
             list(s.datafile.select(lambda r: r.stusab == 'CA', lambda r: r.dict))
 
         """
 
         if headers:
-
             from operator import itemgetter
-            from .sources import RowProxy
-
             ig = itemgetter(*headers)
             rp = RowProxy(headers)
-
             getter = lambda r: rp.set_row(ig(r.dict))
-
         else:
-
             getter = None
 
         if getter is not None and predicate is not None:
@@ -1169,7 +1167,6 @@ class HDFReader(object):
 
         elif getter is None and predicate is not None:
             return six.moves.filter(predicate, self)
-
         else:
             return iter(self)
 
@@ -1186,7 +1183,6 @@ class HDFReader(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-
         if exc_val:
             return False
 

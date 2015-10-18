@@ -232,20 +232,6 @@ class HDFWriterTest(TestBase):
 
 class HDFReaderTest(TestBase):
 
-    def _get_column(self, name, type_, predefined=None):
-        if not predefined:
-            predefined = {}
-
-        col = []
-        for el in HDFPartition.SCHEMA_TEMPLATE:
-            if el == 'name':
-                col.append(name)
-            elif el == 'type':
-                col.append(type_)
-            else:
-                col.append(predefined.get(el, ''))
-        return col
-
     # _write_rows test
     def test_raises_ValueError_if_file_like_given(self):
         temp_fs = fsopendir('temp://')
@@ -466,3 +452,30 @@ class HDFReaderTest(TestBase):
                 rows.append(row)
             self.assertEqual(len(rows), 4)
             self.assertFalse(reader._in_iteration)
+
+    # __enter__, __exist__ tests
+    def test_with(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+
+        # save meta.about to the file.
+        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
+            descriptor = {
+                'field1': Float64Col()
+            }
+            h5.create_group('/', 'partition')
+            h5.create_group('/partition', 'meta')
+            h5.create_table('/partition', 'rows', descriptor)
+            table = h5.root.partition.rows
+            row = table.row
+            for i in range(5):
+                row['field1'] = float(i)
+                row.append()
+            table.flush()
+
+        # now read it from file.
+        with HDFReader(parent, temp_fs.getsyspath('temp.h5')) as reader:
+            rows = []
+            for row in reader:
+                rows.append(row)
+            self.assertEqual(len(rows), 5)

@@ -259,6 +259,12 @@ class Stats(object):
     """ Stats object reads rows from the input iterator, processes the row, and yields it back out"""
 
     def __init__(self, schema):
+        """
+
+        Args:
+            shema (tuple of col_name, col_type):
+
+        """
 
         self._stats = {}
         self._func = None
@@ -304,8 +310,7 @@ class Stats(object):
         return [(name, self._stats[name]) for name, stat in iteritems(self._stats)]
 
     def run(self, source, sample_from=None):
-        """
-         Run the stats. The source must yield Row proxies
+        """ Run the stats. The source must yield Row proxies.
 
         :param source:
         :param sample_from: If not None, an integer givning the total number of rows. The
@@ -353,8 +358,8 @@ class Stats(object):
 
         for name, stats in iteritems(self._stats):
             stats_dict = stats.dict
-            del stats_dict["uvalues"]
-            stats_dict["hist"] = text_hist(stats_dict["hist"], True)
+            del stats_dict['uvalues']
+            stats_dict['hist'] = text_hist(stats_dict['hist'], True)
             if not rows:
                 rows.append(list(stats_dict.keys()))
 
@@ -380,5 +385,3 @@ def _force_float(v):
     except Exception as exc:
         return float('nan')
         logger.warning('Failed to convert {} to float with {} error. Using 0 instead.'.format(v, exc))
-
-

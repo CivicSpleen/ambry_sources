@@ -3,7 +3,6 @@
 Writing data to a HDF partition.
 """
 
-import datetime
 from functools import reduce
 import logging
 import struct
@@ -19,20 +18,21 @@ from six import string_types, iteritems, text_type
 import msgpack
 
 from ambry_sources.sources import RowProxy
+from ambry_sources.stats import Stats
 
 logger = logging.getLogger(__name__)
 
 # FIXME: rename to H5 - H5Partition, H5Writer
 
 
-class MPRError(Exception):
+class HDFError(Exception):
     pass
 
 
 class HDFPartition(object):
     """ FIXME: """
 
-    EXTENSION = '.mpr'
+    EXTENSION = '.h5'
     VERSION = 1
     MAGIC = 'AMBRMPDF'
 
@@ -128,11 +128,10 @@ class HDFPartition(object):
     def __init__(self, url_or_fs, path=None):
         """
 
-        :param url_or_fs:
-        :param path:
-        :return:
+        Args:
+            url_or_fs FIXME:
+            path FIXME:
         """
-
         from fs.opener import opener
 
         if path:
@@ -140,12 +139,17 @@ class HDFPartition(object):
         else:
             self._fs, self._path = opener.parse(url_or_fs)
 
+        if not self._fs.hassyspath(''):
+            # Pytables requirement.
+            raise HDFError('HDFPartition requires filesystem having sys path.')
+
         self._writer = None
         self._reader = None
 
         self._process = None  # Process name for report_progress
         self._start_time = 0
 
+        # FIXME: Add tests or remove if not used.
         if not self._path.endswith(self.EXTENSION):
             self._path = self._path + self.EXTENSION
 
@@ -160,73 +164,14 @@ class HDFPartition(object):
         else:
             return None
 
-    @staticmethod
-    def encode_obj(obj):
-
-        if isinstance(obj, datetime.datetime):
-            return {'__datetime__': True, 'as_str': obj.isoformat()}
-        elif isinstance(obj, datetime.date):
-            return {'__date__': True, 'as_str': obj.isoformat()}
-        elif isinstance(obj, datetime.time):
-            return {'__time__': True, 'as_str': obj.strftime('%H:%M:%S')}
-        elif hasattr(obj, 'render'):
-            return obj.render()
-        elif hasattr(obj, '__str__'):
-            return str(obj)
-        else:
-            raise Exception('Unknown type on encode: {}, {}'.format(type(obj), obj))
-
-    @staticmethod
-    def decode_obj(obj):
-
-        if '__datetime__' in obj:
-            try:
-                obj = datetime.datetime.strptime(obj['as_str'], '%Y-%m-%dT%H:%M:%S')
-            except ValueError:
-                # The preferred format is without the microseconds, but there are some lingering
-                # bundle that still have it.
-                obj = datetime.datetime.strptime(obj['as_str'], '%Y-%m-%dT%H:%M:%S.%f')
-        elif '__time__' in obj:
-            obj = datetime.time(*list(time.strptime(obj['as_str'], '%H:%M:%S'))[3:6])
-        elif '__date__' in obj:
-            obj = datetime.datetime.strptime(obj['as_str'], '%Y-%m-%d').date()
-        else:
-            raise Exception('Unknown type on decode: {} '.format(obj))
-
-        return obj
-
     @classmethod
     def read_file_header(cls, o, fh):
+        # FIXME: Add tests or remove if not used.
         try:
             o.magic, o.version, o.n_rows, o.n_cols, o.meta_start, o.data_start_row, o.data_end_row = \
                 cls.FILE_HEADER_FORMAT.unpack(fh.read(cls.FILE_HEADER_FORMAT_SIZE))
         except struct.error as e:
             raise IOError("Failed to read file header; {}; path = {}".format(e, o.parent.path))
-
-    @classmethod
-    def write_file_header(cls, o, fh):
-        """Write the magic number, version and the file_header dictionary.  """
-
-        int(o.data_start_row)
-        magic = cls.MAGIC
-        if isinstance(magic, text_type):
-            magic = magic.encode('utf-8')
-
-        hdf = cls.FILE_HEADER_FORMAT.pack(magic, cls.VERSION, o.n_rows, o.n_cols, o.meta_start,
-                                          o.data_start_row,  o.data_end_row if o.data_end_row else o.n_rows)
-
-        assert len(hdf) == cls.FILE_HEADER_FORMAT_SIZE
-
-        fh.seek(0)
-
-        fh.write(hdf)
-
-        assert fh.tell() == cls.FILE_HEADER_FORMAT_SIZE, (fh.tell(), cls.FILE_HEADER_FORMAT_SIZE)
-
-    @classmethod
-    def read_meta(cls, o, fh):
-        # FIXME: Deprecated. Use self.reader.meta instead.
-        raise Exception('Deprecated')
 
     @classmethod
     def _columns(cls, o, n_cols=0):
@@ -238,7 +183,7 @@ class HDFPartition(object):
         # n_cols here is for columns in the data table, which are rows in the headers table
         n_cols = max(n_cols, o.n_cols, len(s) - 1)
 
-        for i in range(1, n_cols+1):
+        for i in range(1, n_cols + 1):
             # Normally, we'd only create one of these, and set the row on the singleton for
             # each row. But in this case, the caller may turn the output of the method into a list,
             # in which case all of the rows would have the values of the last one.
@@ -261,7 +206,6 @@ class HDFPartition(object):
 
     @classmethod
     def _info(cls, o):
-
         return dict(
             version=o.version,
             data_start_pos=o.data_start,
@@ -281,7 +225,7 @@ class HDFPartition(object):
 
     def remove(self):
         if self.exists:
-            self._fs.remove(self.path)
+            self._fs.remove(self._path)
 
     @property
     def meta(self):
@@ -314,6 +258,7 @@ class HDFPartition(object):
         with self.reader as r:
             return r.headers
 
+    # run_type_intuiter  FIXME: It is we do not need to intuit types. See issue-16
     def run_type_intuiter(self):
         """Run the Type Intuiter and store the results back into the metadata"""
         from ambry_sources.intuit import TypeIntuiter
@@ -333,6 +278,7 @@ class HDFPartition(object):
     def run_row_intuiter(self):
         """Run the row intuiter and store the results back into the metadata"""
         from ambry_sources.intuit import RowIntuiter
+        # FIXME:
 
         try:
             self._process = 'intuit_rows'
@@ -349,7 +295,6 @@ class HDFPartition(object):
 
     def run_stats(self):
         """Run the stats process and store the results back in the metadata"""
-        from ambry_sources.stats import Stats
 
         try:
             self._process = 'run_stats'
@@ -386,7 +331,7 @@ class HDFPartition(object):
     def _load_rows(self, source,  intuit_rows=None, intuit_type=True, run_stats=True):
         from ambry_sources.exceptions import RowIntuitError
         if self.n_rows:
-            raise MPRError("Can't load_rows; rows already loaded. n_rows = {}".format(self.n_rows))
+            raise HDFError("Can't load_rows; rows already loaded. n_rows = {}".format(self.n_rows))
 
         spec = getattr(source, 'spec', None)
 
@@ -448,7 +393,7 @@ class HDFPartition(object):
     @property
     def reader(self):
         if not self._reader:
-            self._reader = HDFReader(self, self._fs.open(self.path, mode='rb'))
+            self._reader = HDFReader(self, self.syspath)
         return self._reader
 
     def __iter__(self):
@@ -854,7 +799,12 @@ class HDFWriter(object):
                 self.column(i + 1).type = results[i]['resolved_type']
 
     def set_stats(self, stats):
-        """Copy stats into the schema"""
+        """ Copy stats into the schema.
+
+        Args:
+            stats (FIXME:):
+
+        """
 
         for name, stat_set in iteritems(stats.dict):
             row = self.column(name)

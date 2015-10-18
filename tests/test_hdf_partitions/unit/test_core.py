@@ -1,20 +1,115 @@
 # -*- coding: utf-8 -*-
 
+import os
+
 from fs.opener import fsopendir
 from tables import open_file, StringCol, Int64Col, Float64Col, BoolCol
 
 from ambry_sources.sources.util import RowProxy
+from ambry_sources.stats import Stats
 
 try:
     # py3
-    from unittest.mock import MagicMock, patch, call
+    from unittest.mock import MagicMock, patch, call, PropertyMock
 except ImportError:
     # py2
-    from mock import MagicMock, patch, call
+    from mock import MagicMock, patch, call, PropertyMock
 
 from ambry_sources.hdf_partitions.core import HDFWriter, HDFPartition, HDFReader
 
 from tests import TestBase
+
+
+class HDFPartitionTest(TestBase):
+
+    # _columns tests. FIXME:
+
+    # _info tests
+    def test_returns_dict_with_description(self):
+        temp_fs = fsopendir('temp://')
+        reader = MagicMock()
+        hdf_partition = HDFPartition(temp_fs, path='temp.h5')
+        ret = hdf_partition._info(reader)
+        self.assertIn('version', ret)
+        self.assertIn('data_start_pos', ret)
+
+    # exists tests
+    def test_returns_true_if_file_exists(self):
+        temp_fs = fsopendir('temp://')
+        temp_fs.createfile('temp.h5')
+        hdf_partition = HDFPartition(temp_fs, path='temp.h5')
+        self.assertTrue(hdf_partition.exists)
+
+    # remove tests
+    def test_removes_files(self):
+        temp_fs = fsopendir('temp://')
+        temp_fs.createfile('temp.h5')
+        hdf_partition = HDFPartition(temp_fs, path='temp.h5')
+
+        self.assertTrue(temp_fs.exists('temp.h5'))
+        hdf_partition.remove()
+        self.assertFalse(temp_fs.exists('temp.h5'))
+
+    # meta tests
+    def test_contains_meta_from_reader(self):
+        temp_fs = fsopendir('temp://')
+
+        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
+            h5.create_group('/', 'partition')
+
+        hdf_partition = HDFPartition(temp_fs, path='temp.h5')
+
+        with patch.object(HDFReader, 'meta', {'a': ''}):
+            self.assertEqual(hdf_partition.meta, {'a': ''})
+
+    # stats tests
+    def test_returns_stat_from_meta(self):
+        temp_fs = fsopendir('temp://')
+
+        hdf_partition = HDFPartition(temp_fs, path='temp.h5')
+
+        with patch.object(HDFPartition, 'meta', new_callable=PropertyMock) as fake_meta:
+            fake_meta.return_value = {'stats': 22}
+            self.assertEqual(hdf_partition.stats, 22)
+
+    # run_type_intuiter  FIXME: It is we do not need to intuit types.
+
+    # run_stats tests
+    @patch('ambry_sources.hdf_partitions.core.Stats.run')
+    @patch('ambry_sources.hdf_partitions.core.Stats.__init__')
+    def test_creates_stat_from_reader(self, fake_init, fake_run):
+        fake_init.return_value = None
+        fake_run.return_value = {'a': 1}
+        temp_fs = fsopendir('temp://')
+
+        hdf_partition = HDFPartition(temp_fs, path='temp.h5')
+
+        with patch.object(hdf_partition, '_reader', MagicMock()):
+            with patch.object(hdf_partition, '_writer', MagicMock()):
+                ret = hdf_partition.run_stats()
+                self.assertEqual(ret, {'a': 1})
+
+    @patch('ambry_sources.hdf_partitions.core.Stats.run')
+    @patch('ambry_sources.hdf_partitions.core.Stats.__init__')
+    def test_writes_stat_to_writer(self, fake_init, fake_run):
+        fake_run.return_value = {'stat': 1}
+        fake_init.return_value = None
+        temp_fs = fsopendir('temp://')
+
+        hdf_partition = HDFPartition(temp_fs, path='temp.h5')
+
+        fake_reader = MagicMock()
+        fake_writer = MagicMock(spec=HDFWriter)
+        fake_set_stats = MagicMock()
+        fake_writer.__enter__ = lambda x: fake_set_stats
+        # FIXME: So complicated. Refactor.
+
+        with patch.object(hdf_partition, '_reader', fake_reader):
+            with patch.object(hdf_partition, '_writer', fake_writer):
+                hdf_partition.run_stats()
+                self.assertEqual(
+                    fake_set_stats.mock_calls,
+                    [call.set_stats({'stat': 1})])
 
 
 class HDFWriterTest(TestBase):
@@ -427,7 +522,7 @@ class HDFReaderTest(TestBase):
             self.assertEqual(len(rows), 4)
             self.assertFalse(reader._in_iteration)
 
-    # __enter__, __exist__ tests
+    # __enter__, __exit__ (with) tests
     def test_with(self):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()

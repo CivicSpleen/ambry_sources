@@ -219,21 +219,8 @@ class HDFPartition(object):
 
     @classmethod
     def read_meta(cls, o, fh):
-
-        pos = fh.tell()
-
-        fh.seek(o.meta_start)
-
-        # Using the _fh b/c I suspect that the GzipFile attached to self._zfh has state that would
-        # get screwed up if you read from a new position
-
-        data = fh.read()
-        if data:
-            meta = msgpack.unpackb(zlib.decompress(data), encoding='utf-8')
-        else:
-            meta = {}
-        fh.seek(pos)
-        return meta
+        # FIXME: Deprecated. Use self.reader.meta instead.
+        raise Exception('Deprecated')
 
     @classmethod
     def _columns(cls, o, n_cols=0):
@@ -458,7 +445,7 @@ class HDFPartition(object):
     @property
     def reader(self):
         if not self._reader:
-            self._reader = MPRReader(self, self._fs.open(self.path, mode='rb'))
+            self._reader = HDFReader(self, self._fs.open(self.path, mode='rb'))
         return self._reader
 
     def __iter__(self):
@@ -681,10 +668,13 @@ class HDFWriter(object):
             self._write_rows()
 
     def insert_rows(self, rows):
-        '''Insert a list of rows. Don't insert iterators'''
+        """ Inserts a list of rows. Does not insert iterators.
 
+        Args:
+            rows (list of list):
+
+        """
         self.n_rows += len(rows)
-
         self._write_rows(rows)
 
     def load_rows(self, source):
@@ -705,12 +695,12 @@ class HDFWriter(object):
         self._write_rows()
 
     def close(self):
-        # FIXME: add tests
 
         if self._h5_file:
             self._write_rows()
             # self.write_file_header()
             # self._h5_file.seek(self.meta_start)
+            # FIXME: Write meta.
             # self.write_meta()
             self._h5_file.close()
             self._h5_file = None
@@ -736,8 +726,6 @@ class HDFWriter(object):
             self._save_schema(create=True)
             self._save_source(create=True)
 
-        # FIXME: populate meta data
-
     def _save_meta_child(self, child, descriptor, create=False):
         if child == 'schema':
             # Special case - should not include first line.
@@ -746,7 +734,8 @@ class HDFWriter(object):
         if create:
             self._h5_file.create_table(
                 '/partition/meta', child,
-                descriptor, 'meta.{}'.format(child))
+                descriptor, 'meta.{}'.format(child),
+                createparents=True)
         table = getattr(self._h5_file.root.partition.meta, child)
         row = table.row
         for k, v in self.meta[child].items():
@@ -974,23 +963,20 @@ class HDFWriter(object):
             return False
 
 
-class MPRReader(object):
-    """
-    Read an MPR file
+class HDFReader(object):
+    """ Read an h5 file. """
 
-    """
-    MAGIC = HDFPartition.MAGIC
-    VERSION = HDFPartition.VERSION
-    FILE_HEADER_FORMAT = HDFPartition.FILE_HEADER_FORMAT
-    FILE_HEADER_FORMAT_SIZE = HDFPartition.FILE_HEADER_FORMAT.size
-    META_TEMPLATE = HDFPartition.META_TEMPLATE
-    SCHEMA_TEMPLATE = HDFPartition.SCHEMA_TEMPLATE
-
-    def __init__(self, parent, fh):
+    def __init__(self, parent, filename):
         """Reads the file_header and prepares for iterating over rows"""
 
+        if not isinstance(filename, string_types):
+            # This is the pytables constraint.
+            raise ValueError(
+                'HDFReader requires string with filename. Got {} instead.'
+                .format(filename.__class__))
+
         self.parent = parent
-        self._fh = fh
+        self._h5_file = open_file(filename, mode='r')
         self._headers = None
         self.data_start = 0
         self.meta_start = 0
@@ -1004,38 +990,53 @@ class MPRReader(object):
 
         self._in_iteration = False
 
-        HDFPartition.read_file_header(self, self._fh)
+        # FIXME: seems useless
+        # HDFPartition.read_file_header(self, self._fh)
 
-        self.data_start = int(self._fh.tell())
-
-        assert self.data_start == self.FILE_HEADER_FORMAT_SIZE
-
-        self.unpacker = msgpack.Unpacker(self._zfh, object_hook=HDFPartition.decode_obj,
-                                         use_list=False,
-                                         encoding='utf-8')
-
+        self.data_start = 0  # FIXME: Seems useless because it's always 0.
         self._meta = None
 
     @property
     def info(self):
+        # FIXME:
         return HDFPartition._info(self)
 
     @property
     def meta(self):
-
         if self._meta is None:
-
-            # Using the _fh b/c I suspect that the GzipFile attached to self._zfh has state that would
-            # get screwed up if you read from a new position
-            self._meta = HDFPartition.read_meta(self, self._fh)
-
+            self._meta = self._read_meta()
         return self._meta
+
+    def _read_meta(self):
+        # FIXME: move to the private methods.
+        from copy import deepcopy
+        meta = deepcopy(HDFPartition.META_TEMPLATE)
+        for key, value in meta.items():
+            saved_data = self._read_meta_child(key)
+            if key == 'schema':
+                # FIXME: Special case. Implement
+                continue
+            for k, default_value in value.items():
+                meta[key][k] = saved_data.get(k, default_value)
+        return meta
+
+    def _read_meta_child(self, child):
+        """ Reads first row from `child` table of h5 file and returns it.
+
+        Args:
+            child (str): name of the table from h5 file.
+
+        Returns:
+            dict:
+        """
+        table = getattr(self._h5_file.root.partition.meta, child)
+        for row in table.iterrows():
+            return {c: row[c] for c in table.colnames}
+        return {}
 
     @property
     def columns(self):
-        """Return the headers rows
-
-        """
+        """ Return the headers rows. """
         return HDFPartition._columns(self)
 
     @property

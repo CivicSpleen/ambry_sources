@@ -1015,14 +1015,14 @@ class HDFReader(object):
         from copy import deepcopy
         meta = deepcopy(HDFPartition.META_TEMPLATE)
         for child, group in meta.items():
-            if child == 'schema':
-                # FIXME: Special case. Implement
-                continue
             try:
                 saved_data = self._read_meta_child(child)
             except NoSuchNodeError:
                 logger.warning('meta.{} table does not exist. Using default values.'.format(child))
                 saved_data = {}
+            if child == 'schema':
+                # FIXME: Special case. Implement
+                continue
             for k, default_value in group.items():
                 meta[child][k] = saved_data.get(k, default_value)
         return meta

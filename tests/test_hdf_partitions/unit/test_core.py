@@ -232,6 +232,25 @@ class HDFWriterTest(TestBase):
 
 class HDFReaderTest(TestBase):
 
+    def _create_h5(self, filename):
+        # save meta.about to the file.
+        with open_file(filename, 'w') as h5:
+            descriptor = {
+                'field1': Float64Col(),
+                'field2': Float64Col(),
+                'field3': Float64Col()
+            }
+            h5.create_group('/', 'partition')
+            h5.create_table('/partition', 'rows', descriptor)
+            table = h5.root.partition.rows
+            row = table.row
+            for i in range(5):
+                row['field1'] = float(i)
+                row['field2'] = float(i)
+                row['field2'] = float(i)
+                row.append()
+            table.flush()
+
     # _write_rows test
     def test_raises_ValueError_if_file_like_given(self):
         temp_fs = fsopendir('temp://')
@@ -244,13 +263,13 @@ class HDFReaderTest(TestBase):
 
     # meta tests
     @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta')
-    def test_reads_meta_if_chace_is_empty(self, fake_read):
+    def test_reads_meta_if_cache_is_empty(self, fake_read):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
-        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
-            h5.create_group('/', 'test', 'Test group')
+        filename = temp_fs.getsyspath('temp.h5')
+        self._create_h5(filename)
 
-        reader = HDFReader(parent, temp_fs.getsyspath('temp.h5'))
+        reader = HDFReader(parent, filename)
         reader.meta
         fake_read.assert_called_once_with()
 
@@ -258,10 +277,10 @@ class HDFReaderTest(TestBase):
     def test_uses_cached_meta(self, fake_read):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
-        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
-            h5.create_group('/', 'test', 'Test group')
+        filename = temp_fs.getsyspath('temp.h5')
+        self._create_h5(filename)
 
-        reader = HDFReader(parent, temp_fs.getsyspath('temp.h5'))
+        reader = HDFReader(parent, filename)
         reader._meta = {}
         reader.meta
         fake_read.assert_not_called()
@@ -272,10 +291,10 @@ class HDFReaderTest(TestBase):
         fake_read.return_value = {}
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
-        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
-            h5.create_group('/', 'test', 'Test group')
+        filename = temp_fs.getsyspath('temp.h5')
+        self._create_h5(filename)
 
-        reader = HDFReader(parent, temp_fs.getsyspath('temp.h5'))
+        reader = HDFReader(parent, filename)
         ret = reader._read_meta()
         expected_keys = ['about', 'excel', 'row_spec', 'source', 'comments', 'geo', 'schema']
         self.assertEqual(sorted(expected_keys), sorted(ret.keys()))
@@ -285,8 +304,8 @@ class HDFReaderTest(TestBase):
         fake_read.return_value = {}
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
-        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
-            h5.create_group('/', 'test', 'Test group')
+        filename = temp_fs.getsyspath('temp.h5')
+        self._create_h5(filename)
 
         reader = HDFReader(parent, temp_fs.getsyspath('temp.h5'))
         reader._read_meta()
@@ -349,25 +368,11 @@ class HDFReaderTest(TestBase):
         parent = MagicMock()
 
         # save meta.about to the file.
-        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
-            descriptor = {
-                'field1': Float64Col(),
-                'field2': Float64Col(),
-                'field3': Float64Col()
-            }
-            h5.create_group('/', 'partition')
-            h5.create_table('/partition', 'rows', descriptor)
-            table = h5.root.partition.rows
-            row = table.row
-            for i in range(5):
-                row['field1'] = float(i)
-                row['field2'] = float(i)
-                row['field2'] = float(i)
-                row.append()
-            table.flush()
+        filename = temp_fs.getsyspath('temp.h5')
+        self._create_h5(filename)
 
         # now read it from file.
-        reader = HDFReader(parent, temp_fs.getsyspath('temp.h5'))
+        reader = HDFReader(parent, filename)
         raw_iter = reader.raw
         first = raw_iter.next()
         self.assertEqual(first, [0.0, 0.0, 0.0])
@@ -384,25 +389,11 @@ class HDFReaderTest(TestBase):
         parent = MagicMock()
 
         # save meta.about to the file.
-        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
-            descriptor = {
-                'field1': Float64Col(),
-                'field2': Float64Col(),
-                'field3': Float64Col()
-            }
-            h5.create_group('/', 'partition')
-            h5.create_table('/partition', 'rows', descriptor)
-            table = h5.root.partition.rows
-            row = table.row
-            for i in range(5):
-                row['field1'] = float(i)
-                row['field2'] = float(i)
-                row['field2'] = float(i)
-                row.append()
-            table.flush()
+        filename = temp_fs.getsyspath('temp.h5')
+        self._create_h5(filename)
 
         # now read it from file.
-        reader = HDFReader(parent, temp_fs.getsyspath('temp.h5'))
+        reader = HDFReader(parent, filename)
         rows_iter = reader.rows
         first = rows_iter.next()
         self.assertEqual(first, [0.0, 0.0, 0.0])
@@ -416,27 +407,10 @@ class HDFReaderTest(TestBase):
     def test_generates_rows_as_RowProxy_instances(self):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
+        filename = temp_fs.getsyspath('temp.h5')
+        self._create_h5(filename)
 
-        # save meta.about to the file.
-        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
-            descriptor = {
-                'field1': Float64Col(),
-                'field2': Float64Col(),
-                'field3': Float64Col()
-            }
-            h5.create_group('/', 'partition')
-            h5.create_table('/partition', 'rows', descriptor)
-            table = h5.root.partition.rows
-            row = table.row
-            for i in range(5):
-                row['field1'] = float(i)
-                row['field2'] = float(i)
-                row['field2'] = float(i)
-                row.append()
-            table.flush()
-
-        # now read it from file.
-        reader = HDFReader(parent, temp_fs.getsyspath('temp.h5'))
+        reader = HDFReader(parent, filename)
         with patch.object(HDFReader, 'headers', ['field1', 'field2', 'field3']):
             rows_iter = iter(reader)
             first = rows_iter.next()
@@ -457,24 +431,11 @@ class HDFReaderTest(TestBase):
     def test_with(self):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
-
-        # save meta.about to the file.
-        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
-            descriptor = {
-                'field1': Float64Col()
-            }
-            h5.create_group('/', 'partition')
-            h5.create_group('/partition', 'meta')
-            h5.create_table('/partition', 'rows', descriptor)
-            table = h5.root.partition.rows
-            row = table.row
-            for i in range(5):
-                row['field1'] = float(i)
-                row.append()
-            table.flush()
+        filename = temp_fs.getsyspath('temp.h5')
+        self._create_h5(filename)
 
         # now read it from file.
-        with HDFReader(parent, temp_fs.getsyspath('temp.h5')) as reader:
+        with HDFReader(parent, filename) as reader:
             rows = []
             for row in reader:
                 rows.append(row)

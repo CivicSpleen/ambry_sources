@@ -582,6 +582,13 @@ class MPRWriter(object):
     META_TEMPLATE = MPRowsFile.META_TEMPLATE
     SCHEMA_TEMPLATE = MPRowsFile.SCHEMA_TEMPLATE
 
+    # In most tests, the block size doesn't matter much, with 1000 row blocks having the same performance of
+    # 10 row blocks. This seems to be because for the test rows, the cost of managing the cache is similar to the
+    # cost of writing.
+    # There is, however, a very large gain from writing a collection of rows as a single block with insert_rows()
+
+    BLOCK_SIZE = 1000 # Size of blocks of rows to write
+
     def __init__(self, parent, fh, compress=True):
 
         from copy import deepcopy
@@ -721,7 +728,7 @@ class MPRWriter(object):
 
         self.cache.append(row)
 
-        if len(self.cache) >= 10000:
+        if len(self.cache) >= self.BLOCK_SIZE:
             self._write_rows()
 
     def insert_rows(self, rows):

@@ -344,8 +344,11 @@ class BasicTestSuite(TestBase):
 
             print('MSGPack write S', float(N) / t.elapsed, w.n_rows)
 
+        # Write the whole file with insert_rows() which writes all of the rows at once.
         write_large_blocks()
 
+        # Write the file in blocks, with insert_rows collecting rows into a cache, then writting the
+        # cached blocks.
         write_small_blocks()
 
         df = MPRowsFile(fs, 'foobar')

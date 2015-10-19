@@ -142,11 +142,11 @@ class BasicTestSuite(TestBase):
         self.assertEqual([0],  f.info['header_rows'])
 
         self.assertEqual(f.headers, list('abcde'))
-
-        print(list(f.select()))
+        rows = list(f.select())
+        self.assertEqual(len(rows), 10)
+        self.assertEqual(sorted(rows[0].keys()), sorted(list('abcde')))
 
     def test_type_intuit(self):
-        """Just check that all of the sources can be downloaded without exceptions"""
         from ambry_sources.intuit import TypeIntuiter
 
         cache_fs = fsopendir(self.setup_temp_dir())

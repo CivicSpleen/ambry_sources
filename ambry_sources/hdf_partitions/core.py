@@ -571,10 +571,6 @@ class HDFWriter(object):
             self._save_source(create=True)
 
     def _save_meta_child(self, child, descriptor, create=False):
-        if child == 'schema':
-            # Special case - should not include first line.
-            print('hey')
-            return
         if create:
             self._h5_file.create_table(
                 '/partition/meta', child,
@@ -640,7 +636,21 @@ class HDFWriter(object):
             'text_hist': StringCol(itemsize=255),
             'uvalues': StringCol(itemsize=255)  # Ask Eric about type.
         }
-        self._save_meta_child('schema', descriptor, create=create)
+        if create:
+            self._h5_file.create_table(
+                '/partition/meta', 'schema',
+                descriptor, 'meta.schema',
+                createparents=True)
+
+        schema = self.meta['schema'][0]
+        table = self._h5_file.root.partition.meta.schema
+        row = table.row
+
+        for col_descr in self.meta['schema'][1:]:
+            for i, col_name in enumerate(schema):
+                row[col_name] = col_descr[i] or _get_default(descriptor[col_name].__class__)
+            row.append()
+        table.flush()
 
     def _save_excel(self, create=False):
         descriptor = {
@@ -1053,6 +1063,7 @@ def _get_default(pytables_type):
     TYPE_MAP = {
         Int64Col: 0,
         Float64Col: 0.0,
-        StringCol: ''
+        StringCol: '',
+        BoolCol: False
     }
     return TYPE_MAP[pytables_type]

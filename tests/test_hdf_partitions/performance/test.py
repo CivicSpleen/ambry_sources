@@ -22,7 +22,7 @@ class Test(TestBase):
 
         N = 50000
 
-        # Basic read/ write tests.
+        # Basic read/write tests.
 
         def rand_date_a():
             return datetime.date(randint(2000, 2015), randint(1, 12), 10)

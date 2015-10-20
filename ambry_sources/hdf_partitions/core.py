@@ -3,26 +3,23 @@
 Writing data to a HDF partition.
 """
 
+from copy import deepcopy
 from functools import reduce
 import logging
 import struct
 import time
 import os
 
-from tables import open_file, StringCol, Int64Col, Float64Col, BoolCol, Time32Col
+from tables import open_file, StringCol, Int64Col, Float64Col, BoolCol
 from tables.exceptions import NoSuchNodeError
 
 import six
-from six import string_types, iteritems, text_type
-
-import msgpack
+from six import string_types, iteritems
 
 from ambry_sources.sources import RowProxy
 from ambry_sources.stats import Stats
 
 logger = logging.getLogger(__name__)
-
-# FIXME: rename to H5 - H5Partition, H5Writer
 
 
 class HDFError(Exception):
@@ -30,18 +27,10 @@ class HDFError(Exception):
 
 
 class HDFPartition(object):
-    """ FIXME: """
+    """ Stores partition data in the HDF (*.h5) file. """
 
     EXTENSION = '.h5'
     VERSION = 1
-    MAGIC = 'AMBRMPDF'
-
-    # 8s: Magic Number, H: Version,  I: Number of rows, I: number of columns
-    # Q: Position of end of rows / Start of meta,
-    # I: Data start row, I: Data end row
-    FILE_HEADER_FORMAT = struct.Struct('>8sHIIQII')
-
-    FILE_HEADER_FORMAT_SIZE = FILE_HEADER_FORMAT.size
 
     # These are all of the keys for the  schema. The schema is a collection of rows, with these
     # keys being the first, followed by one row per column.
@@ -149,7 +138,6 @@ class HDFPartition(object):
         self._process = None  # Process name for report_progress
         self._start_time = 0
 
-        # FIXME: Add tests or remove if not used.
         if not self._path.endswith(self.EXTENSION):
             self._path = self._path + self.EXTENSION
 
@@ -167,9 +155,9 @@ class HDFPartition(object):
     @classmethod
     def read_file_header(cls, o, fh):
         # FIXME: Add tests or remove if not used.
+        # FIXME:
         try:
-            o.magic, o.version, o.n_rows, o.n_cols, o.meta_start, o.data_start_row, o.data_end_row = \
-                cls.FILE_HEADER_FORMAT.unpack(fh.read(cls.FILE_HEADER_FORMAT_SIZE))
+            o.magic, o.version, o.n_rows, o.n_cols = ('', '', '', '')
         except struct.error as e:
             raise IOError("Failed to read file header; {}; path = {}".format(e, o.parent.path))
 
@@ -213,8 +201,8 @@ class HDFPartition(object):
             rows=o.n_rows,
             cols=o.n_cols,
             header_rows=o.meta['row_spec']['header_rows'],
-            data_start_row=o.data_start_row,
-            data_end_row=o.data_end_row,
+            data_start_row=0,
+            data_end_row=0,
             comment_rows=o.meta['row_spec']['comment_rows'],
             headers=o.headers
         )
@@ -258,41 +246,6 @@ class HDFPartition(object):
         with self.reader as r:
             return r.headers
 
-    # run_type_intuiter  FIXME: It is we do not need to intuit types. See issue-16
-    def run_type_intuiter(self):
-        """Run the Type Intuiter and store the results back into the metadata"""
-        from ambry_sources.intuit import TypeIntuiter
-
-        try:
-            self._process = 'intuit_type'
-            self._start_time = time.time()
-
-            with self.reader as r:
-                ti = TypeIntuiter().process_header(r.headers).run(r.rows, r.n_rows)
-
-            with self.writer as w:
-                w.set_types(ti)
-        finally:
-            self._process = 'none'
-
-    def run_row_intuiter(self):
-        """Run the row intuiter and store the results back into the metadata"""
-        from ambry_sources.intuit import RowIntuiter
-        # FIXME:
-
-        try:
-            self._process = 'intuit_rows'
-            self._start_time = time.time()
-
-            with self.reader as r:
-                ri = RowIntuiter().run(r.raw, r.n_rows)
-
-            with self.writer as w:
-                w.set_row_spec(ri)
-
-        finally:
-            self._process = 'none'
-
     def run_stats(self):
         """Run the stats process and store the results back in the metadata"""
 
@@ -328,7 +281,7 @@ class HDFPartition(object):
 
         return self
 
-    def _load_rows(self, source,  intuit_rows=None, intuit_type=True, run_stats=True):
+    def _load_rows(self, source, run_stats=True):
         from ambry_sources.exceptions import RowIntuitError
         if self.n_rows:
             raise HDFError("Can't load_rows; rows already loaded. n_rows = {}".format(self.n_rows))
@@ -336,15 +289,6 @@ class HDFPartition(object):
         spec = getattr(source, 'spec', None)
 
         # None means to determine True or False from the existence of a row spec
-        if intuit_rows is None:
-
-            if spec is None:
-                intuit_rows = True
-            elif spec.has_rowspec:
-                intuit_rows = False
-            else:
-                intuit_rows = True
-
         try:
 
             self._process = 'load_rows'
@@ -356,39 +300,16 @@ class HDFPartition(object):
 
                 if spec:
                     w.set_source_spec(spec)
-
-            if intuit_rows:
-                try:
-                    self.run_row_intuiter()
-                except RowIntuitError:
-                    # FIXME Need to report this, but there is currently no way to get
-                    # the higher level logger.
-                    pass
-
-            elif spec:
-
-                with self.writer as w:
                     w.set_row_spec(spec)
                     assert w.meta['schema'][0] == HDFPartition.SCHEMA_TEMPLATE
 
-            if intuit_type:
-                self.run_type_intuiter()
-
             if run_stats:
                 self.run_stats()
-
-            with self.writer as w:
-
-                if not w.data_end_row:
-                    w.data_end_row = w.n_rows
 
         finally:
             self._process = None
 
         return self
-
-    def open(self,  mode='rb'):
-        return self._fs.open(self.path, mode=mode)
 
     @property
     def reader(self):
@@ -455,11 +376,7 @@ class HDFPartition(object):
 
 class HDFWriter(object):
 
-    MAGIC = HDFPartition.MAGIC
     VERSION = HDFPartition.VERSION
-    FILE_HEADER_FORMAT = HDFPartition.FILE_HEADER_FORMAT
-    FILE_HEADER_FORMAT_SIZE = HDFPartition.FILE_HEADER_FORMAT.size
-    META_TEMPLATE = HDFPartition.META_TEMPLATE
     SCHEMA_TEMPLATE = HDFPartition.SCHEMA_TEMPLATE
 
     def __init__(self, parent, filename):
@@ -474,11 +391,6 @@ class HDFWriter(object):
 
         self.parent = parent
         self.version = self.VERSION
-        self.magic = self.MAGIC
-        self.data_start = self.FILE_HEADER_FORMAT_SIZE
-        self.meta_start = 0
-        self.data_start_row = 0
-        self.data_end_row = None
 
         self.n_rows = 0
         self.n_cols = 0
@@ -494,8 +406,7 @@ class HDFWriter(object):
         else:
             # No, doesn't exist
             self._h5_file = open_file(filename, mode='w')
-            self.meta = deepcopy(self.META_TEMPLATE)
-            # self.write_file_header()  # Get moved to the start of row data.
+            self.meta = deepcopy(HDFPartition.META_TEMPLATE)
             self._is_new = True
 
         self.header_mangler = lambda name: re.sub('_+', '_', re.sub('[^\w_]', '_', name).lower()).rstrip('_')
@@ -558,12 +469,10 @@ class HDFWriter(object):
 
     def _write_rows(self, rows=None):
         if self._is_new:
-            # partition_group = self._h5_file.create_group('/', 'partition', 'Meta information')
             self.write_meta()
 
-            # create column descriptor
-            columns = list(self.columns)
-            rows_descriptor = _get_rows_descriptor(columns)
+            # convert columns to descriptor
+            rows_descriptor = _get_rows_descriptor(self.columns)
 
             self._h5_file.create_table(
                 '/partition', 'rows', rows_descriptor, 'Rows (data) of the partition.',
@@ -610,7 +519,12 @@ class HDFWriter(object):
         self._write_rows(rows)
 
     def load_rows(self, source):
-        """Load rows from an iterator"""
+        """Load rows from an iterator.
+
+        Args:
+            source (iterator):
+
+        """
 
         for row in iter(source):
             self.insert_row(row)
@@ -630,8 +544,6 @@ class HDFWriter(object):
 
         if self._h5_file:
             self._write_rows()
-            # self.write_file_header()
-            # self._h5_file.seek(self.meta_start)
             # FIXME: Write meta.
             # self.write_meta()
             self._h5_file.close()
@@ -671,7 +583,7 @@ class HDFWriter(object):
         table = getattr(self._h5_file.root.partition.meta, child)
         row = table.row
         for k, v in self.meta[child].items():
-            row[k] = v or _get_default(descriptor[k].__class__)  # FIXME: what about dflt (default) of the field
+            row[k] = v or _get_default(descriptor[k].__class__)
         row.append()
         table.flush()
 
@@ -683,7 +595,12 @@ class HDFWriter(object):
         self._save_meta_child('about', descriptor, create=create)
 
     def _save_schema(self, create=False):
-        # FIXME: do we really need to store schema? Try to retrieve it from file.
+        """ Saves meta.schema table of the h5 file.
+
+        Args:
+            create (bool, optional): if True, create table.
+
+        """
         descriptor = {
             'pos': Int64Col(),
             'name': StringCol(itemsize=255),
@@ -866,9 +783,6 @@ class HDFWriter(object):
 
             with self.parent.writer as w:
 
-                w.data_start_row = ss.start_line
-                w.data_end_row = ss.end_line if ss.end_line else None
-
                 w.meta['row_spec']['header_rows'] = ss.header_lines
                 w.meta['row_spec']['comment_rows'] = None
                 w.meta['row_spec']['start_row'] = ss.start_line
@@ -877,18 +791,6 @@ class HDFWriter(object):
 
                 if header_lines:
                     w.headers = [self.header_mangler(h) for h in RowIntuiter.coalesce_headers(header_lines)]
-
-        # Now, look for the end line.
-        if False:
-            # FIXME: Maybe later ...
-            r = self.parent.reader
-            # Look at the last 100 rows, but don't start before the start row.
-            test_rows = 100
-            start = max(r.data_start_row, r.data_end_row - test_rows)
-
-            end_rows = list(islice(r.raw, start, None))
-
-            ri.find_end(end_rows)
 
     def __enter__(self):
         return self
@@ -904,7 +806,13 @@ class HDFReader(object):
     """ Read an h5 file. """
 
     def __init__(self, parent, filename):
-        """Reads the file_header and prepares for iterating over rows"""
+        """Reads the file_header and prepares for iterating over rows.
+
+        Args:
+            parent (HDFPartition):
+            filename (str):
+
+        """
 
         if not isinstance(filename, string_types):
             # This is the pytables constraint.
@@ -915,10 +823,6 @@ class HDFReader(object):
         self.parent = parent
         self._h5_file = open_file(filename, mode='r')
         self._headers = None
-        self.data_start = 0
-        self.meta_start = 0
-        self.data_start_row = 0
-        self.data_end_row = 0
 
         self.pos = 0  # Row position for next read, starts at 1, since header is always 0
 
@@ -926,11 +830,6 @@ class HDFReader(object):
         self.n_cols = 0
 
         self._in_iteration = False
-
-        # FIXME: seems useless
-        # HDFPartition.read_file_header(self, self._fh)
-
-        self.data_start = 0  # FIXME: Seems useless because it's always 0.
         self._meta = None
 
     @property
@@ -947,7 +846,6 @@ class HDFReader(object):
     @classmethod
     def _read_meta(self, h5_file):
         # FIXME: move to the private methods.
-        from copy import deepcopy
         meta = deepcopy(HDFPartition.META_TEMPLATE)
         for child, group in meta.items():
             try:
@@ -1040,13 +938,13 @@ class HDFReader(object):
     def rows(self):
         """ Iterator for reading rows. """
 
-        # it's exactly the same as raw iterator for HDF.
+        # For HDF it's exactly the same as raw iterator.
         return self.raw
 
     def __iter__(self):
         """ Iterator for reading rows as RowProxy objects
 
-        WARNING: This routine returns RowProxy objects. RowProxy objects
+        WARNING: This routine generates RowProxy objects. RowProxy objects
             are reused, so if you construct a list directly from the output from this method,
             the list will have multiple copies of a single RowProxy, which will
             have as an inner row the last result row. If you will be directly constructing

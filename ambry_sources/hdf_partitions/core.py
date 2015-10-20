@@ -7,9 +7,9 @@ from functools import reduce
 import logging
 import struct
 import time
-import zlib
+import os
 
-from tables import open_file, StringCol, Int64Col, Float64Col, BoolCol
+from tables import open_file, StringCol, Int64Col, Float64Col, BoolCol, Time32Col
 from tables.exceptions import NoSuchNodeError
 
 import six
@@ -414,18 +414,14 @@ class HDFPartition(object):
 
     @property
     def writer(self):
-        from os.path import dirname
         if not self._writer:
             self._process = 'write'
-            if self._fs.exists(self.path):
-                mode = 'r+b'
-            else:
-                mode = 'wb'
 
-            if not self._fs.exists(dirname(self.path)):
-                self._fs.makedir(dirname(self.path), recursive=True)
+            if not self._fs.exists(os.path.dirname(self.path)):
+                self._fs.makedir(os.path.dirname(self.path), recursive=True)
 
-            self._writer = HDFWriter(self, self._fs.open(self.path, mode=mode))
+            # we can't use self.syspath here because it may be empty if file does not existf
+            self._writer = HDFWriter(self, self._fs.getsyspath(self.path))
 
         return self._writer
 
@@ -489,30 +485,16 @@ class HDFWriter(object):
 
         self.cache = []
 
-        try:
-            # Try to read an existing file
-            # FIXME:
+        if os.path.exists(filename):
+            # FIXME: Add tests for that case.
             # HDFPartition.read_file_header(self, self._h5_file)
-            raise IOError
             self._h5_file = open_file(filename, mode='a')
-
-            self._h5_file.seek(self.meta_start)
-
-            data = self._h5_file.read()
-
-            self.meta = msgpack.unpackb(zlib.decompress(data), encoding='utf-8')
-
-            self._h5_file.seek(self.meta_start)
+            self.meta = HDFReader._read_meta(self._h5_file)
             self._is_new = False
-
-        except IOError:
+        else:
             # No, doesn't exist
             self._h5_file = open_file(filename, mode='w')
-
-            self.meta_start = self.data_start
-
             self.meta = deepcopy(self.META_TEMPLATE)
-
             # self.write_file_header()  # Get moved to the start of row data.
             self._is_new = True
 
@@ -550,7 +532,7 @@ class HDFWriter(object):
 
     @property
     def columns(self):
-        """ Returns the headers rows. """
+        """ Returns the columns specifications. """
         return HDFPartition._columns(self)
 
     @columns.setter
@@ -580,11 +562,13 @@ class HDFWriter(object):
             self.write_meta()
 
             # create column descriptor
-            rows_descriptor = _get_rows_descriptor(self.columns)
+            columns = list(self.columns)
+            rows_descriptor = _get_rows_descriptor(columns)
 
             self._h5_file.create_table(
                 '/partition', 'rows', rows_descriptor, 'Rows (data) of the partition.',
                 createparents=True)
+            self._is_new = False
 
         rows, clear_cache = (self.cache, True) if not rows else (rows, False)
 
@@ -594,8 +578,8 @@ class HDFWriter(object):
         rows_table = self._h5_file.root.partition.rows
         partition_row = rows_table.row
         for row in rows:
-            partition_row['col1'] = row[0]
-            partition_row['col2'] = row[1]
+            for i, col in enumerate(rows_table.colnames):
+                partition_row[col] = row[i]
             partition_row.append()
         rows_table.flush()
 
@@ -957,16 +941,17 @@ class HDFReader(object):
     @property
     def meta(self):
         if self._meta is None:
-            self._meta = self._read_meta()
+            self._meta = self._read_meta(self._h5_file)
         return self._meta
 
-    def _read_meta(self):
+    @classmethod
+    def _read_meta(self, h5_file):
         # FIXME: move to the private methods.
         from copy import deepcopy
         meta = deepcopy(HDFPartition.META_TEMPLATE)
         for child, group in meta.items():
             try:
-                saved_data = self._read_meta_child(child)
+                saved_data = self._read_meta_child(h5_file, child)
             except NoSuchNodeError:
                 logger.warning('meta.{} table does not exist. Using default values.'.format(child))
                 saved_data = {}
@@ -977,7 +962,8 @@ class HDFReader(object):
                 meta[child][k] = saved_data.get(k, default_value)
         return meta
 
-    def _read_meta_child(self, child):
+    @classmethod
+    def _read_meta_child(self, h5_file, child):
         """ Reads first row from `child` table of h5 file and returns it.
 
         Args:
@@ -986,7 +972,7 @@ class HDFReader(object):
         Returns:
             dict:
         """
-        table = getattr(self._h5_file.root.partition.meta, child)
+        table = getattr(h5_file.root.partition.meta, child)
         for row in table.iterrows():
             return {c: row[c] for c in table.colnames}
         return {}
@@ -1151,7 +1137,7 @@ def _get_rows_descriptor(columns):
         'int': Int64Col,
         'long': Int64Col,
         'str': lambda: StringCol(itemsize=255),  # FIXME: What is the size?
-        'float': lambda: Float64Col(shape=(2, 3))
+        'float': lambda: Float64Col(shape=(2, 3)),
     }
     descriptor = {}
 

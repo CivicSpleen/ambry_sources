@@ -618,7 +618,7 @@ class RowIntuiter(object):
         import re
 
         tests = 50
-        test_rows = 20
+        test_rows = min(20, len(rows))
 
         def try_tests(tests, test_rows, rows):
             # Look for the first row where you can generate a data pattern that does not have a large number of changes
@@ -654,7 +654,7 @@ class RowIntuiter(object):
         header_rows = []
         found_header = False
 
-        data_pattern_skip_rows = min(30, len(rows)-10)
+        data_pattern_skip_rows = min(30, len(rows)-8)
 
         data_pattern, self.data_pattern_source = self.data_pattern(rows[data_pattern_skip_rows:])
 

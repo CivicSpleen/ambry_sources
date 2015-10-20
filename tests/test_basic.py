@@ -182,6 +182,8 @@ class BasicTestSuite(TestBase):
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
+
+            print source_name
             s = get_source(spec, cache_fs)
             ri = RowIntuiter().run(s)
 
@@ -326,7 +328,7 @@ class BasicTestSuite(TestBase):
                 w.headers = headers
                 w.insert_rows(rows)
 
-            print('MSGPack write ', float(N) / t.elapsed, w.n_rows)
+            print('MSGPack write L', float(N) / t.elapsed, w.n_rows)
 
         def write_small_blocks():
             df = MPRowsFile(fs, 'foobar')
@@ -340,12 +342,13 @@ class BasicTestSuite(TestBase):
                     w.headers = headers
                     w.insert_row(rows[i])
 
-            print('MSGPack write ', float(N) / t.elapsed, w.n_rows)
+            print('MSGPack write S', float(N) / t.elapsed, w.n_rows)
 
+        # Write the whole file with insert_rows() which writes all of the rows at once.
         write_large_blocks()
 
-        return
-
+        # Write the file in blocks, with insert_rows collecting rows into a cache, then writting the
+        # cached blocks.
         write_small_blocks()
 
         df = MPRowsFile(fs, 'foobar')
@@ -361,7 +364,7 @@ class BasicTestSuite(TestBase):
                 count += 1
             r.close()
 
-        print('MSGPack read  ', float(N) / t.elapsed, i, count, s)
+        print('MSGPack read   ', float(N) / t.elapsed, i, count, s)
 
         with Timer() as t:
             count = 0
@@ -374,7 +377,7 @@ class BasicTestSuite(TestBase):
 
             r.close()
 
-        print('MSGPack rows  ', float(N) / t.elapsed)
+        print('MSGPack rows   ', float(N) / t.elapsed)
 
         with Timer() as t:
             count = 0
@@ -386,7 +389,7 @@ class BasicTestSuite(TestBase):
 
             r.close()
 
-        print('MSGPack raw   ', float(N) / t.elapsed)
+        print('MSGPack raw    ', float(N) / t.elapsed)
 
     def generate_rows(self, N):
         import datetime
@@ -407,8 +410,6 @@ class BasicTestSuite(TestBase):
     def test_stats(self):
         """Check that the sources can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
-
-        from contexttimer import Timer
 
         cache_fs = fsopendir('temp://')
         #cache_fs = fsopendir('/tmp/ritest/')

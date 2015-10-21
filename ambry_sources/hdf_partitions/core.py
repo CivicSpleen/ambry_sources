@@ -864,11 +864,37 @@ class HDFReader(object):
                 logger.warning('meta.{} table does not exist. Using default values.'.format(child))
                 saved_data = {}
             if child == 'schema':
-                # FIXME: Special case. Implement
-                continue
-            for k, default_value in group.items():
-                meta[child][k] = saved_data.get(k, default_value)
+                # This is special case because schema table may have many rows.
+                # Convert all rows to list.
+                new_schema = [HDFPartition.SCHEMA_TEMPLATE]
+                for col_descr in self._read_meta_schema(h5_file):
+                    col = []
+                    for e in HDFPartition.SCHEMA_TEMPLATE:
+                        col.append(col_descr.get(e))
+                    new_schema.append(col)
+                meta['schema'] = new_schema
+            else:
+                # This is common case when table contains exactly one row.
+                # Convert first row of the table to dict.
+                for k, default_value in group.items():
+                    meta[child][k] = saved_data.get(k, default_value)
         return meta
+
+    @classmethod
+    def _read_meta_schema(self, h5_file):
+        """ Reads all rows from meta.schema table to dict and returns it.
+
+        Args:
+            h5_file (FIXME:):
+
+        Returns:
+            list of dict:
+        """
+        table = h5_file.root.partition.meta.schema
+        ret = []
+        for row in table.iterrows():
+            ret.append({c: row[c] for c in table.colnames})
+        return ret
 
     @classmethod
     def _read_meta_child(self, h5_file, child):

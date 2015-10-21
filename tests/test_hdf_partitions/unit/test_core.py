@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from fs.opener import fsopendir
-from tables import open_file, Float64Col
+from tables import open_file, Float64Col, StringCol, Int64Col
 
 from ambry_sources.sources.util import RowProxy
 
@@ -386,35 +386,72 @@ class HDFReaderTest(TestBase):
     def test_returns_default_template(self, fake_read):
         fake_read.return_value = {}
         temp_fs = fsopendir('temp://')
-        parent = MagicMock()
         filename = temp_fs.getsyspath('temp.h5')
         self._create_h5(filename)
 
-        reader = HDFReader(parent, filename)
-        ret = reader._read_meta()
-        expected_keys = ['about', 'excel', 'row_spec', 'source', 'comments', 'geo', 'schema']
-        self.assertEqual(sorted(expected_keys), sorted(ret.keys()))
+        with open_file(filename, mode='r') as h5_file:
+            ret = HDFReader._read_meta(h5_file)
+            expected_keys = ['about', 'excel', 'row_spec', 'source', 'comments', 'geo', 'schema']
+            self.assertEqual(sorted(expected_keys), sorted(ret.keys()))
 
     @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta_child')
     def test_reads_meta_children(self, fake_read):
         fake_read.return_value = {}
         temp_fs = fsopendir('temp://')
-        parent = MagicMock()
         filename = temp_fs.getsyspath('temp.h5')
         self._create_h5(filename)
 
-        reader = HDFReader(parent, temp_fs.getsyspath('temp.h5'))
-        reader._read_meta()
+        with open_file(filename, mode='r') as h5_file:
+            HDFReader._read_meta(h5_file)
 
-        # _read_meta_child was called properly
-        self.assertEqual(len(fake_read.mock_calls), 7)
-        self.assertIn(call('about'), fake_read.mock_calls)
-        self.assertIn(call('excel'), fake_read.mock_calls)
-        self.assertIn(call('row_spec'), fake_read.mock_calls)
-        self.assertIn(call('source'), fake_read.mock_calls)
-        self.assertIn(call('comments'), fake_read.mock_calls)
-        self.assertIn(call('geo'), fake_read.mock_calls)
-        self.assertIn(call('schema'), fake_read.mock_calls)
+            # _read_meta_child was called properly
+            self.assertEqual(len(fake_read.mock_calls), 7)
+            self.assertIn(call(h5_file, 'about'), fake_read.mock_calls)
+            self.assertIn(call(h5_file, 'excel'), fake_read.mock_calls)
+            self.assertIn(call(h5_file, 'row_spec'), fake_read.mock_calls)
+            self.assertIn(call(h5_file, 'source'), fake_read.mock_calls)
+            self.assertIn(call(h5_file, 'comments'), fake_read.mock_calls)
+            self.assertIn(call(h5_file, 'geo'), fake_read.mock_calls)
+            self.assertIn(call(h5_file, 'schema'), fake_read.mock_calls)
+
+    @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta_child')
+    def test_reads_meta_schema(self, fake_read):
+        fake_read.return_value = {}
+        temp_fs = fsopendir('temp://')
+        filename = temp_fs.getsyspath('temp.h5')
+
+        with open_file(filename, 'w') as h5:
+            # use minimal descriptor to make the test simplier.
+            descriptor = {
+                'pos': Int64Col(),
+                'name': StringCol(itemsize=255),
+                'type': StringCol(itemsize=255)
+            }
+            h5.create_table('/partition/meta', 'schema', descriptor, 'meta.schema', createparents=True)
+            table = h5.root.partition.meta.schema
+            row = table.row
+            for i in range(2):
+                row['pos'] = float(i)
+                row['name'] = str(i)
+                row['type'] = str(i)
+                row.append()
+            table.flush()
+
+        with open_file(filename, mode='r') as h5_file:
+            ret = HDFReader._read_meta(h5_file)
+            self.assertIn('schema', ret)
+            self.assertEqual(len(ret['schema']), 3)  # One for template, other for columns.
+            self.assertEqual(ret['schema'][0], HDFPartition.SCHEMA_TEMPLATE)
+            self.assertEqual(len(ret['schema'][1]), len(HDFPartition.SCHEMA_TEMPLATE))
+            self.assertEqual(len(ret['schema'][0]), len(HDFPartition.SCHEMA_TEMPLATE))
+
+            pos_index = HDFPartition.SCHEMA_TEMPLATE.index('pos')
+            name_index = HDFPartition.SCHEMA_TEMPLATE.index('name')
+            self.assertEqual(ret['schema'][1][pos_index], 0)
+            self.assertEqual(ret['schema'][2][pos_index], 1.0)
+
+            self.assertEqual(ret['schema'][1][name_index], '0')
+            self.assertEqual(ret['schema'][2][name_index], '1')
 
     # _read_meta_child tests
     def test_reads_first_line_and_returns_dict(self):

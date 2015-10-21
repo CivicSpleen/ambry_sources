@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
 
-import os
-
 from fs.opener import fsopendir
-from tables import open_file, StringCol, Int64Col, Float64Col, BoolCol
+from tables import open_file, Float64Col
 
 from ambry_sources.sources.util import RowProxy
-from ambry_sources.stats import Stats
 
 try:
     # py3
@@ -71,8 +68,6 @@ class HDFPartitionTest(TestBase):
         with patch.object(HDFPartition, 'meta', new_callable=PropertyMock) as fake_meta:
             fake_meta.return_value = {'stats': 22}
             self.assertEqual(hdf_partition.stats, 22)
-
-    # run_type_intuiter  FIXME: It is we do not need to intuit types.
 
     # run_stats tests
     @patch('ambry_sources.hdf_partitions.core.Stats.run')
@@ -302,12 +297,18 @@ class HDFWriterTest(TestBase):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
         writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer.meta['schema'].append(self._get_column('col1', 'int'))
+        writer.meta['schema'].append(self._get_column('col2', 'str'))
         writer.write_meta()
 
         self.assertEqual(writer.cache, [])
         self.assertTrue(writer._h5_file.root.partition, 'meta')
         self.assertTrue(writer._h5_file.root.partition.meta, 'schema')
-        # FIXME: Check saved values.
+
+        # check saved values.
+        saved = [(x['name'], x['type']) for x in writer._h5_file.root.partition.meta.schema.iterrows()]
+        self.assertEqual(len(saved), len(writer.meta['schema']) - 1)
+        self.assertEqual(saved, [('col1', 'int'), ('col2', 'str')])
 
     def test_writes_meta_source(self):
         temp_fs = fsopendir('temp://')

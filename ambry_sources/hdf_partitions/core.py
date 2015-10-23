@@ -7,6 +7,7 @@ from copy import deepcopy
 from functools import reduce
 import json
 import logging
+import math
 import struct
 import time
 import os
@@ -593,10 +594,13 @@ class HDFWriter(object):
             descriptor (FIXME:): descriptor of the table.
 
         """
-        if child not in self._h5_file.root.partition.meta:
-            self._h5_file.create_table(
-                '/partition/meta', child,
-                descriptor, 'meta.{}'.format(child))
+        # always re-create table on save. It works better than rows removing.
+        if child in self._h5_file.root.partition.meta:
+            self._h5_file.remove_node('/partition/meta', child)
+
+        self._h5_file.create_table(
+            '/partition/meta', child,
+            descriptor, 'meta.{}'.format(child))
         table = getattr(self._h5_file.root.partition.meta, child)
         row = table.row
         for k, v in self.meta[child].items():
@@ -989,7 +993,7 @@ class HDFReader(object):
             self._in_iteration = True
             table = self._h5_file.root.partition.rows
             for row in table.iterrows():
-                r = [row[c] for c in table.colnames]
+                r = [_deserialize(row[c]) for c in table.colnames]
                 yield rp.set_row(r)
                 self.pos += 1
         finally:
@@ -1110,5 +1114,9 @@ def _serialize(col_type, value):
 
 
 def _deserialize(value):
-    # FIXME:
+    # FIXME: Add tests.
+    if value in (MIN_INT32, MIN_INT64):
+        return None
+    if math.isnan(value):
+        return None
     return value

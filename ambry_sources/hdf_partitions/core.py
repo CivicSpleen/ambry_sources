@@ -1098,7 +1098,7 @@ def _get_default(pytables_type):
 
 def _serialize(col_type, value):
     """ Converts value to format ready to save to h5 file. """
-    # FIXME: add tests
+    # FIXME: add unit tests
     if value:
         return value
 
@@ -1114,9 +1114,11 @@ def _serialize(col_type, value):
 
 
 def _deserialize(value):
-    # FIXME: Add tests.
-    if value in (MIN_INT32, MIN_INT64):
+    # FIXME: Add unit tests.
+    if isinstance(value, int) and value == MIN_INT32:
         return None
-    if math.isnan(value):
+    elif isinstance(value, long) and value == MIN_INT64:
+        return None
+    elif isinstance(value, float) and math.isnan(value):
         return None
     return value

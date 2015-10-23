@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import unittest
+from itertools import islice
+from operator import itemgetter
 
 from fs.opener import fsopendir
 
@@ -18,8 +20,46 @@ from tests import TestBase
 
 class Test(TestBase):
 
+    def _row_intuiter_to_dict(self, ri):
+        """ Converts row intuiter to dict. """
+        ret = {
+            'header_rows': ri.header_lines,
+            'comment_rows': ri.comment_lines,
+            'start_row': ri.start_line,
+            'end_row': ri.end_line,
+            'data_pattern': ri.data_pattern_source
+        }
+        return ret
+
+    def _get_headers(self, source, spec):
+        """ Collects headers from spec and returns them. """
+        if spec.header_lines:
+            max_header_line = max(spec.header_lines)
+            rows = list(islice(source, max_header_line + 1))
+            header_lines = itemgetter(*spec.header_lines)(rows)
+            if not isinstance(header_lines[0], (list, tuple)):
+                header_lines = [header_lines]
+        else:
+            header_lines = None
+
+        if header_lines:
+            return [h for h in RowIntuiter.coalesce_headers(header_lines)]
+        return []
+
+    def _spec_to_dict(self, spec):
+        """ Converts row spec to dict. """
+
+        ret = {
+            'header_rows': spec.header_lines,
+            'comment_rows': None,
+            'start_row': spec.start_line,
+            'end_row': spec.end_line,
+            'data_pattern': None
+        }
+        return ret
+
     @pytest.mark.slow
-    def test_load_and_check_headers(self):
+    def test_load_and_headers(self):
         """ Just checks that all of the sources can be loaded without exceptions. """
 
         cache_fs = fsopendir('temp://')
@@ -57,6 +97,9 @@ class Test(TestBase):
         }
 
         for source_name, spec in sources.items():
+            print('\n------\n{}\n-------'.format(source_name))
+            #if source_name != 'namesu8':
+            #    continue
             s = get_source(spec, cache_fs)
 
             f = HDFPartition(cache_fs, spec.name)
@@ -64,45 +107,16 @@ class Test(TestBase):
                 f.remove()
 
             # FIXME: This is really complicated setup for HDFPartition file. Try to simplify.
-            from itertools import islice
-            from operator import itemgetter
             with f.writer as w:
                 if spec.has_rowspec:
-                    if spec.header_lines:
-                        max_header_line = max(spec.header_lines)
-                        rows = list(islice(s, max_header_line + 1))
-
-                        header_lines = itemgetter(*spec.header_lines)(rows)
-
-                        if not isinstance(header_lines[0], (list, tuple)):
-                            header_lines = [header_lines]
-
-                    else:
-                        header_lines = None
-
-                    if header_lines:
-                        headers = [h for h in RowIntuiter.coalesce_headers(header_lines)]
-
-                    row_spec = {
-                        'header_rows': spec.header_lines,
-                        'comment_rows': None,
-                        'start_row': spec.start_line,
-                        'end_row': spec.end_line,
-                        'data_pattern': None
-                    }
-                    w.set_row_spec(row_spec, headers)
+                    row_spec = self._spec_to_dict(spec)
+                    headers = self._get_headers(s, spec)
                     ti = TypeIntuiter().process_header(headers).run(s)
+                    w.set_row_spec(row_spec, headers)
                     w.set_types(ti)
                 else:
                     ri = RowIntuiter().run(s)
-                    row_spec = {
-                        'header_rows': ri.header_lines,
-                        'comment_rows': ri.comment_lines,
-                        'start_row': ri.start_line,
-                        'end_row': ri.end_line,
-                        'data_pattern': ri.data_pattern_source
-                    }
-
+                    row_spec = self._row_intuiter_to_dict(ri)
                     ti = TypeIntuiter().process_header(ri.headers).run(s)
                     w.set_row_spec(row_spec, ri.headers)
                     w.set_types(ti)
@@ -111,15 +125,26 @@ class Test(TestBase):
             with f.reader as r:
                 if spec.name in source_headers:
                     self.assertEqual(source_headers[spec.name], r.headers)
+                # FIXME: test head, middle and tail rows.
 
-    @unittest.skip('Not ready')
     def test_fixed(self):
         cache_fs = fsopendir(self.setup_temp_dir())
         sources = self.load_sources()
         spec = sources['simple_fixed']
+        assert spec.has_rowspec is False
         s = get_source(spec, cache_fs)
-        f = HDFPartition(cache_fs, spec.name).load_rows(s)
+
+        # prepare HDFPartition.
+        f = HDFPartition(cache_fs, spec.name)
+        ri = RowIntuiter().run(s)
+        row_spec = self._row_intuiter_to_dict(ri)
+        ti = TypeIntuiter().process_header(ri.headers).run(s)
+        with f.writer as w:
+            w.set_row_spec(row_spec, ri.headers)
+            w.set_types(ti)
+        f.load_rows(s)
         self.assertEqual(f.headers, ['id', 'uuid', 'int', 'float'])
+        # FIXME: Check first and last rows.
 
     @unittest.skip('Not ready')
     def test_generator(self):

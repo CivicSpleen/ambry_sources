@@ -62,19 +62,55 @@ class Test(TestBase):
             f = HDFPartition(cache_fs, spec.name)
             if f.exists:
                 f.remove()
+
             # FIXME: This is really complicated setup for HDFPartition file. Try to simplify.
+            from itertools import islice
+            from operator import itemgetter
             with f.writer as w:
-                ri = RowIntuiter().run(s)
-                ti = TypeIntuiter().process_header(ri.headers).run(s)
-                w.set_row_spec(ri)
-                w.set_types(ti)
+                if spec.has_rowspec:
+                    if spec.header_lines:
+                        max_header_line = max(spec.header_lines)
+                        rows = list(islice(s, max_header_line + 1))
+
+                        header_lines = itemgetter(*spec.header_lines)(rows)
+
+                        if not isinstance(header_lines[0], (list, tuple)):
+                            header_lines = [header_lines]
+
+                    else:
+                        header_lines = None
+
+                    if header_lines:
+                        headers = [h for h in RowIntuiter.coalesce_headers(header_lines)]
+
+                    row_spec = {
+                        'header_rows': spec.header_lines,
+                        'comment_rows': None,
+                        'start_row': spec.start_line,
+                        'end_row': spec.end_line,
+                        'data_pattern': None
+                    }
+                    w.set_row_spec(row_spec, headers)
+                    ti = TypeIntuiter().process_header(headers).run(s)
+                    w.set_types(ti)
+                else:
+                    ri = RowIntuiter().run(s)
+                    row_spec = {
+                        'header_rows': ri.header_lines,
+                        'comment_rows': ri.comment_lines,
+                        'start_row': ri.start_line,
+                        'end_row': ri.end_line,
+                        'data_pattern': ri.data_pattern_source
+                    }
+
+                    ti = TypeIntuiter().process_header(ri.headers).run(s)
+                    w.set_row_spec(row_spec, ri.headers)
+                    w.set_types(ti)
             f.load_rows(s)
 
             with f.reader as r:
                 if spec.name in source_headers:
                     self.assertEqual(source_headers[spec.name], r.headers)
-                    # FIXME: Uncomment and test others.
-                    return
 
     @unittest.skip('Not ready')
     def test_fixed(self):

@@ -537,8 +537,8 @@ class HDFWriter(object):
         """
 
         for i, row in enumerate(iter(source)):
-            if i < source.spec.start_line or 0:
-                # skip comments and headers.
+            if i < (source.spec.start_line or 1):
+                # skip comments and headers. If start line is empty, assuming first row is header.
                 continue
 
             if source.spec.end_line and i > source.spec.end_line:
@@ -602,7 +602,7 @@ class HDFWriter(object):
         for k, v in self.meta[child].items():
             if k in ('header_rows', 'comment_rows'):
                 # FIXME: Add tests for saving and restoring.
-                v = ','.join(str(x) for x in v)
+                v = json.dumps(v or '')
             row[k] = v or _get_default(descriptor[k].__class__)
         row.append()
         table.flush()
@@ -777,56 +777,26 @@ class HDFWriter(object):
                 c.start = sc.start
                 c.width = sc.width
 
-    def set_row_spec(self, ri_or_ss):
-        """ Set the row spec and schema from a RowIntuiter object or a SourceSpec. """
+    def set_row_spec(self, row_spec, headers):
+        """ Saves row_spec to meta and populates headers.
 
-        from itertools import islice
-        from operator import itemgetter
-        from ambry_sources.intuit import RowIntuiter
+        Args:
+            row_spec (dict): dict with rows specifications
+                Example: {
+                    'header_rows': [1,2],
+                    'comment_rows': [0],
+                    'start_row': 3,
+                    'end_row': None,
+                    'data_pattern': ''
+                }
 
-        if isinstance(ri_or_ss, RowIntuiter):
-            ri = ri_or_ss
+        """
 
-            self.data_start_row = ri.start_line
-            self.data_end_row = ri.end_line if ri.end_line else None
-
-            self.meta['row_spec']['header_rows'] = ri.header_lines
-            self.meta['row_spec']['comment_rows'] = ri.comment_lines
-            self.meta['row_spec']['start_row'] = ri.start_line
-            self.meta['row_spec']['end_row'] = ri.end_line
-            self.meta['row_spec']['data_pattern'] = ri.data_pattern_source
-
-            self.headers = [self.header_mangler(h) for h in ri.headers]
-            self._write_meta()
-        else:
-            ss = ri_or_ss
-
-            with self.parent.reader as r:
-                # If the header lines are specified, we need to also coalesce them ad
-                # set the header
-                if ss.header_lines:
-
-                    max_header_line = max(ss.header_lines)
-                    rows = list(islice(r.raw, max_header_line + 1))
-
-                    header_lines = itemgetter(*ss.header_lines)(rows)
-
-                    if not isinstance(header_lines[0], (list, tuple)):
-                        header_lines = [header_lines]
-
-                else:
-                    header_lines = None
-
-            with self.parent.writer as w:
-
-                w.meta['row_spec']['header_rows'] = ss.header_lines
-                w.meta['row_spec']['comment_rows'] = None
-                w.meta['row_spec']['start_row'] = ss.start_line
-                w.meta['row_spec']['end_row'] = ss.end_line
-                w.meta['row_spec']['data_pattern'] = None
-
-                if header_lines:
-                    w.headers = [self.header_mangler(h) for h in RowIntuiter.coalesce_headers(header_lines)]
+        self.data_start_row = row_spec['start_row']
+        self.data_end_row = row_spec['end_row']
+        self.meta['row_spec'] = row_spec
+        self.headers = [self.header_mangler(h) for h in headers]
+        self._write_meta()
 
     def __enter__(self):
         return self
@@ -1124,8 +1094,6 @@ def _get_default(pytables_type):
 
 def _serialize(col_type, value):
     """ Converts value to format ready to save to h5 file. """
-    #if isinstance(value, text_type):
-    #    return value.encode('utf-8')
     # FIXME: add tests
     if value:
         return value

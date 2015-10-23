@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-
-import unittest
+import datetime
 from itertools import islice
 from operator import itemgetter
+import string
+import unittest
 
 from fs.opener import fsopendir
 
@@ -57,6 +58,21 @@ class Test(TestBase):
             'data_pattern': None
         }
         return ret
+
+    def _generate_rows(self, N):
+
+        rs = string.ascii_letters
+
+        row = lambda x: [x, x * 2, x % 17, rs[x % 19:x % 19 + 20],
+                         datetime.date(2000 + x % 15, 1 + x % 12, 10),
+                         datetime.date(2000 + (x + 1) % 15, 1 + (x + 1) % 12, 10)]
+
+        headers = list('abcdefghi')[:len(row(0))]
+
+        rows = [row(i) for i in range(1, N+1)]
+
+        return rows, headers
+
 
     @pytest.mark.slow
     def test_load_and_headers(self):
@@ -171,105 +187,6 @@ class Test(TestBase):
         self.assertEqual(sorted(rows[0].keys()), sorted(list('abcde')))
 
     @unittest.skip('Not ready')
-    def test_type_intuit(self):
-        from ambry_sources.intuit import TypeIntuiter
-
-        cache_fs = fsopendir(self.setup_temp_dir())
-        sources = self.load_sources()
-        spec = sources['simple_fixed']
-        s = get_source(spec, cache_fs)
-
-        f = HDFPartition(cache_fs, spec.name)
-
-        with f.writer as w:
-            w.load_rows(s)
-
-        with f.reader as r:
-            ti = TypeIntuiter().process_header(r.headers).run(r.rows, r.n_rows)
-
-        with f.writer as w:
-            w.set_types(ti)
-
-        with f.reader as w:
-            for col in w.columns:
-                print(col.pos, col.name, col.type)
-
-    # @pytest.mark.slow
-    @unittest.skip('Not ready')
-    def test_row_intuit(self):
-        """Check that the sources can be loaded and analyzed without exceptions and that the
-        guesses for headers and start are as expected"""
-
-        from ambry_sources.intuit import RowIntuiter
-
-        cache_fs = fsopendir('temp://')
-        # cache_fs = fsopendir('/tmp/ritest/')
-
-        sources = self.load_sources('sources-non-std-headers.csv')
-
-        for source_name, spec in sources.items():
-
-            print source_name
-            s = get_source(spec, cache_fs)
-            ri = RowIntuiter().run(s)
-
-            self.assertEqual(
-                spec.expect_headers,
-                ','.join(str(e) for e in ri.header_lines),
-                'Headers of {} source does not match to row intuiter'.format(spec.name))
-            self.assertEqual(
-                spec.expect_start, ri.start_line,
-                'Start line of {} source does not match to row intuiter start line.'.format(spec.name))
-
-    # @pytest.mark.slow
-    @unittest.skip('Not ready')
-    def test_row_load_intuit(self):
-        """Check that the sources can be loaded and analyzed without exceptions and that the
-        guesses for headers and start are as expected"""
-
-        from itertools import islice
-
-        cache_fs = fsopendir('temp://')
-        cache_fs.makedir('/mpr')
-        # cache_fs = fsopendir('/tmp/ritest/')
-
-        sources = self.load_sources('sources-non-std-headers.csv')
-
-        for source_name, spec in sources.items():
-            # if source_name != 'ed_cohort': continue
-
-            s = get_source(spec, cache_fs)
-
-            f = HDFPartition(cache_fs, '/mpr/'+source_name)
-
-            if f.exists:
-                f.remove()
-
-            f.load_rows(s, intuit_type=False, run_stats=False)
-
-            self.assertEqual(f.info['data_start_row'], spec.expect_start)
-
-            with f.reader as r:
-                # First row, marked with metadata, that is marked as a data row
-                m1, row1 = next(six.moves.filter(lambda e: e[0][2] == 'D', r.meta_raw))
-
-            with f.reader as r:
-                # First row
-                row2 = next(r.rows)
-
-            with f.reader as r:
-                # First row proxy
-                row3 = next(iter(r)).row
-
-            self.assertEqual(row1, row2)
-            self.assertEqual(row1, row3)
-
-            with f.reader as r:
-                raw_rows = list(islice(r.raw, None, 40))
-
-            self.assertEqual(row2, raw_rows[f.info['data_start_row']])
-
-    @unittest.skip('Not ready')
     def test_headers(self):
 
         fs = fsopendir('mem://')
@@ -287,7 +204,7 @@ class Test(TestBase):
             self.assertEqual('i', schema(9, 1))
 
             for h in w.columns:
-                h.description = "{}-{}".format(h.pos, h.name)
+                h.description = '{}-{}'.format(h.pos, h.name)
 
             self.assertEqual('1-a', schema(1, 3))
             self.assertEqual('5-e', schema(5, 3))
@@ -314,22 +231,6 @@ class Test(TestBase):
             self.assertEqual('two', schema(2, 3))
             self.assertEqual('C', schema(3, 3))
             self.assertEqual('D', schema(4, 3))
-
-    def generate_rows(self, N):
-        import datetime
-        import string
-
-        rs = string.ascii_letters
-
-        row = lambda x: [x, x * 2, x % 17, rs[x % 19:x % 19 + 20],
-                         datetime.date(2000 + x % 15, 1 + x % 12, 10),
-                         datetime.date(2000 + (x + 1) % 15, 1 + (x + 1) % 12, 10)]
-
-        headers = list('abcdefghi')[:len(row(0))]
-
-        rows = [row(i) for i in range(1, N+1)]
-
-        return rows, headers
 
     @unittest.skip('Not ready')
     def test_stats(self):
@@ -372,7 +273,7 @@ class Test(TestBase):
 
         N = 500
 
-        rows, headers = self.generate_rows(N)
+        rows, headers = self._generate_rows(N)
 
         def first_row_header(data_start_row=None, data_end_row=None):
 
@@ -484,7 +385,7 @@ class Test(TestBase):
 
         n = 500
 
-        rows, headers = self.generate_rows(n)
+        rows, headers = self._generate_rows(n)
 
         blank = ['' for e in rows[0]]
 

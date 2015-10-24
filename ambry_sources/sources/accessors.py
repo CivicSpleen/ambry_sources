@@ -122,7 +122,7 @@ class GeneratorSource(SourceFile):
             self.gen = self.gen()
 
     def __iter__(self):
-        """Iterate over all of the lines in the file"""
+        """ Iterate over all of the lines in the generator. """
 
         self.start()
 

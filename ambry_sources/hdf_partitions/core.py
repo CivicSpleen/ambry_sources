@@ -218,7 +218,7 @@ class HDFPartition(object):
             cols=o.n_cols,
             header_rows=o.meta['row_spec']['header_rows'],
             data_start_row=0,
-            data_end_row=0,
+            data_end_row=None,
             comment_rows=o.meta['row_spec']['comment_rows'],
             headers=o.headers
         )
@@ -479,15 +479,15 @@ class HDFWriter(object):
         self._write_meta()
         rows, clear_cache = (self.cache, True) if not rows else (rows, False)
 
-        if not rows:
-            return
-
         # convert columns to descriptor
         rows_descriptor = _get_rows_descriptor(self.columns)
 
         if 'rows' not in self._h5_file.root.partition:
             self._h5_file.create_table(
                 '/partition', 'rows', rows_descriptor, 'Rows (data) of the partition.')
+
+        if not rows:
+            return
 
         rows_table = self._h5_file.root.partition.rows
         partition_row = rows_table.row
@@ -1072,6 +1072,7 @@ def _get_rows_descriptor(columns):
         'long': lambda pos: Int64Col(pos=pos),
         'str': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: What is the size?
         'float': lambda pos: Float64Col(shape=(2, 3), pos=pos),  # FIXME: What is shape for?
+        'unknown': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: What is the size?
     }
     descriptor = {}
 
@@ -1079,7 +1080,7 @@ def _get_rows_descriptor(columns):
         pytables_type = TYPE_MAP.get(column['type'])
         if not pytables_type:
             raise Exception(
-                'Failed to convert {} ambry_sources type to pytables type.'.format(column['type']))
+                'Failed to convert `{}` ambry_sources type to pytables type.'.format(column['type']))
         descriptor[column['name']] = pytables_type(column['pos'])
     return descriptor
 

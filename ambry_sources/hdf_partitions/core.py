@@ -494,7 +494,7 @@ class HDFWriter(object):
 
         # h5 colnames order has to match to columns order to provide proper iteration over rows.
         assert self.headers == rows_table.colnames
-        colnames = enumerate(rows_table.colnames)
+        colnames = list(enumerate(rows_table.colnames))
         for row in rows:
             for i, col in colnames:
                 value = _serialize(rows_table.coltypes[col], row[i])
@@ -1100,7 +1100,7 @@ def _get_default(pytables_type):
 def _serialize(col_type, value):
     """ Converts value to format ready to save to h5 file. """
     # FIXME: add unit tests
-    if value:
+    if value is not None:
         return value
 
     if col_type == 'string':

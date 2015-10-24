@@ -162,7 +162,6 @@ class Test(TestBase):
         self.assertEqual(f.headers, ['id', 'uuid', 'int', 'float'])
         # FIXME: Check first and last rows.
 
-    @unittest.skip('Not ready')
     def test_generator(self):
         from ambry_sources.sources import GeneratorSource, SourceSpec
 
@@ -175,16 +174,25 @@ class Test(TestBase):
             for i in range(10):
                 yield [i, i + 1, i + 2, i + 3, i + 4]
 
-        f = HDFPartition(cache_fs, 'foobar').load_rows(GeneratorSource(SourceSpec('foobar'), gen()))
+        f = HDFPartition(cache_fs, 'foobar')
 
-        self.assertEqual(1,  f.info['data_start_row'])
-        self.assertEqual(11, f.info['data_end_row'])
-        self.assertEqual([0],  f.info['header_rows'])
+        ri = RowIntuiter().run(GeneratorSource(SourceSpec('foobar'), gen()))
+        row_spec = self._row_intuiter_to_dict(ri)
+        ti = TypeIntuiter().process_header(ri.headers).run(GeneratorSource(SourceSpec('foobar'), gen()))
+        with f.writer as w:
+            w.set_row_spec(row_spec, ri.headers)
+            w.set_types(ti)
+
+        f.load_rows(GeneratorSource(SourceSpec('foobar'), gen()))
 
         self.assertEqual(f.headers, list('abcde'))
-        rows = list(f.select())
+        rows = []
+
+        for row in f.select():
+            rows.append(row.dict)
         self.assertEqual(len(rows), 10)
-        self.assertEqual(sorted(rows[0].keys()), sorted(list('abcde')))
+        self.assertEqual(rows[0], {'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4})
+        self.assertEqual(rows[-1], {'a': 9, 'b': 10, 'c': 11, 'd': 12, 'e': 13})
 
     @unittest.skip('Not ready')
     def test_headers(self):

@@ -194,10 +194,9 @@ class Test(TestBase):
         self.assertEqual(rows[0], {'a': 0, 'b': 1, 'c': 2, 'd': 3, 'e': 4})
         self.assertEqual(rows[-1], {'a': 9, 'b': 10, 'c': 11, 'd': 12, 'e': 13})
 
-    @unittest.skip('Not ready')
     def test_headers(self):
 
-        fs = fsopendir('mem://')
+        fs = fsopendir('temp://')
 
         df = HDFPartition(fs, 'foobar')
 

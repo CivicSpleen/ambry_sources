@@ -479,15 +479,15 @@ class HDFWriter(object):
         self._write_meta()
         rows, clear_cache = (self.cache, True) if not rows else (rows, False)
 
+        if not rows:
+            return
+
         # convert columns to descriptor
         rows_descriptor = _get_rows_descriptor(self.columns)
 
         if 'rows' not in self._h5_file.root.partition:
             self._h5_file.create_table(
                 '/partition', 'rows', rows_descriptor, 'Rows (data) of the partition.')
-
-        if not rows:
-            return
 
         rows_table = self._h5_file.root.partition.rows
         partition_row = rows_table.row
@@ -936,6 +936,9 @@ class HDFReader(object):
         """ A raw iterator, which ignores the data start and stop rows and returns all rows, as rows. """
         # FIXME: Seems useless because start and stop rows are not used for HDF.
         try:
+            if 'rows' not in self._h5_file.root.partition:
+                # table with rows was not created.
+                raise StopIteration
             self._in_iteration = True
             table = self._h5_file.root.partition.rows
             for row in table.iterrows():
@@ -990,6 +993,9 @@ class HDFReader(object):
         """
         rp = RowProxy(self.headers)
         try:
+            if 'rows' not in self._h5_file.root.partition:
+                # rows table was not created.
+                raise StopIteration
             self._in_iteration = True
             table = self._h5_file.root.partition.rows
             for row in table.iterrows():

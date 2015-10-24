@@ -294,8 +294,6 @@ class HDFPartition(object):
         if self.n_rows:
             raise HDFError("Can't load_rows; rows already loaded. n_rows = {}".format(self.n_rows))
 
-        spec = getattr(source, 'spec', None)
-
         # None means to determine True or False from the existence of a row spec
         try:
 
@@ -540,13 +538,13 @@ class HDFWriter(object):
             columns (list of intuit.Column): schema (columns description) of the source.
 
         """
-
+        spec = getattr(source, 'spec', None)
         for i, row in enumerate(iter(source)):
-            if i < (source.spec.start_line or 1):
+            if spec and i < (spec.start_line or 1):
                 # skip comments and headers. If start line is empty, assuming first row is header.
                 continue
 
-            if source.spec.end_line and i > source.spec.end_line:
+            if spec and spec.end_line and i > spec.end_line:
                 # skip footer
                 break
             self.insert_row(row)
@@ -864,11 +862,6 @@ class HDFReader(object):
         # FIXME: move to the private methods.
         meta = deepcopy(HDFPartition.META_TEMPLATE)
         for child, group in meta.items():
-            try:
-                saved_data = self._read_meta_child(h5_file, child)
-            except NoSuchNodeError:
-                logger.warning('meta.{} table does not exist. Using default values.'.format(child))
-                saved_data = {}
             if child == 'schema':
                 # This is special case because schema table may have many rows.
                 # Convert all rows to list.
@@ -882,6 +875,11 @@ class HDFReader(object):
             else:
                 # This is common case when table contains exactly one row.
                 # Convert first row of the table to dict.
+                try:
+                    saved_data = self._read_meta_child(h5_file, child)
+                except NoSuchNodeError:
+                    logger.warning('meta.{} table does not exist. Using default values.'.format(child))
+                    saved_data = {}
                 for k, default_value in group.items():
                     meta[child][k] = saved_data.get(k, default_value)
         return meta

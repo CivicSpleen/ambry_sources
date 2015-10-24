@@ -239,19 +239,27 @@ class Test(TestBase):
             self.assertEqual('C', schema(3, 3))
             self.assertEqual('D', schema(4, 3))
 
-    @unittest.skip('Not ready')
+    @unittest.skip('Is broken because source has strings in the columns recognized as float.')
     def test_stats(self):
         """Check that the sources can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
 
         cache_fs = fsopendir('temp://')
-        #cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources.csv')
 
-        s = get_source(sources['simple_stats'], cache_fs)
+        source = get_source(sources['simple_stats'], cache_fs)
 
-        f = HDFPartition(cache_fs, s.spec.name).load_rows(s, run_stats=True)
+        f = HDFPartition(cache_fs, source.spec.name)
+
+        with f.writer as w:
+            ri = RowIntuiter().run(source)
+            row_spec = self._row_intuiter_to_dict(ri)
+            ti = TypeIntuiter().process_header(ri.headers).run(source)
+            w.set_row_spec(row_spec, ri.headers)
+            w.set_types(ti)
+
+        f.load_rows(source, run_stats=True)
 
         vals = {u'str_a':   (30, None, None, None, 10),
                 u'str_b':   (30, None, None, None, 10),

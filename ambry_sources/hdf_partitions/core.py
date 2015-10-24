@@ -494,11 +494,13 @@ class HDFWriter(object):
 
         # h5 colnames order has to match to columns order to provide proper iteration over rows.
         assert self.headers == rows_table.colnames
-        colnames = list(enumerate(rows_table.colnames))
+        description = [
+            (col_name, getattr(rows_table.description, col_name)) for col_name in rows_table.colnames]
         for row in rows:
-            for i, col in colnames:
-                value = _serialize(rows_table.coltypes[col], row[i])
-                partition_row[col] = value
+            for col_name, col_desc in description:
+                value = _serialize(col_desc, row[col_desc._v_pos])
+                value = value or _get_default(col_desc.__class__)
+                partition_row[col_name] = value
             partition_row.append()
         rows_table.flush()
 
@@ -1091,7 +1093,7 @@ def _get_rows_descriptor(columns):
     return descriptor
 
 
-def _get_default(pytables_type):
+def _get_default(col_type):
     """ Returns default value for given pytable type. """
     TYPE_MAP = {
         Int64Col: 0,
@@ -1100,24 +1102,25 @@ def _get_default(pytables_type):
         StringCol: '',
         BoolCol: False
     }
-    return TYPE_MAP[pytables_type]
+    return TYPE_MAP[col_type]
 
 
 def _serialize(col_type, value):
     """ Converts value to format ready to save to h5 file. """
     # FIXME: add unit tests
+    TYPE_MAP = {
+        Int64Col: MIN_INT64,
+        Int32Col: MIN_INT32,
+        Float64Col: float('nan'),
+        StringCol: '',
+    }
+
     if value is not None:
         return value
 
-    if col_type == 'string':
-        return ''
-    elif col_type == 'float64':
-        return float('nan')
-    elif col_type == 'int32':
-        return MIN_INT32
-    elif col_type == 'int64':
-        return MIN_INT64
-    return value
+    if col_type not in TYPE_MAP:
+        return value
+    return TYPE_MAP[col_type]
 
 
 def _deserialize(value):

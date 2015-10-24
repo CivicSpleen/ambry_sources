@@ -498,8 +498,10 @@ class HDFWriter(object):
             (col_name, getattr(rows_table.description, col_name)) for col_name in rows_table.colnames]
         for row in rows:
             for col_name, col_desc in description:
-                value = _serialize(col_desc, row[col_desc._v_pos])
+                value = _serialize(col_desc.__class__, row[col_desc._v_pos])
                 value = value or _get_default(col_desc.__class__)
+                if isinstance(value, text_type):
+                    value = value.encode('utf-8')
                 partition_row[col_name] = value
             partition_row.append()
         rows_table.flush()
@@ -1116,13 +1118,17 @@ def _serialize(col_type, value):
         Float64Col: float('nan'),
         StringCol: '',
     }
+    force = False
 
-    if value is not None:
-        return value
+    if value is None:
+        force = True
 
-    if col_type not in TYPE_MAP:
-        return value
-    return TYPE_MAP[col_type]
+    elif isinstance(value, string_types) and value == 'NA':
+        force = True
+
+    if force and col_type in TYPE_MAP:
+        return TYPE_MAP[col_type]
+    return value
 
 
 def _deserialize(value):

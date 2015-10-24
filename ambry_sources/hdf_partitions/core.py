@@ -682,6 +682,8 @@ class HDFWriter(object):
                     value = json.dumps(col_descr[i] or '')
                 else:
                     value = col_descr[i] or _get_default(descriptor[col_name].__class__)
+                    if isinstance(value, text_type):
+                        value = value.encode('utf-8')
                 row[col_name] = value
             row.append()
         table.flush()

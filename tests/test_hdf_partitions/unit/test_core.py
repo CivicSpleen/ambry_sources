@@ -565,18 +565,25 @@ class HDFReaderTest(TestBase):
             self.assertEqual(len(rows), 4)
             self.assertFalse(reader._in_iteration)
 
-    # __enter__, __exit__ (with) tests
-    @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta')
-    def test_with(self, fake_read):
-        fake_read.return_value = {}
+    # __enter__ tests
+    def test_returns_self(self):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
         filename = temp_fs.getsyspath('temp.h5')
         self._create_h5(filename)
 
-        # now read it from file.
-        with HDFReader(parent, filename) as reader:
-            rows = []
-            for row in reader:
-                rows.append(row)
-            self.assertEqual(len(rows), 5)
+        reader = HDFReader(parent, filename)
+        self.assertEqual(
+            reader, reader.__enter__())
+
+    # __exit__ tests
+    @patch('ambry_sources.hdf_partitions.core.HDFReader.close')
+    def test_closes_reader(self, fake_close):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        filename = temp_fs.getsyspath('temp.h5')
+        self._create_h5(filename)
+
+        reader = HDFReader(parent, filename)
+        reader.__exit__(None, None, None)
+        fake_close.assert_called_once_with()

@@ -113,9 +113,7 @@ class Test(TestBase):
         }
 
         for source_name, spec in sources.items():
-            if source_name == 'simple_stats':
-                # FIXME: Some rows contains 'string' word in the float column. Waiting for fix.
-                continue
+            print('\n---{}---\n'.format(source_name))
             s = get_source(spec, cache_fs)
 
             f = HDFPartition(cache_fs, spec.name)

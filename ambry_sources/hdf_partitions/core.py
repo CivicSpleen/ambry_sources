@@ -387,7 +387,7 @@ class HDFWriter(object):
         if not isinstance(filename, string_types):
             # FIXME: add tests
             raise ValueError(
-                'Pytables requires string with filename. Got {} instead.'
+                'Pytables requires filename parameter as string. Got {} instead.'
                 .format(filename.__class__))
 
         self.parent = parent
@@ -1110,6 +1110,20 @@ def _get_default(col_type):
 def _serialize(col_type, value):
     """ Converts value to format ready to save to h5 file. """
     # FIXME: add unit tests
+    if col_type == Float64Col:
+        try:
+            float(value)
+        except (TypeError, ValueError):
+            # it is not a valid float.
+            value = None
+
+    if col_type in (Int32Col, Int64Col):
+        try:
+            int(value)
+        except (TypeError, ValueError):
+            # it is not a valid int.
+            value = None
+
     TYPE_MAP = {
         Int64Col: MIN_INT64,
         Int32Col: MIN_INT32,

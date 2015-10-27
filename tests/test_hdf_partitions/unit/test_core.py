@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
+import json
 
 from fs.opener import fsopendir
-from tables import open_file, Float64Col, StringCol, Int64Col
+from tables import open_file, Float64Col, StringCol, Int64Col, Int32Col
 
 from ambry_sources.sources.util import RowProxy
 
@@ -240,7 +241,7 @@ class HDFWriterTest(TestBase):
         self.assertIsNone(writer._h5_file)
         self.assertEqual(h5_file.isopen, 0)
 
-    # write_meta tests
+    # _write_meta tests
     def test_writes_meta(self):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
@@ -355,6 +356,27 @@ class HDFWriterTest(TestBase):
         self.assertEqual(
             [(x['encoding'], x['url']) for x in writer._h5_file.root.partition.meta.source.iterrows()],
             [('utf-8', 'http://example.com')])
+
+    # _save_meta_child tests
+    def test_converts_header_rows_and_comment_rows_to_json_string(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer._validate_groups()
+        writer.meta['row_spec']['comment_rows'] = [0, 1]
+        writer.meta['row_spec']['header_rows'] = [2, 3]
+        descriptor = {
+            'end_row': Int32Col(),
+            'header_rows': StringCol(itemsize=255),
+            'start_row': Int32Col(),
+            'comment_rows': StringCol(itemsize=255),
+            'data_pattern': StringCol(itemsize=255)
+        }
+        writer._save_meta_child('row_spec', descriptor)
+
+        self.assertEqual(
+            [(x['comment_rows'], x['header_rows']) for x in writer._h5_file.root.partition.meta.row_spec.iterrows()],
+            [('[0, 1]', '[2, 3]')])
 
 
 class HDFReaderTest(TestBase):
@@ -502,6 +524,30 @@ class HDFReaderTest(TestBase):
 
             self.assertIn('create_time', ret)
             self.assertEqual(ret['create_time'], 1.1)
+
+    def test_converts_comment_rows_and_header_rows_json_to_list(self):
+        temp_fs = fsopendir('temp://')
+
+        # save meta.row_spec to the file.
+        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
+            descriptor = {  # this is not valid descriptor, but I do not need it to be valid here.
+                'header_rows': StringCol(itemsize=255),
+                'comment_rows': StringCol(itemsize=255),
+            }
+            h5.create_group('/partition', 'meta', createparents=True)
+            h5.create_table('/partition/meta', 'row_spec', descriptor, 'meta.row_spec')
+            table = h5.root.partition.meta.row_spec
+            row = table.row
+            row['comment_rows'] = json.dumps([0, 1])
+            row['header_rows'] = json.dumps([2, 3])
+            row.append()
+            table.flush()
+
+        # now read it from file.
+        with open_file(temp_fs.getsyspath('temp.h5'), 'r') as h5:
+            ret = HDFReader._read_meta_child(h5, 'row_spec')
+            self.assertEqual(ret['comment_rows'], [0, 1])
+            self.assertEqual(ret['header_rows'], [2, 3])
 
     # columns test
     def test_contains_columns_specifications(self):

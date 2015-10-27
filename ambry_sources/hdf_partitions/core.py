@@ -125,8 +125,8 @@ class HDFPartition(object):
         """
 
         Args:
-            url_or_fs FIXME:
-            path FIXME:
+            url_or_fs (str or filesystem):
+            path (str):
         """
         from fs.opener import opener
 
@@ -284,8 +284,8 @@ class HDFPartition(object):
         """ Loads rows from given source.
 
         Args:
-            source (FIXME:):
-            run_stats (boolean, optional): if True then run and save stat to meta.
+            source (iFIXME:):
+            run_stats (boolean, optional): if True then collect stat and save it to meta.
 
         Returns:
             HDFPartition:
@@ -301,12 +301,10 @@ class HDFPartition(object):
             self._start_time = time.time()
 
             with self.writer as w:
-
                 w.load_rows(source)
 
             if run_stats:
                 self.run_stats()
-
         finally:
             self._process = None
 
@@ -319,7 +317,7 @@ class HDFPartition(object):
         return self._reader
 
     def __iter__(self):
-        """Iterate over a reader"""
+        """ Iterate over a reader. """
 
         # There is probably a more efficient way in python 2 to do this than to have another yield loop,
         # but just returning the reader iterator doesn't work
@@ -377,21 +375,17 @@ class HDFPartition(object):
 
 class HDFWriter(object):
 
-    VERSION = HDFPartition.VERSION
-    SCHEMA_TEMPLATE = HDFPartition.SCHEMA_TEMPLATE
-
     def __init__(self, parent, filename):
         from copy import deepcopy
         import re
 
         if not isinstance(filename, string_types):
-            # FIXME: add tests
             raise ValueError(
                 'Pytables requires filename parameter as string. Got {} instead.'
                 .format(filename.__class__))
 
         self.parent = parent
-        self.version = self.VERSION
+        self.version = HDFPartition.VERSION
 
         self.n_rows = 0
         self.n_cols = 0
@@ -399,8 +393,6 @@ class HDFWriter(object):
         self.cache = []
 
         if os.path.exists(filename):
-            # FIXME: Add tests for that case.
-            # HDFPartition.read_file_header(self, self._h5_file)
             self._h5_file = open_file(filename, mode='a')
             self.meta = HDFReader._read_meta(self._h5_file)
         else:
@@ -564,8 +556,6 @@ class HDFWriter(object):
 
         if self._h5_file:
             self._write_rows()
-            # FIXME: Write meta.
-            # self._write_meta()
             self._h5_file.close()
             self._h5_file = None
 
@@ -593,7 +583,7 @@ class HDFWriter(object):
 
         Args:
             child (str): name of the child.
-            descriptor (FIXME:): descriptor of the table.
+            descriptor (dict): descriptor of the table.
 
         """
         # always re-create table on save. It works better than rows removing.
@@ -911,9 +901,15 @@ class HDFReader(object):
             dict:
         """
         table = getattr(h5_file.root.partition.meta, child)
+        ret = {}
         for row in table.iterrows():
-            return {c: row[c] for c in table.colnames}
-        return {}
+            for c in table.colnames:
+                v = row[c]
+                if c in ('header_rows', 'comment_rows'):
+                    v = json.loads(v)
+                ret[c] = v
+            return ret
+        return ret
 
     @property
     def columns(self):

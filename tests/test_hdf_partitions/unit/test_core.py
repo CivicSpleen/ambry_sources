@@ -286,7 +286,7 @@ class HDFWriterTest(TestBase):
         parent = MagicMock()
         writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
         writer.meta['excel']['worksheet'] = 'sheet1'
-        writer.meta['excel']['datemode'] = 'mode1'
+        writer.meta['excel']['datemode'] = 1
         writer._write_meta()
 
         self.assertEqual(writer.cache, [])
@@ -294,7 +294,7 @@ class HDFWriterTest(TestBase):
         self.assertTrue(writer._h5_file.root.partition.meta, 'excel')
         self.assertEqual(
             [(x['worksheet'], x['datemode']) for x in writer._h5_file.root.partition.meta.excel.iterrows()],
-            [('sheet1', 'mode1')])
+            [('sheet1', 1)])
 
     def test_writes_meta_geo(self):
         temp_fs = fsopendir('temp://')

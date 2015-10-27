@@ -163,7 +163,6 @@ class HDFPartition(object):
     @classmethod
     def read_file_header(cls, o, fh):
         # FIXME: Add tests or remove if not used.
-        # FIXME:
         try:
             o.version, o.n_rows, o.n_cols = (1, 1, 1)
         except struct.error as e:
@@ -234,7 +233,7 @@ class HDFPartition(object):
         """ Loads rows from given source.
 
         Args:
-            source (FIXME:):
+            source (SourceFile):
             run_stats (boolean, optional): if True then collect stat and save it to meta.
 
         Returns:
@@ -538,7 +537,7 @@ class HDFWriter(object):
         """ Copy stats into the schema.
 
         Args:
-            stats (FIXME:):
+            stats (Stats):
 
         """
 
@@ -732,7 +731,7 @@ class HDFWriter(object):
             'kurtosis': Float64Col(),  # FIXME: Ask Eric about type.
             'hist': StringCol(itemsize=255),  # FIXME: Ask Eric about type.
             'text_hist': StringCol(itemsize=255),
-            'uvalues': StringCol(itemsize=255)  # FIXME: Ask Eric about type.
+            'uvalues': StringCol(itemsize=5000)  # FIXME: Ask Eric about type.
         }
         # always re-create table on save. It works better than rows removing.
         if 'schema' in self._h5_file.root.partition.meta:
@@ -762,12 +761,11 @@ class HDFWriter(object):
     def _save_excel(self):
         descriptor = {
             'worksheet': StringCol(itemsize=255),
-            'datemode': StringCol(itemsize=255)  # FIXME: Check datemode again. Is it string?
+            'datemode': Int32Col()
         }
         self._save_meta_child('excel', descriptor)
 
     def _save_comments(self):
-        # FIXME: do we really need to store header and footer? HDF can contains rows only.
         descriptor = {
             'header': StringCol(itemsize=255),
             'footer': StringCol(itemsize=255)
@@ -846,12 +844,7 @@ class HDFReader(object):
 
     @property
     def columns(self):
-        """ Returns columns specifications in the ambry_source format.
-
-        Returns:
-            list of FIXME:
-
-        """
+        """ Returns columns specifications in the ambry_source format. """
         return HDFPartition._columns(self)
 
     @property
@@ -867,7 +860,6 @@ class HDFReader(object):
     @property
     def raw(self):
         """ A raw iterator, which ignores the data start and stop rows and returns all rows, as rows. """
-        # FIXME: Seems useless because start and stop rows are not used for HDF.
         try:
             if 'rows' not in self._h5_file.root.partition:
                 # table with rows was not created.
@@ -909,7 +901,6 @@ class HDFReader(object):
     @property
     def rows(self):
         """ Iterator for reading rows. """
-
         # For HDF it's exactly the same as raw iterator.
         return self.raw
 
@@ -981,7 +972,7 @@ class HDFReader(object):
 
     def close(self):
         if self._h5_file:
-            self.meta  # In case caller wants to read mea after close.
+            self.meta  # In case caller wants to read meta after close.
             self._h5_file.close()
             self._h5_file = None
             if self.parent:
@@ -1060,7 +1051,7 @@ def _get_rows_descriptor(columns):
         'int': lambda pos: Int32Col(pos=pos),
         'long': lambda pos: Int64Col(pos=pos),
         'str': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: What is the size?
-        'float': lambda pos: Float64Col(shape=(2, 3), pos=pos),  # FIXME: What is shape for?
+        'float': lambda pos: Float64Col(pos=pos),
         'unknown': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: What is the size?
     }
     descriptor = {}

@@ -512,7 +512,7 @@ class HDFWriter(object):
         """ Write the version, number of rows and number of cols to the h5 file. """
 
         if 'file_header' in self._h5_file.root.partition:
-            self._h5_file.remove_node('/partition/', 'file_header')
+            self._h5_file.remove_node('/partition', 'file_header')
 
         descriptor = {
             'version': Int32Col(),

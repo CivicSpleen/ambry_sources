@@ -284,7 +284,7 @@ class HDFPartition(object):
         """ Loads rows from given source.
 
         Args:
-            source (iFIXME:):
+            source (FIXME:):
             run_stats (boolean, optional): if True then collect stat and save it to meta.
 
         Returns:
@@ -597,7 +597,6 @@ class HDFWriter(object):
         row = table.row
         for k, v in self.meta[child].items():
             if k in ('header_rows', 'comment_rows'):
-                # FIXME: Add tests for saving and restoring.
                 v = json.dumps(v or '')
             row[k] = v or _get_default(descriptor[k].__class__)
         row.append()
@@ -650,7 +649,7 @@ class HDFWriter(object):
             'kurtosis': Float64Col(),  # FIXME: Ask Eric about type.
             'hist': StringCol(itemsize=255),  # FIXME: Ask Eric about type.
             'text_hist': StringCol(itemsize=255),
-            'uvalues': StringCol(itemsize=255)  # Ask Eric about type.
+            'uvalues': StringCol(itemsize=255)  # FIXME: Ask Eric about type.
         }
         # always re-create table on save. It works better than rows removing.
         if 'schema' in self._h5_file.root.partition.meta:
@@ -668,7 +667,6 @@ class HDFWriter(object):
         for col_descr in self.meta['schema'][1:]:
             for i, col_name in enumerate(schema):
                 if col_name in ('hist', 'uvalues'):
-                    # FIXME: Convert to list on read. Add unit tests for both.
                     value = json.dumps(col_descr[i] or '')
                 else:
                     value = col_descr[i] or _get_default(descriptor[col_name].__class__)
@@ -856,17 +854,20 @@ class HDFReader(object):
                 # This is special case because schema table may have many rows.
                 # Convert all rows to list.
                 new_schema = [HDFPartition.SCHEMA_TEMPLATE]
-                for col_descr in self._read_meta_schema(h5_file):
+                for col_descr in self._read_meta_child(h5_file, 'schema'):
                     col = []
                     for e in HDFPartition.SCHEMA_TEMPLATE:
                         col.append(col_descr.get(e))
                     new_schema.append(col)
                 meta['schema'] = new_schema
             else:
-                # This is common case when table contains exactly one row.
-                # Convert first row of the table to dict.
+                # This is common case when table should contain exactly one row.
                 try:
                     saved_data = self._read_meta_child(h5_file, child)
+                    if saved_data:
+                        saved_data = saved_data[0]
+                    else:
+                        saved_data = {}
                 except NoSuchNodeError:
                     logger.warning('meta.{} table does not exist. Using default values.'.format(child))
                     saved_data = {}
@@ -875,24 +876,8 @@ class HDFReader(object):
         return meta
 
     @classmethod
-    def _read_meta_schema(self, h5_file):
-        """ Reads all rows from meta.schema table to dict and returns it.
-
-        Args:
-            h5_file (FIXME:):
-
-        Returns:
-            list of dict:
-        """
-        table = h5_file.root.partition.meta.schema
-        ret = []
-        for row in table.iterrows():
-            ret.append({c: row[c] for c in table.colnames})
-        return ret
-
-    @classmethod
     def _read_meta_child(self, h5_file, child):
-        """ Reads first row from `child` table of h5 file and returns it.
+        """ Reads all rows from `child` table of h5 file and returns it.
 
         Args:
             child (str): name of the table from h5 file.
@@ -901,14 +886,15 @@ class HDFReader(object):
             dict:
         """
         table = getattr(h5_file.root.partition.meta, child)
-        ret = {}
+        ret = []
         for row in table.iterrows():
+            elem = {}
             for c in table.colnames:
                 v = row[c]
-                if c in ('header_rows', 'comment_rows'):
+                if c in ('header_rows', 'comment_rows', 'hist', 'uvalues'):
                     v = json.loads(v)
-                ret[c] = v
-            return ret
+                elem[c] = v
+            ret.append(elem)
         return ret
 
     @property

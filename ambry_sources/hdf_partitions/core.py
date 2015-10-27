@@ -166,7 +166,7 @@ class HDFPartition(object):
         try:
             o.version, o.n_rows, o.n_cols = (1, 1, 1)
         except struct.error as e:
-            raise IOError("Failed to read file header; {}; path = {}".format(e, o.parent.path))
+            raise IOError('Failed to read file header; {}; path = {}'.format(e, o.parent.path))
 
     @property
     def info(self):
@@ -516,8 +516,26 @@ class HDFWriter(object):
                 self.parent._writer = None
 
     def write_file_header(self):
-        """Write the magic number, version and the file_header dictionary.  """
-        HDFPartition.write_file_header(self, self._h5_file)
+        """ Write the version, number of rows and number of cols to the h5 file. """
+
+        if 'file_header' in self._h5_file.root.partition:
+            self._h5_file.remove_node('/partition/', 'file_header')
+
+        descriptor = {
+            'version': Int32Col(),
+            'n_rows': Int32Col(),
+            'n_cols': Int32Col()
+        }
+
+        table = self._h5_file.create_table(
+            '/partition', 'file_header',
+            descriptor, 'Header of the file.')
+
+        table.row['version'] = HDFPartition.VERSION
+        table.row['n_rows'] = self.n_rows
+        table.row['n_cols'] = self.n_cols
+        table.row.append()
+        table.flush()
 
     def set_types(self, ti):
         """ Set Types from a type intuiter object. """
@@ -672,10 +690,9 @@ class HDFWriter(object):
         if child in self._h5_file.root.partition.meta:
             self._h5_file.remove_node('/partition/meta', child)
 
-        self._h5_file.create_table(
+        table = self._h5_file.create_table(
             '/partition/meta', child,
             descriptor, 'meta.{}'.format(child))
-        table = getattr(self._h5_file.root.partition.meta, child)
         row = table.row
         for k, v in self.meta[child].items():
             if k in ('header_rows', 'comment_rows'):
@@ -805,7 +822,7 @@ class HDFReader(object):
     """ Read an h5 file. """
 
     def __init__(self, parent, filename):
-        """Reads the file_header and prepares for iterating over rows.
+        """ Reads the filename and prepares for iterating over rows.
 
         Args:
             parent (HDFPartition):

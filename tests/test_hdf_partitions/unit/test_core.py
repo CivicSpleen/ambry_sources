@@ -241,6 +241,22 @@ class HDFWriterTest(TestBase):
         self.assertIsNone(writer._h5_file)
         self.assertEqual(h5_file.isopen, 0)
 
+    # write_file_header tests
+    def test_writes_file_header_to_table(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer._validate_groups()
+        writer.n_rows = 2
+        writer.n_cols = 3
+        writer.write_file_header()
+
+        self.assertIn('file_header', writer._h5_file.root.partition)
+        table = writer._h5_file.root.partition.file_header
+        self.assertEqual(
+            [(x['version'], x['n_rows'], x['n_cols']) for x in table.iterrows()],
+            [(1, 2, 3)])
+
     # _write_meta tests
     def test_writes_meta(self):
         temp_fs = fsopendir('temp://')

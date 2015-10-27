@@ -412,7 +412,7 @@ class BasicTestSuite(TestBase):
         guesses for headers and start are as expected"""
 
         cache_fs = fsopendir('temp://')
-        #cache_fs = fsopendir('/tmp/ritest/')
+        # cache_fs = fsopendir('/tmp/ritest/')
 
         sources = self.load_sources('sources.csv')
 
@@ -431,9 +431,11 @@ class BasicTestSuite(TestBase):
         with f.reader as r:
 
             for col in r.columns:
-                for a,b in zip(vals[col.name],(col.stat_count, col.min, round(col.mean,1) if col.mean else None,
-                                               col.max, col.nuniques)):
-                    self.assertEqual(a,b,col.name)
+                stats = (col.stat_count, col.min, round(col.mean, 1) if col.mean else None,
+                         col.max,
+                         col.nuniques)
+                for a, b in zip(vals[col.name], stats):
+                    self.assertEqual(a, b, col.name)
 
     def test_datafile(self):
         """

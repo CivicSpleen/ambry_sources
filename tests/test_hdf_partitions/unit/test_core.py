@@ -123,6 +123,37 @@ class HDFWriterTest(TestBase):
                 col.append(predefined.get(el, ''))
         return col
 
+    # __init__ tests
+    def test_raises_value_error_if_not_string_filename_given(self):
+        parent = MagicMock()
+        try:
+            HDFWriter(parent, MagicMock())
+            raise AssertionError('ValueError exception was not raised.')
+        except ValueError as exc:
+            self.assertIn('requires filename parameter as string', str(exc))
+
+    @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta')
+    @patch('ambry_sources.hdf_partitions.core.open_file')
+    def test_opens_existing_file_in_append_mode(self, fake_open, fake_read):
+        fake_read.return_value = {'about': {}}
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        filename = temp_fs.getsyspath('temp.h5')
+        _create_h5(filename)
+        HDFWriter(parent, filename)
+        self.assertEqual(fake_open.mock_calls, [call(filename, mode='a')])
+
+    @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta')
+    @patch('ambry_sources.hdf_partitions.core.open_file')
+    def test_reads_meta_from_existing_file(self, fake_open, fake_read):
+        fake_read.return_value = {'about': {}}
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        filename = temp_fs.getsyspath('temp.h5')
+        _create_h5(filename)
+        HDFWriter(parent, filename)
+        self.assertTrue(fake_read.called)
+
     # _write_rows test
     def test_writes_given_rows(self):
         temp_fs = fsopendir('temp://')
@@ -329,23 +360,7 @@ class HDFWriterTest(TestBase):
 class HDFReaderTest(TestBase):
 
     def _create_h5(self, filename):
-        # save meta.about to the file.
-        with open_file(filename, 'w') as h5:
-            descriptor = {
-                'field1': Float64Col(),
-                'field2': Float64Col(),
-                'field3': Float64Col()
-            }
-            h5.create_group('/partition', 'meta', createparents=True)
-            h5.create_table('/partition', 'rows', descriptor)
-            table = h5.root.partition.rows
-            row = table.row
-            for i in range(5):
-                row['field1'] = float(i)
-                row['field2'] = float(i)
-                row['field2'] = float(i)
-                row.append()
-            table.flush()
+        _create_h5(filename)
 
     # _write_rows test
     def test_raises_ValueError_if_file_like_given(self):
@@ -587,3 +602,23 @@ class HDFReaderTest(TestBase):
         reader = HDFReader(parent, filename)
         reader.__exit__(None, None, None)
         fake_close.assert_called_once_with()
+
+
+def _create_h5(filename):
+    # save meta.about to the file.
+    with open_file(filename, 'w') as h5:
+        descriptor = {
+            'field1': Float64Col(),
+            'field2': Float64Col(),
+            'field3': Float64Col()
+        }
+        h5.create_group('/partition', 'meta', createparents=True)
+        h5.create_table('/partition', 'rows', descriptor)
+        table = h5.root.partition.rows
+        row = table.row
+        for i in range(5):
+            row['field1'] = float(i)
+            row['field2'] = float(i)
+            row['field2'] = float(i)
+            row.append()
+        table.flush()

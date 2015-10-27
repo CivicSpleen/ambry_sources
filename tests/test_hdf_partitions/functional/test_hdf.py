@@ -113,7 +113,6 @@ class Test(TestBase):
         }
 
         for source_name, spec in sources.items():
-            print('\n---{}---\n'.format(source_name))
             s = get_source(spec, cache_fs)
 
             f = HDFPartition(cache_fs, spec.name)

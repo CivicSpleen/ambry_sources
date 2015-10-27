@@ -11,6 +11,7 @@ import math
 import struct
 import time
 import os
+import re
 
 from tables import open_file, StringCol, Int64Col, Float64Col, BoolCol, Int32Col
 from tables.exceptions import NoSuchNodeError
@@ -168,60 +169,9 @@ class HDFPartition(object):
         except struct.error as e:
             raise IOError("Failed to read file header; {}; path = {}".format(e, o.parent.path))
 
-    @classmethod
-    def _columns(cls, o, n_cols=0):
-        """ Wraps columns from meta['schema'] with RowProxy and generates them.
-
-        Args:
-            o (any having .meta dict attr):
-
-        Generates:
-            RowProxy: column wrapped with RowProxy
-
-        """
-        s = o.meta['schema']
-
-        assert len(s) >= 1  # Should always have header row.
-        assert o.meta['schema'][0] == HDFPartition.SCHEMA_TEMPLATE, (o.meta['schema'][0], HDFPartition.SCHEMA_TEMPLATE)
-
-        # n_cols here is for columns in the data table, which are rows in the headers table
-        n_cols = max(n_cols, o.n_cols, len(s) - 1)
-
-        for i in range(1, n_cols + 1):
-            # Normally, we'd only create one of these, and set the row on the singleton for
-            # each row. But in this case, the caller may turn the output of the method into a list,
-            # in which case all of the rows would have the values of the last one.
-            rp = RowProxy(s[0])
-            try:
-                row = s[i]
-            except IndexError:
-                # Extend the row, but make sure the pos value is set property.
-                ext_row = [i, 'col{}'.format(i)] + [None] * (len(s[0]) - 2)
-                s.append(ext_row)
-                row = s[i]
-
-            yield rp.set_row(row)
-
-        assert o.meta['schema'][0] == HDFPartition.SCHEMA_TEMPLATE
-
     @property
     def info(self):
         return self._info(self.reader)
-
-    @classmethod
-    def _info(cls, o):
-        return dict(
-            version=o.version,
-            data_start_pos=o.data_start,
-            meta_start_pos=o.meta_start,
-            rows=o.n_rows,
-            cols=o.n_cols,
-            header_rows=o.meta['row_spec']['header_rows'],
-            data_start_row=0,
-            data_end_row=None,
-            comment_rows=o.meta['row_spec']['comment_rows'],
-            headers=o.headers
-        )
 
     @property
     def exists(self):
@@ -372,12 +322,61 @@ class HDFPartition(object):
 
         return (self._process, rec, total, rate)
 
+    @classmethod
+    def _columns(cls, o, n_cols=0):
+        """ Wraps columns from meta['schema'] with RowProxy and generates them.
+
+        Args:
+            o (any having .meta dict attr):
+
+        Generates:
+            RowProxy: column wrapped with RowProxy
+
+        """
+        s = o.meta['schema']
+
+        assert len(s) >= 1  # Should always have header row.
+        assert o.meta['schema'][0] == HDFPartition.SCHEMA_TEMPLATE, (o.meta['schema'][0], HDFPartition.SCHEMA_TEMPLATE)
+
+        # n_cols here is for columns in the data table, which are rows in the headers table
+        n_cols = max(n_cols, o.n_cols, len(s) - 1)
+
+        for i in range(1, n_cols + 1):
+            # Normally, we'd only create one of these, and set the row on the singleton for
+            # each row. But in this case, the caller may turn the output of the method into a list,
+            # in which case all of the rows would have the values of the last one.
+            rp = RowProxy(s[0])
+            try:
+                row = s[i]
+            except IndexError:
+                # Extend the row, but make sure the pos value is set property.
+                ext_row = [i, 'col{}'.format(i)] + [None] * (len(s[0]) - 2)
+                s.append(ext_row)
+                row = s[i]
+
+            yield rp.set_row(row)
+
+        assert o.meta['schema'][0] == HDFPartition.SCHEMA_TEMPLATE
+
+    @classmethod
+    def _info(cls, o):
+        return dict(
+            version=o.version,
+            data_start_pos=o.data_start,
+            meta_start_pos=o.meta_start,
+            rows=o.n_rows,
+            cols=o.n_cols,
+            header_rows=o.meta['row_spec']['header_rows'],
+            data_start_row=0,
+            data_end_row=None,
+            comment_rows=o.meta['row_spec']['comment_rows'],
+            headers=o.headers
+        )
+
 
 class HDFWriter(object):
 
     def __init__(self, parent, filename):
-        from copy import deepcopy
-        import re
 
         if not isinstance(filename, string_types):
             raise ValueError(
@@ -458,51 +457,6 @@ class HDFWriter(object):
 
         raise KeyError("Didn't find '{}' as either a name nor a position ".format(name_or_pos))
 
-    def _validate_groups(self):
-        """ Checks and creates needded groups in the h5 file. """
-        if 'partition' not in self._h5_file.root:
-            self._h5_file.create_group('/', 'partition', 'Partition.')
-        if 'meta' not in self._h5_file.root.partition:
-            self._h5_file.create_group('/partition', 'meta', 'Meta information of the partition.')
-
-    def _write_rows(self, rows=None):
-        self._write_meta()
-        rows, clear_cache = (self.cache, True) if not rows else (rows, False)
-
-        if not rows:
-            return
-
-        # convert columns to descriptor
-        rows_descriptor = _get_rows_descriptor(self.columns)
-
-        if 'rows' not in self._h5_file.root.partition:
-            self._h5_file.create_table(
-                '/partition', 'rows', rows_descriptor, 'Rows (data) of the partition.')
-
-        rows_table = self._h5_file.root.partition.rows
-        partition_row = rows_table.row
-
-        # h5 colnames order has to match to columns order to provide proper iteration over rows.
-        assert self.headers == rows_table.colnames
-        description = [
-            (col_name, getattr(rows_table.description, col_name)) for col_name in rows_table.colnames]
-        for row in rows:
-            for col_name, col_desc in description:
-                value = _serialize(col_desc.__class__, row[col_desc._v_pos])
-                value = value or _get_default(col_desc.__class__)
-                if isinstance(value, text_type):
-                    value = value.encode('utf-8')
-                partition_row[col_name] = value
-            partition_row.append()
-        rows_table.flush()
-
-        # Hope that the max # of cols is found in the first 100 rows
-        # FIXME! This won't work if rows is an interator.
-        self.n_cols = reduce(max, (len(e) for e in rows[:100]), self.n_cols)
-
-        if clear_cache:
-            self.cache = []
-
     def insert_row(self, row):
 
         self.n_rows += 1
@@ -565,6 +519,135 @@ class HDFWriter(object):
     def write_file_header(self):
         """Write the magic number, version and the file_header dictionary.  """
         HDFPartition.write_file_header(self, self._h5_file)
+
+    def set_types(self, ti):
+        """ Set Types from a type intuiter object. """
+
+        results = {int(r['position']): r for r in ti._dump()}
+
+        for i in range(len(results)):
+
+            for k, v in iteritems(results[i]):
+                k = {'count': 'type_count'}.get(k, k)
+                self.column(i + 1)[k] = v
+
+            if not self.column(i + 1).type:
+                self.column(i + 1).type = results[i]['resolved_type']
+
+    def set_stats(self, stats):
+        """ Copy stats into the schema.
+
+        Args:
+            stats (FIXME:):
+
+        """
+
+        for name, stat_set in iteritems(stats.dict):
+            row = self.column(name)
+
+            for k, v in iteritems(stat_set.dict):
+                k = {'count': 'stat_count'}.get(k, k)
+                row[k] = v
+
+    def set_source_spec(self, spec):
+        """Set the metadata coresponding to the SourceSpec, excluding the row spec parts. """
+
+        ms = self.meta['source']
+
+        ms['url'] = spec.url
+        ms['fetch_time'] = spec.download_time
+        ms['file_type'] = spec.filetype
+        ms['url_type'] = spec.urltype
+        ms['encoding'] = spec.encoding
+
+        me = self.meta['excel']
+        me['worksheet'] = spec.segment
+
+        if spec.columns:
+
+            for i, sc in enumerate(spec.columns, 1):
+                c = self.column(i)
+
+                if c.name:
+                    assert sc.name == c.name
+
+                c.start = sc.start
+                c.width = sc.width
+
+    def set_row_spec(self, row_spec, headers):
+        """ Saves row_spec to meta and populates headers.
+
+        Args:
+            row_spec (dict): dict with rows specifications
+                Example: {
+                    'header_rows': [1,2],
+                    'comment_rows': [0],
+                    'start_row': 3,
+                    'end_row': None,
+                    'data_pattern': ''
+                }
+
+        """
+
+        self.data_start_row = row_spec['start_row']
+        self.data_end_row = row_spec['end_row']
+        self.meta['row_spec'] = row_spec
+        self.headers = [self.header_mangler(h) for h in headers]
+        self._write_meta()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+        if exc_val:
+            return False
+
+    def _validate_groups(self):
+        """ Checks and creates needded groups in the h5 file. """
+        if 'partition' not in self._h5_file.root:
+            self._h5_file.create_group('/', 'partition', 'Partition.')
+        if 'meta' not in self._h5_file.root.partition:
+            self._h5_file.create_group('/partition', 'meta', 'Meta information of the partition.')
+
+    def _write_rows(self, rows=None):
+        self._write_meta()
+        rows, clear_cache = (self.cache, True) if not rows else (rows, False)
+
+        if not rows:
+            return
+
+        # convert columns to descriptor
+        rows_descriptor = _get_rows_descriptor(self.columns)
+
+        if 'rows' not in self._h5_file.root.partition:
+            self._h5_file.create_table(
+                '/partition', 'rows', rows_descriptor, 'Rows (data) of the partition.')
+
+        rows_table = self._h5_file.root.partition.rows
+        partition_row = rows_table.row
+
+        # h5 colnames order has to match to columns order to provide proper iteration over rows.
+        assert self.headers == rows_table.colnames
+        description = [
+            (col_name, getattr(rows_table.description, col_name)) for col_name in rows_table.colnames]
+        for row in rows:
+            for col_name, col_desc in description:
+                value = _serialize(col_desc.__class__, row[col_desc._v_pos])
+                value = value or _get_default(col_desc.__class__)
+                if isinstance(value, text_type):
+                    value = value.encode('utf-8')
+                partition_row[col_name] = value
+            partition_row.append()
+        rows_table.flush()
+
+        # Hope that the max # of cols is found in the first 100 rows
+        # FIXME! This won't work if rows is an interator.
+        self.n_cols = reduce(max, (len(e) for e in rows[:100]), self.n_cols)
+
+        if clear_cache:
+            self.cache = []
 
     def _write_meta(self):
         """ Writes meta to the h5 file. """
@@ -719,90 +802,6 @@ class HDFWriter(object):
         }
         self._save_meta_child('geo', descriptor)
 
-    def set_types(self, ti):
-        """ Set Types from a type intuiter object. """
-
-        results = {int(r['position']): r for r in ti._dump()}
-
-        for i in range(len(results)):
-
-            for k, v in iteritems(results[i]):
-                k = {'count': 'type_count'}.get(k, k)
-                self.column(i + 1)[k] = v
-
-            if not self.column(i + 1).type:
-                self.column(i + 1).type = results[i]['resolved_type']
-
-    def set_stats(self, stats):
-        """ Copy stats into the schema.
-
-        Args:
-            stats (FIXME:):
-
-        """
-
-        for name, stat_set in iteritems(stats.dict):
-            row = self.column(name)
-
-            for k, v in iteritems(stat_set.dict):
-                k = {'count': 'stat_count'}.get(k, k)
-                row[k] = v
-
-    def set_source_spec(self, spec):
-        """Set the metadata coresponding to the SourceSpec, excluding the row spec parts. """
-
-        ms = self.meta['source']
-
-        ms['url'] = spec.url
-        ms['fetch_time'] = spec.download_time
-        ms['file_type'] = spec.filetype
-        ms['url_type'] = spec.urltype
-        ms['encoding'] = spec.encoding
-
-        me = self.meta['excel']
-        me['worksheet'] = spec.segment
-
-        if spec.columns:
-
-            for i, sc in enumerate(spec.columns, 1):
-                c = self.column(i)
-
-                if c.name:
-                    assert sc.name == c.name
-
-                c.start = sc.start
-                c.width = sc.width
-
-    def set_row_spec(self, row_spec, headers):
-        """ Saves row_spec to meta and populates headers.
-
-        Args:
-            row_spec (dict): dict with rows specifications
-                Example: {
-                    'header_rows': [1,2],
-                    'comment_rows': [0],
-                    'start_row': 3,
-                    'end_row': None,
-                    'data_pattern': ''
-                }
-
-        """
-
-        self.data_start_row = row_spec['start_row']
-        self.data_end_row = row_spec['end_row']
-        self.meta['row_spec'] = row_spec
-        self.headers = [self.header_mangler(h) for h in headers]
-        self._write_meta()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
-        if exc_val:
-            return False
-
 
 class HDFReader(object):
     """ Read an h5 file. """
@@ -844,58 +843,6 @@ class HDFReader(object):
         if self._meta is None:
             self._meta = self._read_meta(self._h5_file)
         return self._meta
-
-    @classmethod
-    def _read_meta(self, h5_file):
-        # FIXME: move to the private methods.
-        meta = deepcopy(HDFPartition.META_TEMPLATE)
-        for child, group in meta.items():
-            if child == 'schema':
-                # This is special case because schema table may have many rows.
-                # Convert all rows to list.
-                new_schema = [HDFPartition.SCHEMA_TEMPLATE]
-                for col_descr in self._read_meta_child(h5_file, 'schema'):
-                    col = []
-                    for e in HDFPartition.SCHEMA_TEMPLATE:
-                        col.append(col_descr.get(e))
-                    new_schema.append(col)
-                meta['schema'] = new_schema
-            else:
-                # This is common case when table should contain exactly one row.
-                try:
-                    saved_data = self._read_meta_child(h5_file, child)
-                    if saved_data:
-                        saved_data = saved_data[0]
-                    else:
-                        saved_data = {}
-                except NoSuchNodeError:
-                    logger.warning('meta.{} table does not exist. Using default values.'.format(child))
-                    saved_data = {}
-                for k, default_value in group.items():
-                    meta[child][k] = saved_data.get(k, default_value)
-        return meta
-
-    @classmethod
-    def _read_meta_child(self, h5_file, child):
-        """ Reads all rows from `child` table of h5 file and returns it.
-
-        Args:
-            child (str): name of the table from h5 file.
-
-        Returns:
-            dict:
-        """
-        table = getattr(h5_file.root.partition.meta, child)
-        ret = []
-        for row in table.iterrows():
-            elem = {}
-            for c in table.colnames:
-                v = row[c]
-                if c in ('header_rows', 'comment_rows', 'hist', 'uvalues'):
-                    v = json.loads(v)
-                elem[c] = v
-            ret.append(elem)
-        return ret
 
     @property
     def columns(self):
@@ -1048,15 +995,65 @@ class HDFReader(object):
         if exc_val:
             return False
 
+    @classmethod
+    def _read_meta(self, h5_file):
+        meta = deepcopy(HDFPartition.META_TEMPLATE)
+        for child, group in meta.items():
+            if child == 'schema':
+                # This is the special case because meta.schema construct from many rows.
+                new_schema = [HDFPartition.SCHEMA_TEMPLATE]
+                for col_descr in self._read_meta_child(h5_file, 'schema'):
+                    col = []
+                    for e in HDFPartition.SCHEMA_TEMPLATE:
+                        col.append(col_descr.get(e))
+                    new_schema.append(col)
+                meta['schema'] = new_schema
+            else:
+                # This is the common case when child of the meta constructs from exactly one row.
+                try:
+                    saved_data = self._read_meta_child(h5_file, child)
+                    if saved_data:
+                        saved_data = saved_data[0]
+                    else:
+                        saved_data = {}
+                except NoSuchNodeError:
+                    logger.warning('meta.{} table does not exist. Using default values.'.format(child))
+                    saved_data = {}
+                for k, default_value in group.items():
+                    meta[child][k] = saved_data.get(k, default_value)
+        return meta
+
+    @classmethod
+    def _read_meta_child(self, h5_file, child):
+        """ Reads all rows from `child` table of h5 file and returns it.
+
+        Args:
+            child (str): name of the table from h5 file.
+
+        Returns:
+            dict:
+        """
+        table = getattr(h5_file.root.partition.meta, child)
+        ret = []
+        for row in table.iterrows():
+            elem = {}
+            for c in table.colnames:
+                v = row[c]
+                if c in ('header_rows', 'comment_rows', 'hist', 'uvalues'):
+                    v = json.loads(v)
+                elem[c] = v
+            ret.append(elem)
+        return ret
+
 
 def _get_rows_descriptor(columns):
     """ Converts columns specifications from ambry_sources format to pytables descriptor.
 
     Args:
-        columns FIXME: with example
+        columns (list of dict)
 
     Returns:
-        dict: FIXME: with example
+        dict: valid pytables descriptor.
     """
     # FIXME: Add tests.
     TYPE_MAP = {
@@ -1126,6 +1123,7 @@ def _serialize(col_type, value):
 
 
 def _deserialize(value):
+    """ Converts None replacements stored in the pytables to None. """
     # FIXME: Add unit tests.
     if isinstance(value, int) and value == MIN_INT32:
         return None

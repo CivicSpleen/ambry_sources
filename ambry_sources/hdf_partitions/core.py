@@ -352,8 +352,8 @@ class HDFPartition(object):
     def _info(cls, o):
         return dict(
             version=o.version,
-            data_start_pos=o.data_start,
-            meta_start_pos=o.meta_start,
+            data_start_pos=0,
+            meta_start_pos=0,
             rows=o.n_rows,
             cols=o.n_cols,
             header_rows=o.meta['row_spec']['header_rows'],
@@ -845,7 +845,6 @@ class HDFReader(object):
 
     @property
     def info(self):
-        # FIXME:
         return HDFPartition._info(self)
 
     @property

@@ -20,8 +20,6 @@ from tests import TestBase
 
 class HDFPartitionTest(TestBase):
 
-    # _columns tests. FIXME:
-
     # _info tests
     def test_returns_dict_with_description(self):
         temp_fs = fsopendir('temp://')
@@ -580,16 +578,6 @@ class HDFReaderTest(TestBase):
             ret = HDFReader._read_meta_child(h5, 'schema')
             self.assertEqual(ret[0]['hist'], [0, 1])
             self.assertEqual(ret[0]['uvalues'], ['a', 'b'])
-
-    # columns test
-    def test_contains_columns_specifications(self):
-        # FIXME:
-        pass
-
-    # headers test
-    def test_contains_columns_names(self):
-        # FIXME:
-        pass
 
     # raw tests
     @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta')

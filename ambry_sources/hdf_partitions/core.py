@@ -8,7 +8,6 @@ from functools import reduce
 import json
 import logging
 import math
-import struct
 import time
 import os
 import re
@@ -159,14 +158,6 @@ class HDFPartition(object):
             return self._fs.getsyspath(self.path)
         else:
             return None
-
-    @classmethod
-    def read_file_header(cls, o, fh):
-        # FIXME: Add tests or remove if not used.
-        try:
-            o.version, o.n_rows, o.n_cols = (1, 1, 1)
-        except struct.error as e:
-            raise IOError('Failed to read file header; {}; path = {}'.format(e, o.parent.path))
 
     @property
     def info(self):
@@ -393,6 +384,8 @@ class HDFWriter(object):
         if os.path.exists(filename):
             self._h5_file = open_file(filename, mode='a')
             self.meta = HDFReader._read_meta(self._h5_file)
+            self.version, self.n_rows, self.n_cols = _get_file_header(
+                self._h5_file.root.partition.file_header)
         else:
             # No, doesn't exist
             self._h5_file = open_file(filename, mode='w')
@@ -630,6 +623,7 @@ class HDFWriter(object):
 
     def _write_rows(self, rows=None):
         self._write_meta()
+        self.write_file_header()
         rows, clear_cache = (self.cache, True) if not rows else (rows, False)
 
         if not rows:
@@ -840,10 +834,11 @@ class HDFReader(object):
         self._h5_file = open_file(filename, mode='r')
         self._headers = None
 
-        self.pos = 0  # Row position for next read, starts at 1, since header is always 0
+        self.pos = 0  # Row position for next read.
 
         self.n_rows = 0
         self.n_cols = 0
+        self.version, self.n_rows, self.n_cols = _get_file_header(self._h5_file.root.partition.file_header)
 
         self._in_iteration = False
         self._meta = None
@@ -1140,3 +1135,10 @@ def _deserialize(value):
     elif isinstance(value, float) and math.isnan(value):
         return None
     return value
+
+
+def _get_file_header(table):
+    """ Returns tuple with file headers - (version, rows_number, cols_number). """
+    for row in table.iterrows():
+        return row['version'], row['n_rows'], row['n_cols']
+    return (None, 0, 0)

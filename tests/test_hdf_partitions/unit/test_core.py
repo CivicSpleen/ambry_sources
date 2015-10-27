@@ -51,9 +51,8 @@ class HDFPartitionTest(TestBase):
     # meta tests
     def test_contains_meta_from_reader(self):
         temp_fs = fsopendir('temp://')
-
-        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
-            h5.create_group('/', 'partition')
+        filename = temp_fs.getsyspath('temp.h5')
+        _create_h5(filename)
 
         hdf_partition = HDFPartition(temp_fs, path='temp.h5')
 
@@ -142,7 +141,7 @@ class HDFWriterTest(TestBase):
         filename = temp_fs.getsyspath('temp.h5')
         _create_h5(filename)
         HDFWriter(parent, filename)
-        self.assertEqual(fake_open.mock_calls, [call(filename, mode='a')])
+        self.assertIn(call(filename, mode='a'), fake_open.mock_calls)
 
     @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta')
     @patch('ambry_sources.hdf_partitions.core.open_file')
@@ -686,18 +685,28 @@ class HDFReaderTest(TestBase):
 def _create_h5(filename):
     # save meta.about to the file.
     with open_file(filename, 'w') as h5:
-        descriptor = {
+        descriptor1 = {
             'field1': Float64Col(),
             'field2': Float64Col(),
             'field3': Float64Col()
         }
+        descriptor2 = {
+            'version': Int32Col(),
+            'n_rows': Int32Col(),
+            'n_cols': Int32Col()
+        }
         h5.create_group('/partition', 'meta', createparents=True)
-        h5.create_table('/partition', 'rows', descriptor)
-        table = h5.root.partition.rows
-        row = table.row
+        rows_table = h5.create_table('/partition', 'rows', descriptor1)
+        file_header_table = h5.create_table('/partition', 'file_header', descriptor2)
         for i in range(5):
-            row['field1'] = float(i)
-            row['field2'] = float(i)
-            row['field2'] = float(i)
-            row.append()
-        table.flush()
+            rows_table.row['field1'] = float(i)
+            rows_table.row['field2'] = float(i)
+            rows_table.row['field2'] = float(i)
+            rows_table.row.append()
+        rows_table.flush()
+
+        file_header_table.row['version'] = 1
+        file_header_table.row['n_rows'] = 1
+        file_header_table.row['n_cols'] = 1
+        file_header_table.row.append()
+        file_header_table.flush()

@@ -741,7 +741,7 @@ class HDFWriter(object):
             'kurtosis': Float64Col(),  # FIXME: Ask Eric about type.
             'hist': StringCol(itemsize=255),  # FIXME: Ask Eric about type.
             'text_hist': StringCol(itemsize=255),
-            'uvalues': StringCol(itemsize=5000)  # FIXME: Ask Eric about type.
+            'uvalues': StringCol(itemsize=5000)  # FIXME: Ask Eric about size.
         }
         # always re-create table on save. It works better than rows removing.
         if 'schema' in self._h5_file.root.partition.meta:
@@ -1034,9 +1034,10 @@ def _get_rows_descriptor(columns):
     TYPE_MAP = {
         'int': lambda pos: Int32Col(pos=pos),
         'long': lambda pos: Int64Col(pos=pos),
-        'str': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: Ask Eric about type.
+        'str': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: Ask Eric about size.
+        'bytes': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: Ask Eric about size.
         'float': lambda pos: Float64Col(pos=pos),
-        'unknown': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: Ask Eric about type.
+        'unknown': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: Ask Eric about type and size.
     }
     descriptor = {}
 

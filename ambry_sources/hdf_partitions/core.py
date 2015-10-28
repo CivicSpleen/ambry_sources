@@ -646,7 +646,6 @@ class HDFWriter(object):
         for row in rows:
             for col_name, col_desc in description:
                 value = _serialize(col_desc.__class__, row[col_desc._v_pos])
-                value = value or _get_default(col_desc.__class__)
                 if isinstance(value, text_type):
                     value = value.encode('utf-8')
                 partition_row[col_name] = value
@@ -691,7 +690,7 @@ class HDFWriter(object):
         for k, v in self.meta[child].items():
             if k in ('header_rows', 'comment_rows'):
                 v = json.dumps(v or '')
-            row[k] = v or _get_default(descriptor[k].__class__)
+            row[k] = _serialize(descriptor[k].__class__, v)
         row.append()
         table.flush()
 
@@ -762,7 +761,7 @@ class HDFWriter(object):
                 if col_name in ('hist', 'uvalues'):
                     value = json.dumps(col_descr[i] or '')
                 else:
-                    value = col_descr[i] or _get_default(descriptor[col_name].__class__)
+                    value = _serialize(descriptor[col_name].__class__, col_descr[i])
                     if isinstance(value, text_type):
                         value = value.encode('utf-8')
                 row[col_name] = value
@@ -982,7 +981,7 @@ class HDFReader(object):
                 for col_descr in self._read_meta_child(h5_file, 'schema'):
                     col = []
                     for e in HDFPartition.SCHEMA_TEMPLATE:
-                        col.append(col_descr.get(e))
+                        col.append(_deserialize(col_descr.get(e)))
                     new_schema.append(col)
                 meta['schema'] = new_schema
             else:
@@ -1015,7 +1014,7 @@ class HDFReader(object):
         for row in table.iterrows():
             elem = {}
             for c in table.colnames:
-                v = row[c]
+                v = _deserialize(row[c])
                 if c in ('header_rows', 'comment_rows', 'hist', 'uvalues'):
                     v = json.loads(v)
                 elem[c] = v
@@ -1049,18 +1048,6 @@ def _get_rows_descriptor(columns):
                 'Failed to convert `{}` ambry_sources type to pytables type.'.format(column['type']))
         descriptor[column['name']] = pytables_type(column['pos'])
     return descriptor
-
-
-def _get_default(col_type):
-    """ Returns default value for given pytable type. """
-    TYPE_MAP = {
-        Int64Col: 0,
-        Int32Col: 0,
-        Float64Col: 0.0,
-        StringCol: '',
-        BoolCol: False
-    }
-    return TYPE_MAP[col_type]
 
 
 def _serialize(col_type, value):

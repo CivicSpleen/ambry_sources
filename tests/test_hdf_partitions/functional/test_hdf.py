@@ -238,7 +238,6 @@ class Test(TestBase):
             self.assertEqual('C', schema(3, 3))
             self.assertEqual('D', schema(4, 3))
 
-    @unittest.skip('Is broken because source has strings in the columns recognized as float.')
     def test_stats(self):
         """Check that the sources can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
@@ -258,17 +257,22 @@ class Test(TestBase):
 
         f.load_rows(source, run_stats=True)
 
-        vals = {u'str_a':   (30, None, None, None, 10),
-                u'str_b':   (30, None, None, None, 10),
-                u'float_a': (30, 1.0, 5.5, 10.0, 10),
-                u'float_b': (30, 1.1, 5.5, 9.9, 10),
-                u'float_c': (30, 1.1, 5.5, 9.9, 10),
-                u'int_b':   (30, 1.0, 5.0, 9.0, 10),
-                u'int_a':   (30, 1.0, 5.5, 10.0, 10)}
+        expected = {
+            u'str_a':   (30, None, None, None, 10),
+            u'str_b':   (30, None, None, None, 10),
+            u'float_a': (30, 1.0, 5.5, 10.0, 10),
+            u'float_b': (30, 1.1, 5.5, 9.9, 10),
+            u'float_c': (30, 1.1, 5.5, 9.9, 10),
+            u'int_b':   (30, 1.0, 5.0, 9.0, 10),
+            u'int_a':   (30, 1.0, 5.5, 10.0, 10)}
 
         with f.reader as r:
 
             for col in r.columns:
-                for a, b in zip(vals[col.name], (col.stat_count, col.min, round(col.mean, 1) if col.mean else None,
-                                               col.max, col.nuniques)):
-                    self.assertEqual(a, b, col.name)
+                stats = (col.stat_count, col.min, round(col.mean, 1) if col.mean else None,
+                         col.max,
+                         col.nuniques)
+                for a, b in zip(expected[col.name], stats):
+                    self.assertEqual(
+                        a, b,
+                        'Saved stat ({}) does not match to expected ({}) for {}'.format(a, b, col.name))

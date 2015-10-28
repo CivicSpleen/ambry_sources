@@ -885,31 +885,6 @@ class HDFReader(object):
             self.close()
 
     @property
-    def meta_raw(self):
-        """self self.raw interator, but returns a tuple with the rows classified"""
-        # FIXME: Seems useless.
-
-        rs = self.meta['row_spec']
-
-        hr = rs['header_rows'] or []
-        cr = rs['comment_rows'] or []
-        sr = rs['start_row'] or self.data_start_row
-        er = rs['end_row'] or self.data_end_row
-
-        for i, row in enumerate(self.raw):
-
-            if i in hr:
-                label = 'H'
-            elif i in cr:
-                label = 'C'
-            elif sr <= i <= er:
-                label = 'D'
-            else:
-                label = 'B'
-
-            yield (i, self.pos, label), row
-
-    @property
     def rows(self):
         """ Iterator for reading rows. """
         # For HDF it's exactly the same as raw iterator.

@@ -8,6 +8,8 @@ import numpy as np
 from fs.opener import fsopendir
 from tables import open_file, Float64Col, StringCol, Int64Col, Int32Col
 
+from six import b
+
 from ambry_sources.sources.util import RowProxy
 from ambry_sources.hdf_partitions.core import _serialize, _deserialize
 
@@ -175,7 +177,7 @@ class HDFWriterTest(TestBase):
             [1, 2])
         self.assertEqual(
             [x['col2'] for x in writer._h5_file.root.partition.rows.iterrows()],
-            ['row1', 'row2'])
+            [b('row1'), b('row2')])
 
     def test_writes_cached_rows(self):
         temp_fs = fsopendir('temp://')
@@ -195,7 +197,7 @@ class HDFWriterTest(TestBase):
             [1, 2])
         self.assertEqual(
             [x['col2'] for x in writer._h5_file.root.partition.rows.iterrows()],
-            ['row1', 'row2'])
+            [b('row1'), b('row2')])
 
     # insert_row test
     @patch('ambry_sources.hdf_partitions.core.HDFWriter._write_rows')
@@ -297,7 +299,7 @@ class HDFWriterTest(TestBase):
         self.assertTrue(writer._h5_file.root.partition.meta, 'comments')
         self.assertEqual(
             [(x['header'], x['footer']) for x in writer._h5_file.root.partition.meta.comments.iterrows()],
-            [('header', 'footer')])
+            [(b('header'), b('footer'))])
 
     def test_writes_meta_excel(self):
         temp_fs = fsopendir('temp://')
@@ -312,7 +314,7 @@ class HDFWriterTest(TestBase):
         self.assertTrue(writer._h5_file.root.partition.meta, 'excel')
         self.assertEqual(
             [(x['worksheet'], x['datemode']) for x in writer._h5_file.root.partition.meta.excel.iterrows()],
-            [('sheet1', 1)])
+            [(b('sheet1'), 1)])
 
     def test_writes_meta_geo(self):
         temp_fs = fsopendir('temp://')
@@ -341,7 +343,7 @@ class HDFWriterTest(TestBase):
         self.assertTrue(writer._h5_file.root.partition.meta, 'row_spec')
         self.assertEqual(
             [x['data_pattern'] for x in writer._h5_file.root.partition.meta.row_spec.iterrows()],
-            ['pattern'])
+            [b('pattern')])
 
     def test_writes_meta_schema(self):
         temp_fs = fsopendir('temp://')
@@ -358,7 +360,7 @@ class HDFWriterTest(TestBase):
         # check saved values.
         saved = [(x['name'], x['type']) for x in writer._h5_file.root.partition.meta.schema.iterrows()]
         self.assertEqual(len(saved), len(writer.meta['schema']) - 1)
-        self.assertEqual(saved, [('col1', 'int'), ('col2', 'str')])
+        self.assertEqual(saved, [(b('col1'), b('int')), (b('col2'), b('str'))])
 
     def test_writes_meta_source(self):
         temp_fs = fsopendir('temp://')
@@ -373,7 +375,7 @@ class HDFWriterTest(TestBase):
         self.assertTrue(writer._h5_file.root.partition.meta, 'source')
         self.assertEqual(
             [(x['encoding'], x['url']) for x in writer._h5_file.root.partition.meta.source.iterrows()],
-            [('utf-8', 'http://example.com')])
+            [(b('utf-8'), b('http://example.com'))])
 
     # _save_meta_child tests
     def test_saves_header_rows_and_comment_rows_as_json_string(self):
@@ -394,7 +396,7 @@ class HDFWriterTest(TestBase):
 
         self.assertEqual(
             [(x['comment_rows'], x['header_rows']) for x in writer._h5_file.root.partition.meta.row_spec.iterrows()],
-            [('[0, 1]', '[2, 3]')])
+            [(b('[0, 1]'), b('[2, 3]'))])
 
     # _save_schema tests
     def test_saves_hist_and_uvalues_as_json_string(self):
@@ -410,7 +412,7 @@ class HDFWriterTest(TestBase):
 
         self.assertEqual(
             [(x['hist'], x['uvalues']) for x in writer._h5_file.root.partition.meta.schema.iterrows()],
-            [('[1, 2, 3]', '["1", "2", "3"]')])
+            [(b('[1, 2, 3]'), b('["1", "2", "3"]'))])
 
 
 class HDFReaderTest(TestBase):

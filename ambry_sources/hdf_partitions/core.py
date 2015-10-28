@@ -17,7 +17,7 @@ from tables.exceptions import NoSuchNodeError
 import numpy as np
 
 import six
-from six import string_types, iteritems, text_type
+from six import string_types, iteritems, text_type, binary_type
 
 from ambry_sources.sources import RowProxy
 from ambry_sources.stats import Stats
@@ -1090,6 +1090,8 @@ def _deserialize(value):
         return None
     elif isinstance(value, float) and math.isnan(value):
         return None
+    elif isinstance(value, binary_type):
+        return value.decode('utf-8')
     return value
 
 

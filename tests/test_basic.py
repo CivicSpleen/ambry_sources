@@ -18,15 +18,18 @@ from tests import TestBase
 class BasicTestSuite(TestBase):
     """Basic test cases."""
 
+    @classmethod
+    def setUpClass(cls):
+        super(BasicTestSuite, cls).setUpClass()
+        cls.sources = cls.load_sources()
+
     @unittest.skip('Useful for debugging, but doesnt add test coverage')
     def test_just_download(self):
         """Just check that all of the sources can be downloaded without exceptions"""
 
         cache_fs = fsopendir('temp://')
 
-        sources = self.load_sources()
-
-        for source_name, spec in sources.items():
+        for source_name, spec in self.sources.items():
             try:
                 s = get_source(spec, cache_fs)
 
@@ -42,8 +45,6 @@ class BasicTestSuite(TestBase):
         """Just check that all of the sources can be loaded without exceptions"""
 
         cache_fs = fsopendir('temp://')
-
-        sources = self.load_sources()
 
         headers = {
             'mz_with_zip_xl': [
@@ -75,7 +76,7 @@ class BasicTestSuite(TestBase):
                 u('owner_cost_gt_30_pct'), u('owner_cost_gt_30_pct_cv')]
         }
 
-        for source_name, spec in sources.items():
+        for source_name, spec in self.sources.items():
 
             s = get_source(spec, cache_fs)
 
@@ -97,13 +98,11 @@ class BasicTestSuite(TestBase):
 
         cache_fs = fsopendir('temp://')
 
-        sources = self.load_sources()
-
-        for source_name, spec in sources.items():
+        for source_name, spec in self.sources.items():
 
             s = get_source(spec, cache_fs)
 
-            print(spec.name)
+            # print(spec.name)
 
             f = MPRowsFile(cache_fs, spec.name)
 
@@ -113,12 +112,11 @@ class BasicTestSuite(TestBase):
             f.load_rows(s)
 
             with f.reader as r:
-                print(r.headers)
+                self.assertTrue(len(r.headers) > 0)
 
     def test_fixed(self):
         cache_fs = fsopendir(self.setup_temp_dir())
-        sources = self.load_sources()
-        spec = sources['simple_fixed']
+        spec = self.sources['simple_fixed']
         s = get_source(spec, cache_fs)
         f = MPRowsFile(cache_fs, spec.name).load_rows(s)
         self.assertEqual(f.headers, ['id', 'uuid', 'int', 'float'])
@@ -150,8 +148,7 @@ class BasicTestSuite(TestBase):
         from ambry_sources.intuit import TypeIntuiter
 
         cache_fs = fsopendir(self.setup_temp_dir())
-        sources = self.load_sources()
-        spec = sources['simple_fixed']
+        spec = self.sources['simple_fixed']
         s = get_source(spec, cache_fs)
 
         f = MPRowsFile(cache_fs, spec.name)
@@ -182,8 +179,6 @@ class BasicTestSuite(TestBase):
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
-
-            print source_name
             s = get_source(spec, cache_fs)
             ri = RowIntuiter().run(s)
 
@@ -414,9 +409,7 @@ class BasicTestSuite(TestBase):
         cache_fs = fsopendir('temp://')
         # cache_fs = fsopendir('/tmp/ritest/')
 
-        sources = self.load_sources('sources.csv')
-
-        s = get_source(sources['simple_stats'], cache_fs)
+        s = get_source(self.sources['simple_stats'], cache_fs)
 
         f = MPRowsFile(cache_fs, s.spec.name).load_rows(s, run_stats=True)
 

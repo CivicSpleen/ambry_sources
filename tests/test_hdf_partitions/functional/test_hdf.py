@@ -21,6 +21,12 @@ from tests import TestBase
 
 class Test(TestBase):
 
+    @classmethod
+    def setUpClass(cls):
+        super(Test, cls).setUpClass()
+        cls.sources = cls.load_sources()
+
+    # helpers
     def _row_intuiter_to_dict(self, ri):
         """ Converts row intuiter to dict. """
         ret = {
@@ -73,14 +79,11 @@ class Test(TestBase):
 
         return rows, headers
 
-
     @pytest.mark.slow
     def test_load_and_headers(self):
         """ Just checks that all of the sources can be loaded without exceptions. """
 
         cache_fs = fsopendir('temp://')
-
-        sources = self.load_sources()
 
         source_headers = {
             'mz_with_zip_xl': [
@@ -112,7 +115,7 @@ class Test(TestBase):
                 u('owner_cost_gt_30_pct'), u('owner_cost_gt_30_pct_cv')]
         }
 
-        for source_name, spec in sources.items():
+        for source_name, spec in self.sources.items():
             s = get_source(spec, cache_fs)
 
             f = HDFPartition(cache_fs, spec.name)
@@ -142,8 +145,7 @@ class Test(TestBase):
 
     def test_fixed(self):
         cache_fs = fsopendir(self.setup_temp_dir())
-        sources = self.load_sources()
-        spec = sources['simple_fixed']
+        spec = self.sources['simple_fixed']
         assert spec.has_rowspec is False
         s = get_source(spec, cache_fs)
 
@@ -243,9 +245,7 @@ class Test(TestBase):
 
         cache_fs = fsopendir('temp://')
 
-        sources = self.load_sources('sources.csv')
-
-        source = get_source(sources['simple_stats'], cache_fs)
+        source = get_source(self.sources['simple_stats'], cache_fs)
 
         f = HDFPartition(cache_fs, source.spec.name)
 

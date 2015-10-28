@@ -1031,13 +1031,12 @@ def _get_rows_descriptor(columns):
     Returns:
         dict: valid pytables descriptor.
     """
-    # FIXME: Add tests.
     TYPE_MAP = {
         'int': lambda pos: Int32Col(pos=pos),
         'long': lambda pos: Int64Col(pos=pos),
-        'str': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: What is the size?
+        'str': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: Ask Eric about type.
         'float': lambda pos: Float64Col(pos=pos),
-        'unknown': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: What is the size?
+        'unknown': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: Ask Eric about type.
     }
     descriptor = {}
 

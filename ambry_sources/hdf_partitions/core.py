@@ -1052,7 +1052,6 @@ def _get_rows_descriptor(columns):
 
 def _serialize(col_type, value):
     """ Converts value to format ready to save to h5 file. """
-    # FIXME: add unit tests
     if col_type == Float64Col:
         try:
             float(value)
@@ -1088,7 +1087,6 @@ def _serialize(col_type, value):
 
 def _deserialize(value):
     """ Converts None replacements stored in the pytables to None. """
-    # FIXME: Add unit tests.
     if isinstance(value, int) and value == MIN_INT32:
         return None
     elif isinstance(value, long) and value == MIN_INT64:

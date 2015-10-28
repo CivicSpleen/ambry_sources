@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
 import json
+import math
+import unittest
+
+import numpy as np
 
 from fs.opener import fsopendir
 from tables import open_file, Float64Col, StringCol, Int64Col, Int32Col
 
 from ambry_sources.sources.util import RowProxy
+from ambry_sources.hdf_partitions.core import _serialize, _deserialize
 
 try:
     # py3
@@ -698,3 +703,63 @@ def _create_h5(filename):
         file_header_table.row['n_cols'] = 1
         file_header_table.row.append()
         file_header_table.flush()
+
+
+class TestSerialize(unittest.TestCase):
+    """ Tests _serialize function. """
+
+    def test_converts_invalid_float_to_nan(self):
+        ret = _serialize(Float64Col, 'invalid-float')
+        self.assertTrue(math.isnan(ret))
+
+    def test_converts_invalid_int32_to_minimal_int(self):
+        ret = _serialize(Int32Col, 'invalid-int')
+        self.assertEqual(ret, np.iinfo(np.int32).min)
+
+    def test_converts_invalid_int64_to_minimal_int(self):
+        ret = _serialize(Int64Col, 'invalid-int')
+        self.assertEqual(ret, np.iinfo(np.int64).min)
+
+    def test_converts_NA_to_empty_string(self):
+        ret = _serialize(StringCol, 'NA')
+        self.assertEqual(ret, '')
+
+    def test_converts_StringCol_None_to_empty_string(self):
+        ret = _serialize(StringCol, None)
+        self.assertEqual(ret, '')
+
+    def test_converts_Int32Col_None_to_minimal_int(self):
+        ret = _serialize(Int32Col, None)
+        self.assertEqual(ret, np.iinfo(np.int32).min)
+
+    def test_converts_Int64Col_None_to_minimal_int(self):
+        ret = _serialize(Int64Col, None)
+        self.assertEqual(ret, np.iinfo(np.int64).min)
+
+    def test_converts_Float64Col_None_to_nan(self):
+        ret = _serialize(Float64Col, None)
+        self.assertTrue(math.isnan(ret))
+
+    def test_returns_valid_value_as_is(self):
+        ret = _serialize(Float64Col, 1.1)
+        self.assertEqual(ret, 1.1)
+
+
+class TestDeserialize(unittest.TestCase):
+    """ Tests _deserialize function. """
+
+    def test_converts_min_int32_to_None(self):
+        ret = _deserialize(np.iinfo(np.int32).min)
+        self.assertIsNone(ret)
+
+    def test_converts_min_int64_to_None(self):
+        ret = _deserialize(np.iinfo(np.int64).min)
+        self.assertIsNone(ret)
+
+    def test_converts_nan_to_None(self):
+        ret = _deserialize(float('nan'))
+        self.assertIsNone(ret)
+
+    def test_returns_value_as_is(self):
+        ret = _deserialize(11.0)
+        self.assertEqual(ret, 11.0)

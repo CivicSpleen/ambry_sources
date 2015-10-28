@@ -1086,9 +1086,7 @@ def _serialize(col_type, value):
 
 def _deserialize(value):
     """ Converts None replacements stored in the pytables to None. """
-    if isinstance(value, int) and value == MIN_INT32:
-        return None
-    elif isinstance(value, long) and value == MIN_INT64:
+    if isinstance(value, six.integer_types) and value in (MIN_INT32, MIN_INT64):
         return None
     elif isinstance(value, float) and math.isnan(value):
         return None

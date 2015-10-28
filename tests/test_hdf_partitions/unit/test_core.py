@@ -1,12 +1,17 @@
 # -*- coding: utf-8 -*-
+import json
+import math
+import unittest
 
-import os
+import numpy as np
 
 from fs.opener import fsopendir
-from tables import open_file, StringCol, Int64Col, Float64Col, BoolCol
+from tables import open_file, Float64Col, StringCol, Int64Col, Int32Col
+
+from six import b
 
 from ambry_sources.sources.util import RowProxy
-from ambry_sources.stats import Stats
+from ambry_sources.hdf_partitions.core import _serialize, _deserialize
 
 try:
     # py3
@@ -21,8 +26,6 @@ from tests import TestBase
 
 
 class HDFPartitionTest(TestBase):
-
-    # _columns tests. FIXME:
 
     # _info tests
     def test_returns_dict_with_description(self):
@@ -53,9 +56,8 @@ class HDFPartitionTest(TestBase):
     # meta tests
     def test_contains_meta_from_reader(self):
         temp_fs = fsopendir('temp://')
-
-        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
-            h5.create_group('/', 'partition')
+        filename = temp_fs.getsyspath('temp.h5')
+        _create_h5(filename)
 
         hdf_partition = HDFPartition(temp_fs, path='temp.h5')
 
@@ -71,8 +73,6 @@ class HDFPartitionTest(TestBase):
         with patch.object(HDFPartition, 'meta', new_callable=PropertyMock) as fake_meta:
             fake_meta.return_value = {'stats': 22}
             self.assertEqual(hdf_partition.stats, 22)
-
-    # run_type_intuiter  FIXME: It is we do not need to intuit types.
 
     # run_stats tests
     @patch('ambry_sources.hdf_partitions.core.Stats.run')
@@ -128,6 +128,37 @@ class HDFWriterTest(TestBase):
                 col.append(predefined.get(el, ''))
         return col
 
+    # __init__ tests
+    def test_raises_value_error_if_not_string_filename_given(self):
+        parent = MagicMock()
+        try:
+            HDFWriter(parent, MagicMock())
+            raise AssertionError('ValueError exception was not raised.')
+        except ValueError as exc:
+            self.assertIn('requires filename parameter as string', str(exc))
+
+    @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta')
+    @patch('ambry_sources.hdf_partitions.core.open_file')
+    def test_opens_existing_file_in_append_mode(self, fake_open, fake_read):
+        fake_read.return_value = {'about': {}}
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        filename = temp_fs.getsyspath('temp.h5')
+        _create_h5(filename)
+        HDFWriter(parent, filename)
+        self.assertIn(call(filename, mode='a'), fake_open.mock_calls)
+
+    @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta')
+    @patch('ambry_sources.hdf_partitions.core.open_file')
+    def test_reads_meta_from_existing_file(self, fake_open, fake_read):
+        fake_read.return_value = {'about': {}}
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        filename = temp_fs.getsyspath('temp.h5')
+        _create_h5(filename)
+        HDFWriter(parent, filename)
+        self.assertTrue(fake_read.called)
+
     # _write_rows test
     def test_writes_given_rows(self):
         temp_fs = fsopendir('temp://')
@@ -146,7 +177,7 @@ class HDFWriterTest(TestBase):
             [1, 2])
         self.assertEqual(
             [x['col2'] for x in writer._h5_file.root.partition.rows.iterrows()],
-            ['row1', 'row2'])
+            [b('row1'), b('row2')])
 
     def test_writes_cached_rows(self):
         temp_fs = fsopendir('temp://')
@@ -166,7 +197,7 @@ class HDFWriterTest(TestBase):
             [1, 2])
         self.assertEqual(
             [x['col2'] for x in writer._h5_file.root.partition.rows.iterrows()],
-            ['row1', 'row2'])
+            [b('row1'), b('row2')])
 
     # insert_row test
     @patch('ambry_sources.hdf_partitions.core.HDFWriter._write_rows')
@@ -214,12 +245,28 @@ class HDFWriterTest(TestBase):
         self.assertIsNone(writer._h5_file)
         self.assertEqual(h5_file.isopen, 0)
 
-    # write_meta tests
+    # write_file_header tests
+    def test_writes_file_header_to_table(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer._validate_groups()
+        writer.n_rows = 2
+        writer.n_cols = 3
+        writer.write_file_header()
+
+        self.assertIn('file_header', writer._h5_file.root.partition)
+        table = writer._h5_file.root.partition.file_header
+        self.assertEqual(
+            [(x['version'], x['n_rows'], x['n_cols']) for x in table.iterrows()],
+            [(1, 2, 3)])
+
+    # _write_meta tests
     def test_writes_meta(self):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
         writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
-        writer.write_meta()
+        writer._write_meta()
 
         self.assertEqual(writer.cache, [])
         self.assertTrue(writer._h5_file.root.partition, 'meta')
@@ -230,7 +277,7 @@ class HDFWriterTest(TestBase):
         writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
         writer.meta['about']['load_time'] = 123.12
         writer.meta['about']['create_time'] = 111.11
-        writer.write_meta()
+        writer._write_meta()
 
         self.assertEqual(writer.cache, [])
         self.assertTrue(writer._h5_file.root.partition, 'meta')
@@ -245,29 +292,29 @@ class HDFWriterTest(TestBase):
         writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
         writer.meta['comments']['header'] = 'header'
         writer.meta['comments']['footer'] = 'footer'
-        writer.write_meta()
+        writer._write_meta()
 
         self.assertEqual(writer.cache, [])
         self.assertTrue(writer._h5_file.root.partition, 'meta')
         self.assertTrue(writer._h5_file.root.partition.meta, 'comments')
         self.assertEqual(
             [(x['header'], x['footer']) for x in writer._h5_file.root.partition.meta.comments.iterrows()],
-            [('header', 'footer')])
+            [(b('header'), b('footer'))])
 
     def test_writes_meta_excel(self):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
         writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
         writer.meta['excel']['worksheet'] = 'sheet1'
-        writer.meta['excel']['datemode'] = 'mode1'
-        writer.write_meta()
+        writer.meta['excel']['datemode'] = 1
+        writer._write_meta()
 
         self.assertEqual(writer.cache, [])
         self.assertTrue(writer._h5_file.root.partition, 'meta')
         self.assertTrue(writer._h5_file.root.partition.meta, 'excel')
         self.assertEqual(
             [(x['worksheet'], x['datemode']) for x in writer._h5_file.root.partition.meta.excel.iterrows()],
-            [('sheet1', 'mode1')])
+            [(b('sheet1'), 1)])
 
     def test_writes_meta_geo(self):
         temp_fs = fsopendir('temp://')
@@ -275,7 +322,7 @@ class HDFWriterTest(TestBase):
         writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
         writer.meta['geo']['srs'] = 11
         writer.meta['geo']['bb'] = 22
-        writer.write_meta()
+        writer._write_meta()
 
         self.assertEqual(writer.cache, [])
         self.assertTrue(writer._h5_file.root.partition, 'meta')
@@ -289,25 +336,31 @@ class HDFWriterTest(TestBase):
         parent = MagicMock()
         writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
         writer.meta['row_spec']['data_pattern'] = 'pattern'
-        writer.write_meta()
+        writer._write_meta()
 
         self.assertEqual(writer.cache, [])
         self.assertTrue(writer._h5_file.root.partition, 'meta')
         self.assertTrue(writer._h5_file.root.partition.meta, 'row_spec')
         self.assertEqual(
             [x['data_pattern'] for x in writer._h5_file.root.partition.meta.row_spec.iterrows()],
-            ['pattern'])
+            [b('pattern')])
 
     def test_writes_meta_schema(self):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
         writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
-        writer.write_meta()
+        writer.meta['schema'].append(self._get_column('col1', 'int'))
+        writer.meta['schema'].append(self._get_column('col2', 'str'))
+        writer._write_meta()
 
         self.assertEqual(writer.cache, [])
         self.assertTrue(writer._h5_file.root.partition, 'meta')
         self.assertTrue(writer._h5_file.root.partition.meta, 'schema')
-        # FIXME: Check saved values.
+
+        # check saved values.
+        saved = [(x['name'], x['type']) for x in writer._h5_file.root.partition.meta.schema.iterrows()]
+        self.assertEqual(len(saved), len(writer.meta['schema']) - 1)
+        self.assertEqual(saved, [(b('col1'), b('int')), (b('col2'), b('str'))])
 
     def test_writes_meta_source(self):
         temp_fs = fsopendir('temp://')
@@ -315,35 +368,66 @@ class HDFWriterTest(TestBase):
         writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
         writer.meta['source']['encoding'] = 'utf-8'
         writer.meta['source']['url'] = 'http://example.com'
-        writer.write_meta()
+        writer._write_meta()
 
         self.assertEqual(writer.cache, [])
         self.assertTrue(writer._h5_file.root.partition, 'meta')
         self.assertTrue(writer._h5_file.root.partition.meta, 'source')
         self.assertEqual(
             [(x['encoding'], x['url']) for x in writer._h5_file.root.partition.meta.source.iterrows()],
-            [('utf-8', 'http://example.com')])
+            [(b('utf-8'), b('http://example.com'))])
+
+    # _save_meta_child tests
+    def test_saves_header_rows_and_comment_rows_as_json_string(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer._validate_groups()
+        writer.meta['row_spec']['comment_rows'] = [0, 1]
+        writer.meta['row_spec']['header_rows'] = [2, 3]
+        descriptor = {
+            'end_row': Int32Col(),
+            'header_rows': StringCol(itemsize=255),
+            'start_row': Int32Col(),
+            'comment_rows': StringCol(itemsize=255),
+            'data_pattern': StringCol(itemsize=255)
+        }
+        writer._save_meta_child('row_spec', descriptor)
+
+        self.assertEqual(
+            [(x['comment_rows'], x['header_rows']) for x in writer._h5_file.root.partition.meta.row_spec.iterrows()],
+            [(b('[0, 1]'), b('[2, 3]'))])
+
+    # _save_schema tests
+    def test_saves_hist_and_uvalues_as_json_string(self):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        writer = HDFWriter(parent, temp_fs.getsyspath('temp.h5'))
+        writer._validate_groups()
+        writer.meta['schema'].append(
+            self._get_column(
+                'col1', 'str',
+                predefined={'hist': [1, 2, 3], 'uvalues': ['1', '2', '3']}))
+        writer._save_schema()
+
+        self.assertEqual(
+            [(x['hist'], x['uvalues']) for x in writer._h5_file.root.partition.meta.schema.iterrows()],
+            [(b('[1, 2, 3]'), b('["1", "2", "3"]'))])
 
 
 class HDFReaderTest(TestBase):
 
-    def _create_h5(self, filename):
-        # save meta.about to the file.
-        with open_file(filename, 'w') as h5:
-            descriptor = {
-                'field1': Float64Col(),
-                'field2': Float64Col(),
-                'field3': Float64Col()
-            }
-            h5.create_group('/', 'partition')
-            h5.create_table('/partition', 'rows', descriptor)
-            table = h5.root.partition.rows
-            row = table.row
-            for i in range(5):
-                row['field1'] = float(i)
-                row['field2'] = float(i)
-                row['field2'] = float(i)
-                row.append()
+    # helpers
+
+    def _write_test_meta(self, fs, child, descriptor, rows):
+        with open_file(fs.getsyspath('temp.h5'), 'w') as h5:
+            h5.create_group('/partition', 'meta', createparents=True)
+            table = h5.create_table('/partition/meta', child, descriptor, 'meta.{}'.format(child))
+            hdf_row = table.row
+            for row in rows:
+                for field, value in row:
+                    hdf_row[field] = value
+                hdf_row.append()
             table.flush()
 
     # _write_rows test
@@ -362,18 +446,18 @@ class HDFReaderTest(TestBase):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
         filename = temp_fs.getsyspath('temp.h5')
-        self._create_h5(filename)
+        _create_h5(filename)
 
         reader = HDFReader(parent, filename)
         reader.meta
-        fake_read.assert_called_once_with()
+        self.assertEqual(len(fake_read.mock_calls), 1)
 
     @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta')
     def test_uses_cached_meta(self, fake_read):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
         filename = temp_fs.getsyspath('temp.h5')
-        self._create_h5(filename)
+        _create_h5(filename)
 
         reader = HDFReader(parent, filename)
         reader._meta = {}
@@ -382,78 +466,125 @@ class HDFReaderTest(TestBase):
 
     # _read_meta tests
     @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta_child')
-    def test_returns_default_template(self, fake_read):
-        fake_read.return_value = {}
+    def test_returns_default_template(self, fake_child):
+        fake_child.return_value = {}
         temp_fs = fsopendir('temp://')
-        parent = MagicMock()
         filename = temp_fs.getsyspath('temp.h5')
-        self._create_h5(filename)
+        _create_h5(filename)
 
-        reader = HDFReader(parent, filename)
-        ret = reader._read_meta()
-        expected_keys = ['about', 'excel', 'row_spec', 'source', 'comments', 'geo', 'schema']
-        self.assertEqual(sorted(expected_keys), sorted(ret.keys()))
+        with open_file(filename, mode='r') as h5_file:
+            ret = HDFReader._read_meta(h5_file)
+            expected_keys = ['about', 'excel', 'row_spec', 'source', 'comments', 'geo', 'schema']
+            self.assertEqual(sorted(expected_keys), sorted(ret.keys()))
 
     @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta_child')
-    def test_reads_meta_children(self, fake_read):
-        fake_read.return_value = {}
+    def test_reads_meta_children(self, fake_child):
+        fake_child.return_value = {}
         temp_fs = fsopendir('temp://')
-        parent = MagicMock()
         filename = temp_fs.getsyspath('temp.h5')
-        self._create_h5(filename)
+        _create_h5(filename)
 
-        reader = HDFReader(parent, temp_fs.getsyspath('temp.h5'))
-        reader._read_meta()
+        with open_file(filename, mode='r') as h5_file:
+            HDFReader._read_meta(h5_file)
 
-        # _read_meta_child was called properly
-        self.assertEqual(len(fake_read.mock_calls), 7)
-        self.assertIn(call('about'), fake_read.mock_calls)
-        self.assertIn(call('excel'), fake_read.mock_calls)
-        self.assertIn(call('row_spec'), fake_read.mock_calls)
-        self.assertIn(call('source'), fake_read.mock_calls)
-        self.assertIn(call('comments'), fake_read.mock_calls)
-        self.assertIn(call('geo'), fake_read.mock_calls)
-        self.assertIn(call('schema'), fake_read.mock_calls)
+            # _read_meta_child was called properly
+            self.assertEqual(len(fake_child.mock_calls), 7)
+            self.assertIn(call(h5_file, 'about'), fake_child.mock_calls)
+            self.assertIn(call(h5_file, 'excel'), fake_child.mock_calls)
+            self.assertIn(call(h5_file, 'row_spec'), fake_child.mock_calls)
+            self.assertIn(call(h5_file, 'source'), fake_child.mock_calls)
+            self.assertIn(call(h5_file, 'comments'), fake_child.mock_calls)
+            self.assertIn(call(h5_file, 'geo'), fake_child.mock_calls)
+            self.assertIn(call(h5_file, 'schema'), fake_child.mock_calls)
+
+    def test_reads_meta_schema(self):
+        temp_fs = fsopendir('temp://')
+        filename = temp_fs.getsyspath('temp.h5')
+
+        # use minimal descriptor to make the test simplier.
+        descriptor = {
+            'pos': Int64Col(),
+            'name': StringCol(itemsize=255),
+            'type': StringCol(itemsize=255)
+        }
+        rows = [[('pos', float(i)), ('name', str(i)), ('type', str(i))] for i in range(2)]
+        self._write_test_meta(temp_fs, 'schema', descriptor, rows)
+
+        with open_file(filename, mode='r') as h5_file:
+            ret = HDFReader._read_meta(h5_file)
+            self.assertIn('schema', ret)
+            self.assertEqual(len(ret['schema']), 3)  # One for template, other for columns.
+            self.assertEqual(ret['schema'][0], HDFPartition.SCHEMA_TEMPLATE)
+            self.assertEqual(len(ret['schema'][1]), len(HDFPartition.SCHEMA_TEMPLATE))
+            self.assertEqual(len(ret['schema'][0]), len(HDFPartition.SCHEMA_TEMPLATE))
+
+            pos_index = HDFPartition.SCHEMA_TEMPLATE.index('pos')
+            name_index = HDFPartition.SCHEMA_TEMPLATE.index('name')
+            self.assertEqual(ret['schema'][1][pos_index], 0)
+            self.assertEqual(ret['schema'][2][pos_index], 1.0)
+
+            self.assertEqual(ret['schema'][1][name_index], '0')
+            self.assertEqual(ret['schema'][2][name_index], '1')
 
     # _read_meta_child tests
-    def test_reads_first_line_and_returns_dict(self):
+
+    def test_reads_lines_to_dict(self):
         temp_fs = fsopendir('temp://')
-        parent = MagicMock()
 
         # save meta.about to the file.
-        with open_file(temp_fs.getsyspath('temp.h5'), 'w') as h5:
-            descriptor = {
-                'load_time': Float64Col(),
-                'create_time': Float64Col()
-            }
-            h5.create_group('/partition', 'meta', createparents=True)
-            h5.create_table('/partition/meta', 'about', descriptor, 'meta.group')
-            table = h5.root.partition.meta.about
-            row = table.row
-            row['load_time'] = 1.0
-            row['create_time'] = 1.1
-            row.append()
-            table.flush()
+        descriptor = {
+            'load_time': Float64Col(),
+            'create_time': Float64Col()
+        }
+        self._write_test_meta(
+            temp_fs, 'about', descriptor, [[('load_time', 1.0), ('create_time', 1.1)]])
 
         # now read it from file.
-        reader = HDFReader(parent, temp_fs.getsyspath('temp.h5'))
-        ret = reader._read_meta_child('about')
-        self.assertIsInstance(ret, dict)
-        self.assertIn('load_time', ret)
-        self.assertEqual(ret['load_time'], 1.0)
+        with open_file(temp_fs.getsyspath('temp.h5'), 'r') as h5:
+            ret = HDFReader._read_meta_child(h5, 'about')
+            self.assertIsInstance(ret, list)
+            first = ret[0]
+            self.assertIn('load_time', first)
+            self.assertEqual(first['load_time'], 1.0)
 
-        self.assertIn('create_time', ret)
-        self.assertEqual(ret['create_time'], 1.1)
+            self.assertIn('create_time', first)
+            self.assertEqual(first['create_time'], 1.1)
 
-    # columns test
-    def test_contains_columns_specifications(self):
-        # FIXME:
-        pass
+    def test_converts_comment_rows_and_header_rows_json_to_list(self):
+        temp_fs = fsopendir('temp://')
 
-    # headers test
-    def test_contains_columns_names(self):
-        # FIXME:
-        pass
+        # save meta.row_spec to the file.
+        descriptor = {  # this is not valid descriptor, but I do not need it to be valid here.
+            'header_rows': StringCol(itemsize=255),
+            'comment_rows': StringCol(itemsize=255),
+        }
+        self._write_test_meta(
+            temp_fs, 'row_spec', descriptor,
+            [[('comment_rows', json.dumps([0, 1])), ('header_rows', json.dumps([2, 3]))]])
+
+        # now read it from file.
+        with open_file(temp_fs.getsyspath('temp.h5'), 'r') as h5:
+            ret = HDFReader._read_meta_child(h5, 'row_spec')
+            self.assertEqual(ret[0]['comment_rows'], [0, 1])
+            self.assertEqual(ret[0]['header_rows'], [2, 3])
+
+    def test_converts_hist_and_uvalues_json_to_list(self):
+        temp_fs = fsopendir('temp://')
+
+        # save meta.schema minimal table to the file.
+        descriptor = {  # this is not valid descriptor, but I do not need it to be valid here.
+            'hist': StringCol(itemsize=255),
+            'uvalues': StringCol(itemsize=255),
+        }
+        self._write_test_meta(
+            temp_fs, 'schema', descriptor,
+            [[('hist', json.dumps([0, 1])), ('uvalues', json.dumps(['a', 'b']))]])
+
+        # now read it from file.
+        with open_file(temp_fs.getsyspath('temp.h5'), 'r') as h5:
+            ret = HDFReader._read_meta_child(h5, 'schema')
+            self.assertEqual(ret[0]['hist'], [0, 1])
+            self.assertEqual(ret[0]['uvalues'], ['a', 'b'])
 
     # raw tests
     @patch('ambry_sources.hdf_partitions.core.HDFReader._read_meta')
@@ -464,12 +595,12 @@ class HDFReaderTest(TestBase):
 
         # save meta.about to the file.
         filename = temp_fs.getsyspath('temp.h5')
-        self._create_h5(filename)
+        _create_h5(filename)
 
         # now read it from file.
         reader = HDFReader(parent, filename)
         raw_iter = reader.raw
-        first = raw_iter.next()
+        first = next(raw_iter)
         self.assertEqual(first, [0.0, 0.0, 0.0])
         self.assertTrue(reader._in_iteration)
         rows = list(raw_iter)
@@ -485,12 +616,12 @@ class HDFReaderTest(TestBase):
 
         # save meta.about to the file.
         filename = temp_fs.getsyspath('temp.h5')
-        self._create_h5(filename)
+        _create_h5(filename)
 
         # now read it from file.
         reader = HDFReader(parent, filename)
         rows_iter = reader.rows
-        first = rows_iter.next()
+        first = next(rows_iter)
         self.assertEqual(first, [0.0, 0.0, 0.0])
         self.assertTrue(reader._in_iteration)
 
@@ -503,12 +634,12 @@ class HDFReaderTest(TestBase):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
         filename = temp_fs.getsyspath('temp.h5')
-        self._create_h5(filename)
+        _create_h5(filename)
 
         reader = HDFReader(parent, filename)
         with patch.object(HDFReader, 'headers', ['field1', 'field2', 'field3']):
             rows_iter = iter(reader)
-            first = rows_iter.next()
+            first = next(rows_iter)
             self.assertIsInstance(first, RowProxy)
             self.assertEqual(first.field1, 0.0)
             self.assertEqual(first.field2, 0.0)
@@ -522,16 +653,115 @@ class HDFReaderTest(TestBase):
             self.assertEqual(len(rows), 4)
             self.assertFalse(reader._in_iteration)
 
-    # __enter__, __exit__ (with) tests
-    def test_with(self):
+    # __enter__ tests
+    def test_returns_self(self):
         temp_fs = fsopendir('temp://')
         parent = MagicMock()
         filename = temp_fs.getsyspath('temp.h5')
-        self._create_h5(filename)
+        _create_h5(filename)
 
-        # now read it from file.
-        with HDFReader(parent, filename) as reader:
-            rows = []
-            for row in reader:
-                rows.append(row)
-            self.assertEqual(len(rows), 5)
+        reader = HDFReader(parent, filename)
+        self.assertEqual(
+            reader, reader.__enter__())
+
+    # __exit__ tests
+    @patch('ambry_sources.hdf_partitions.core.HDFReader.close')
+    def test_closes_reader(self, fake_close):
+        temp_fs = fsopendir('temp://')
+        parent = MagicMock()
+        filename = temp_fs.getsyspath('temp.h5')
+        _create_h5(filename)
+
+        reader = HDFReader(parent, filename)
+        reader.__exit__(None, None, None)
+        fake_close.assert_called_once_with()
+
+
+def _create_h5(filename):
+    # save meta.about to the file.
+    with open_file(filename, 'w') as h5:
+        descriptor1 = {
+            'field1': Float64Col(),
+            'field2': Float64Col(),
+            'field3': Float64Col()
+        }
+        descriptor2 = {
+            'version': Int32Col(),
+            'n_rows': Int32Col(),
+            'n_cols': Int32Col()
+        }
+        h5.create_group('/partition', 'meta', createparents=True)
+        rows_table = h5.create_table('/partition', 'rows', descriptor1)
+        file_header_table = h5.create_table('/partition', 'file_header', descriptor2)
+        for i in range(5):
+            rows_table.row['field1'] = float(i)
+            rows_table.row['field2'] = float(i)
+            rows_table.row['field2'] = float(i)
+            rows_table.row.append()
+        rows_table.flush()
+
+        file_header_table.row['version'] = 1
+        file_header_table.row['n_rows'] = 1
+        file_header_table.row['n_cols'] = 1
+        file_header_table.row.append()
+        file_header_table.flush()
+
+
+class TestSerialize(unittest.TestCase):
+    """ Tests _serialize function. """
+
+    def test_converts_invalid_float_to_nan(self):
+        ret = _serialize(Float64Col, 'invalid-float')
+        self.assertTrue(math.isnan(ret))
+
+    def test_converts_invalid_int32_to_minimal_int(self):
+        ret = _serialize(Int32Col, 'invalid-int')
+        self.assertEqual(ret, np.iinfo(np.int32).min)
+
+    def test_converts_invalid_int64_to_minimal_int(self):
+        ret = _serialize(Int64Col, 'invalid-int')
+        self.assertEqual(ret, np.iinfo(np.int64).min)
+
+    def test_converts_NA_to_empty_string(self):
+        ret = _serialize(StringCol, 'NA')
+        self.assertEqual(ret, '')
+
+    def test_converts_StringCol_None_to_empty_string(self):
+        ret = _serialize(StringCol, None)
+        self.assertEqual(ret, '')
+
+    def test_converts_Int32Col_None_to_minimal_int(self):
+        ret = _serialize(Int32Col, None)
+        self.assertEqual(ret, np.iinfo(np.int32).min)
+
+    def test_converts_Int64Col_None_to_minimal_int(self):
+        ret = _serialize(Int64Col, None)
+        self.assertEqual(ret, np.iinfo(np.int64).min)
+
+    def test_converts_Float64Col_None_to_nan(self):
+        ret = _serialize(Float64Col, None)
+        self.assertTrue(math.isnan(ret))
+
+    def test_returns_valid_value_as_is(self):
+        ret = _serialize(Float64Col, 1.1)
+        self.assertEqual(ret, 1.1)
+
+
+class TestDeserialize(unittest.TestCase):
+    """ Tests _deserialize function. """
+
+    def test_converts_min_int32_to_None(self):
+        ret = _deserialize(np.iinfo(np.int32).min)
+        self.assertIsNone(ret)
+
+    def test_converts_min_int64_to_None(self):
+        ret = _deserialize(np.iinfo(np.int64).min)
+        self.assertIsNone(ret)
+
+    def test_converts_nan_to_None(self):
+        ret = _deserialize(float('nan'))
+        self.assertIsNone(ret)
+
+    def test_returns_value_as_is(self):
+        ret = _deserialize(11.0)
+        self.assertEqual(ret, 11.0)

@@ -65,7 +65,8 @@ class TestBase(unittest.TestCase):
 
         return XlsSource()
 
-    def load_sources(self, file_name='sources.csv'):
+    @classmethod
+    def load_sources(cls, file_name='sources.csv'):
         import tests
         import csv
         from os.path import join, dirname

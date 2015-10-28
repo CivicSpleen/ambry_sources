@@ -289,6 +289,15 @@ class MPRowsFile(object):
 
     @classmethod
     def _columns(cls, o, n_cols=0):
+        """ Wraps columns from meta['schema'] with RowProxy and generates them.
+
+        Args:
+            o (any having .meta dict attr):
+
+        Generates:
+            RowProxy: column wrapped with RowProxy
+
+        """
 
         from ambry_sources.sources.util import RowProxy
 
@@ -432,7 +441,7 @@ class MPRowsFile(object):
 
         return stats
 
-    def load_rows(self, source,  spec=None, intuit_rows=None, intuit_type=True, run_stats=True):
+    def load_rows(self, source, spec=None, intuit_rows=None, intuit_type=True, run_stats=True):
         try:
 
             # The spec should always be part of the source
@@ -794,7 +803,7 @@ class MPRWriter(object):
         MPRowsFile.write_meta(self, self._fh)
 
     def set_types(self, ti):
-        """Set Types from a type intuiter object"""
+        """ Set Types from a type intuiter object. """
 
         results = {int(r['position']): r for r in ti._dump()}
         for i in range(len(results)):

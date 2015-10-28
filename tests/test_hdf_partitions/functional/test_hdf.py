@@ -9,7 +9,6 @@ from fs.opener import fsopendir
 
 import pytest
 
-import six
 from six import u
 
 from ambry_sources import get_source

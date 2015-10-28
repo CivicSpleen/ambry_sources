@@ -598,7 +598,7 @@ class HDFReaderTest(TestBase):
         # now read it from file.
         reader = HDFReader(parent, filename)
         raw_iter = reader.raw
-        first = raw_iter.next()
+        first = next(raw_iter)
         self.assertEqual(first, [0.0, 0.0, 0.0])
         self.assertTrue(reader._in_iteration)
         rows = list(raw_iter)
@@ -619,7 +619,7 @@ class HDFReaderTest(TestBase):
         # now read it from file.
         reader = HDFReader(parent, filename)
         rows_iter = reader.rows
-        first = rows_iter.next()
+        first = next(rows_iter)
         self.assertEqual(first, [0.0, 0.0, 0.0])
         self.assertTrue(reader._in_iteration)
 
@@ -637,7 +637,7 @@ class HDFReaderTest(TestBase):
         reader = HDFReader(parent, filename)
         with patch.object(HDFReader, 'headers', ['field1', 'field2', 'field3']):
             rows_iter = iter(reader)
-            first = rows_iter.next()
+            first = next(rows_iter)
             self.assertIsInstance(first, RowProxy)
             self.assertEqual(first.field1, 0.0)
             self.assertEqual(first.field2, 0.0)

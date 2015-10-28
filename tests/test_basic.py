@@ -413,13 +413,13 @@ class BasicTestSuite(TestBase):
 
         f = MPRowsFile(cache_fs, s.spec.name).load_rows(s, run_stats=True)
 
-        vals = {u'str_a':   (30, None, None, None, 10),
-                u'str_b':   (30, None, None, None, 10),
-                u'float_a': (30, 1.0, 5.5, 10.0, 10),
-                u'float_b': (30, 1.1, 5.5, 9.9, 10),
-                u'float_c': (30, 1.1, 5.5, 9.9, 10),
-                u'int_b':   (30, 1.0, 5.0, 9.0, 10),
-                u'int_a':   (30, 1.0, 5.5, 10.0, 10)}
+        vals = {u('str_a'):   (30, None, None, None, 10),
+                u('str_b'):   (30, None, None, None, 10),
+                u('float_a'): (30, 1.0, 5.5, 10.0, 10),
+                u('float_b'): (30, 1.1, 5.5, 9.9, 10),
+                u('float_c'): (30, 1.1, 5.5, 9.9, 10),
+                u('int_b'):   (30, 1.0, 5.0, 9.0, 10),
+                u('int_a'):   (30, 1.0, 5.5, 10.0, 10)}
 
         with f.reader as r:
 

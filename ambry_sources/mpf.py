@@ -237,6 +237,7 @@ class MPRowsFile(object):
             o.magic, o.version, o.n_rows, o.n_cols, o.meta_start, o.data_start_row, o.data_end_row = \
                 cls.FILE_HEADER_FORMAT.unpack(fh.read(cls.FILE_HEADER_FORMAT_SIZE))
         except struct.error as e:
+
             raise IOError("Failed to read file header; {}; path = {}".format(e, o.parent.path))
 
     @classmethod
@@ -400,6 +401,8 @@ class MPRowsFile(object):
             self._start_time = time.time()
 
             with self.reader as r:
+                if r.n_rows == 0:
+                    return
                 ri = RowIntuiter().run(r.raw, r.n_rows)
 
             with self.writer as w:
@@ -417,6 +420,8 @@ class MPRowsFile(object):
             self._start_time = time.time()
 
             with self.reader as r:
+                if r.n_rows == 0:
+                    return
                 stats = Stats([(c.name, c.type) for c in r.columns]).run(r, sample_from=r.n_rows)
 
             with self.writer as w:

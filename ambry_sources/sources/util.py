@@ -131,6 +131,9 @@ class RowProxy(object):
     def dict(self):
         return dict(zip(self.__keys, self.__row))
 
+    def copy(self):
+        return type(self)(self.__keys).set_row(self.row)
+
     def keys(self):
         return self.__keys
 

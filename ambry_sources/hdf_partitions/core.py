@@ -709,7 +709,7 @@ class HDFWriter(object):
             'name': StringCol(itemsize=255),
             'type': StringCol(itemsize=255),
             'description': StringCol(itemsize=1024),
-            'start': Int32Col(),  # FIXME: Ask Eric about type.
+            'start': Int32Col(),
             'width': Int32Col(),
             'position': Int32Col(),
             'header': StringCol(itemsize=255),
@@ -725,8 +725,8 @@ class HDFWriter(object):
             'dates': Int32Col(),
             'times': Int32Col(),
             'strvals': StringCol(itemsize=255),
-            'flags': StringCol(itemsize=255),  # FIXME: Ask Eric about type.
-            'lom': StringCol(itemsize=255),  # FIXME: Ask Eric about type.
+            'flags': StringCol(itemsize=255),
+            'lom': StringCol(itemsize=1),
             'resolved_type': StringCol(itemsize=40),
             'stat_count': Int32Col(),
             'nuniques': Int32Col(),
@@ -737,11 +737,11 @@ class HDFWriter(object):
             'p50': Float64Col(),
             'p75': Float64Col(),
             'max': Float64Col(),
-            'skewness': Float64Col(),  # FIXME: Ask Eric about type.
-            'kurtosis': Float64Col(),  # FIXME: Ask Eric about type.
-            'hist': StringCol(itemsize=255),  # FIXME: Ask Eric about type.
+            'skewness': Float64Col(),
+            'kurtosis': Float64Col(),
+            'hist': StringCol(itemsize=255),
             'text_hist': StringCol(itemsize=255),
-            'uvalues': StringCol(itemsize=5000)  # FIXME: Ask Eric about size.
+            'uvalues': StringCol(itemsize=5000)
         }
         # always re-create table on save. It works better than rows removing.
         if 'schema' in self._h5_file.root.partition.meta:
@@ -786,10 +786,10 @@ class HDFWriter(object):
         descriptor = {
             'fetch_time': Float64Col(),
             'encoding': StringCol(itemsize=255),
-            'url': StringCol(itemsize=1024),  # FIXME: Ask Eric about max length of the url.
+            'url': StringCol(itemsize=1024),
             'file_type': StringCol(itemsize=50),
-            'inner_file': StringCol(itemsize=255),  # FIXME: Ask Eric about length.
-            'url_type': StringCol(itemsize=255),  # FIXME: Ask Eric about length.
+            'inner_file': StringCol(itemsize=255),
+            'url_type': StringCol(itemsize=255),
         }
         self._save_meta_child('source', descriptor)
 
@@ -799,14 +799,14 @@ class HDFWriter(object):
             'header_rows': StringCol(itemsize=255),  # comma separated ints or empty string.
             'start_row': Int32Col(),
             'comment_rows': StringCol(itemsize=255),  # comma separated ints or empty string.
-            'data_pattern': StringCol(itemsize=255)  # FIXME: Ask Eric about size.
+            'data_pattern': StringCol(itemsize=255)
         }
         self._save_meta_child('row_spec', descriptor)
 
     def _save_geo(self):
         descriptor = {
-            'srs': Int32Col(),  # FIXME: Ask Eric about type.
-            'bb': Int32Col(),  # FIXME: Ask Eric about type.
+            'srs': Int32Col(),
+            'bb': Int32Col(),
         }
         self._save_meta_child('geo', descriptor)
 
@@ -1034,10 +1034,10 @@ def _get_rows_descriptor(columns):
     TYPE_MAP = {
         'int': lambda pos: Int32Col(pos=pos),
         'long': lambda pos: Int64Col(pos=pos),
-        'str': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: Ask Eric about size.
-        'bytes': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: Ask Eric about size.
+        'str': lambda pos: StringCol(itemsize=255, pos=pos),
+        'bytes': lambda pos: StringCol(itemsize=255, pos=pos),
         'float': lambda pos: Float64Col(pos=pos),
-        'unknown': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: Ask Eric about type and size.
+        'unknown': lambda pos: StringCol(itemsize=255, pos=pos),
     }
     descriptor = {}
 

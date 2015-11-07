@@ -202,7 +202,7 @@ class MPRowsFile(object):
         if isinstance(obj, datetime.datetime):
             return {'__datetime__': True, 'value': tuple(obj.timetuple()[:6])}
         elif isinstance(obj, datetime.date):
-            return {'__datetime__': True, 'value': (obj.year, obj.month, obj.day)}
+            return {'__date__': True, 'value': (obj.year, obj.month, obj.day)}
         elif isinstance(obj, datetime.time):
             return {'__time__': True, 'value': (obj.hour, obj.minute, obj.second)}
         elif hasattr(obj, 'render'):

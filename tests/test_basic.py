@@ -298,15 +298,16 @@ class BasicTestSuite(TestBase):
 
         # Basic read/ write tests.
 
-        def rand_date_a():
+        def rand_date():
             return datetime.date(randint(2000, 2015), randint(1, 12), 10)
 
-        epoch = datetime.date(1970, 1, 1)
+        def rand_datetime():
+            return datetime.datetime(randint(2000, 2015), randint(1, 12), 10)
 
-        def rand_date_b():
-            return (datetime.date(randint(2000, 2015), randint(1, 12), 10) - epoch).total_seconds()
+        def rand_time():
+            return datetime.time(randint(0, 23), randint(0, 59), 10)
 
-        row = lambda: (None, 1, random(), str(uuid4()), rand_date_b(), rand_date_b())
+        row = lambda: (None, 1, random(), str(uuid4()), rand_date(), rand_datetime(), rand_time())
 
         headers = list('abcdefghi')[:len(row())]
 
@@ -339,6 +340,7 @@ class BasicTestSuite(TestBase):
 
             print('MSGPack write S', float(N) / t.elapsed, w.n_rows)
 
+        print()
         # Write the whole file with insert_rows() which writes all of the rows at once.
         write_large_blocks()
 

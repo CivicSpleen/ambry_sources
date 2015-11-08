@@ -11,7 +11,7 @@ filelock==2.0.4
 petl==1.0.11
 openpyxl==2.2.5
 xlrd==0.9.3
-unicodecsv>=0.12.0
+unicodecsv==0.12.0
 fs>=0.5.2
 livestats==1.0
 pyOpenSSL==0.15.1

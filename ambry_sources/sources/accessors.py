@@ -36,6 +36,14 @@ class SourceFile(object):
         self._headers = None  # Reserved for subclasses that extract headers from data stream
 
     @property
+    def path(self):
+        return self._fstor.path
+
+    @property
+    def syspath(self):
+        return self._fstor.syspath
+
+    @property
     def headers(self):
         """Return a list of the names of the columns of this file, or None if the header is not defined.
 
@@ -205,6 +213,7 @@ class FixedSource(SourceFile):
 
         super(FixedSource, self).__init__(spec, fstor)
 
+
         if not (spec.start_line is None or spec.start_line == 1):
             raise SourceError("For FixedSource, the start line must be 1 or unspecified; got '{}' "
                               .format(spec.start_line))
@@ -283,7 +292,7 @@ class ExcelSource(SourceFile):
         from fs.errors import NoSysPathError
 
         try:
-            return self.excel_iter(self._fstor.syspath(), self.spec.segment)
+            return self.excel_iter(self._fstor.syspath, self.spec.segment)
         except NoSysPathError:
             # There is no sys path when the file is in a ZipFile, or other non-traditional filesystem.
             sub_file = self._fstor.sub_cache()

@@ -20,6 +20,7 @@ class DelayedOpen(object):
     def open(self, mode=None, encoding=None):
         return self._fs.open(self._path, mode if mode else self._mode, encoding=encoding)
 
+    @property
     def syspath(self):
         return self._fs.getsyspath(self._path)
 

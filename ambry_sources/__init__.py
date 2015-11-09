@@ -7,7 +7,8 @@ Revised BSD License, included in this distribution as LICENSE.txt
 
 from  .__meta__ import *
 
-from .download import get_source, import_source
+from .fetch import get_source, import_source, download, extract_file_from_zip
+from .sources.spec import ColumnSpec, SourceSpec
 from .mpf import MPRowsFile
 from .sources import RowProxy
 

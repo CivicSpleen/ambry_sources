@@ -118,6 +118,7 @@ def extract_file_from_zip(cache_fs, cache_path, url, fn_pattern = None):
     """
 
     fs = ZipFS(cache_fs.open(cache_path, 'rb'))
+    fstor = None
 
     def walk_all(fs):
         return [join(e[0], x) for e in fs.walk() for x in e[1]]
@@ -141,8 +142,9 @@ def extract_file_from_zip(cache_fs, cache_path, url, fn_pattern = None):
                 fstor = DelayedOpen(fs, file_name, 'rb', container=(cache_fs, cache_path))
                 break
 
+
         if not fstor:
-            raise ConfigurationError('Failed to get file {} from archive {}'.format(file_name, fs))
+            raise ConfigurationError("Failed to get file for pattern '{}' from archive {}".format(fn_pattern, fs))
 
     return fstor
 

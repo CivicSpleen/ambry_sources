@@ -546,12 +546,12 @@ class RowIntuiter(object):
         self.data_pattern_source = None
 
         self.patterns = (
-            ('B', re.compile(r'^_+$')),
-            ('C', re.compile(r'^XX_+$')),
-            ('C', re.compile(r'^X_+$')),
-            ('H', re.compile(r'^X+$')),
-            ('H', re.compile(r'^_{,6}X+$')),  # A few starting blanks, the rest are strings.
-            ('H', re.compile(r"(?:X_)")),
+            ('B', re.compile(r'^_+$')), # Blank
+            ('C', re.compile(r'^XX_+$')), # Comment
+            ('C', re.compile(r'^X_+$')), # Comment
+            ('H', re.compile(r'^X+$')), # Header
+            ('H', re.compile(r'^_{,6}X+$')),  # Header, A few starting blanks, the rest are strings.
+            ('H', re.compile(r"(?:X_)")), # Header
         )
 
         self.test_rows = []
@@ -647,31 +647,32 @@ class RowIntuiter(object):
 
         return pattern, pattern_source
 
-    def classify(self, rows):
+    @staticmethod
+    def match_picture(picture, patterns):
+        for l, r in patterns:
+            if r.search(picture):
+                return l
+
+        return False
+
+    def run(self, head_rows, tail_rows=None, n_rows = None):
 
         import re
 
         header_rows = []
         found_header = False
 
-        data_pattern_skip_rows = min(30, len(rows)-8)
+        data_pattern_skip_rows = min(30, len(head_rows) - 8)
 
-        data_pattern, self.data_pattern_source = self.data_pattern(rows[data_pattern_skip_rows:])
+        data_pattern, self.data_pattern_source = self.data_pattern(head_rows[data_pattern_skip_rows:])
 
         patterns = [('D', data_pattern)] + list(self.patterns)
 
-        def match(picture):
-            for l, r in patterns:
-                if r.search(picture):
-                    return l
-
-            return False
-
-        for i, row in enumerate(rows):
+        for i, row in enumerate(head_rows):
 
             picture = self.picture(row)
 
-            label = match(picture)
+            label = self.match_picture(picture, patterns)
 
             try:
                 # If a header or data has more than half of the line is a continuous nulls,
@@ -704,33 +705,21 @@ class RowIntuiter(object):
                 self.headers = self.coalesce_headers(header_rows)
                 break
 
-    def find_end(self, end_rows):
+        if tail_rows:
+            from itertools import takewhile
 
-        raise NotImplementedError()
+            # Compute the data label for the end line, then reverse them.
+            labels = reversed(list(self.match_picture(self.picture(row), patterns) for row in tail_rows))
 
-        import re
-        from operator import itemgetter
+            # Count the number of lines, from the end, that are either comment or blank
+            end_line = len(list(takewhile(lambda x: x == 'C' or x == 'B', labels)))
 
-        pattern = re.compile(self.data_pattern_source)
 
-        # Return the first row where the pattern fails.
-        try:
-            pos, row = min(six.moves.filterfalse(lambda row: pattern.match(self.picture(row)),
-                                                 enumerate(end_rows)), key=itemgetter(1))
+            if end_line:
+                self.end_line = n_rows-end_line-1
 
-            for row in end_rows:
-                print(self.picture(row), bool(pattern.match(self.picture(row))))
+        return self
 
-            rpos = pos - len(end_rows) - 1
-
-            try:
-                end_rows[rpos]  # Check if rpos is in range
-                return rpos
-            except:
-                return None
-
-        except ValueError:
-            return -1  # Signal that the last element is the end row.
 
     @classmethod
     def coalesce_headers(cls, header_lines):
@@ -765,8 +754,4 @@ class RowIntuiter(object):
         else:
             return []
 
-    def run(self, source, total_rows=None):
-        from itertools import islice
-        self.test_rows = list(islice(iter(source), self.N_TEST_ROWS))
-        self.classify(self.test_rows)
-        return self
+

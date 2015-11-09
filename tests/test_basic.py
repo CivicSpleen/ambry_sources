@@ -144,6 +144,11 @@ class BasicTestSuite(TestBase):
         self.assertEqual(len(rows), 10)
         self.assertEqual(sorted(rows[0].keys()), sorted(list('abcde')))
 
+        self.assertFalse(f.is_finalized)
+        with f.writer as w:
+            w.finalize()
+        self.assertTrue(f.is_finalized)
+
     def test_type_intuit(self):
         from ambry_sources.intuit import TypeIntuiter
 
@@ -281,6 +286,23 @@ class BasicTestSuite(TestBase):
             self.assertEqual('two', schema(2, 3))
             self.assertEqual('C', schema(3, 3))
             self.assertEqual('D', schema(4, 3))
+
+
+
+    def test_intuit_footer(self):
+        sources = self.load_sources(file_name='sources.csv')
+
+        for source_name in ['headers4', 'headers3', 'headers2', 'headers1']:
+            cache_fs = fsopendir(self.setup_temp_dir())
+
+            spec = sources[source_name]
+            print '-----', source_name
+            f = MPRowsFile(cache_fs, spec.name).load_rows(get_source(spec, cache_fs))
+
+            with f.reader as r:
+                last = list(r.rows)[-1]  # islice isn't working on the reader.
+                self.assertEqual(11999, int(last[0]))
+                self.assertEqual('2q080z003Cg2', last[1])
 
     @pytest.mark.slow
     def test_datafile_read_write(self):

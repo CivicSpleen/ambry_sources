@@ -156,6 +156,9 @@ class MPRowsFile(object):
         'comments': {
             'header': None,
             'footer': None
+        },
+        'process': {
+            'finalized': False
         }
     }
 
@@ -364,6 +367,11 @@ class MPRowsFile(object):
             return r.meta
 
     @property
+    def is_finalized(self):
+        with self.reader as r:
+            return r.is_finalized
+
+    @property
     def stats(self):
         return (self.meta or {}).get('stats')
 
@@ -404,6 +412,7 @@ class MPRowsFile(object):
     def run_row_intuiter(self):
         """Run the row intuiter and store the results back into the metadata"""
         from .intuit import RowIntuiter
+        from itertools import islice
 
         try:
             self._process = 'intuit_rows'
@@ -412,7 +421,16 @@ class MPRowsFile(object):
             with self.reader as r:
                 if r.n_rows == 0:
                     return
-                ri = RowIntuiter().run(r.raw, r.n_rows)
+
+                head = list(islice(r.raw, RowIntuiter.N_TEST_ROWS))
+                n_rows = r.n_rows
+
+            with self.reader as r:
+                # Reset the iterator to get the tail
+                tail = list(islice(r.raw, r.n_rows - RowIntuiter.N_TEST_ROWS, r.n_rows))
+
+            ri = RowIntuiter().run(head, tail, n_rows)
+
 
             with self.writer as w:
                 w.set_row_spec(ri)
@@ -461,7 +479,7 @@ class MPRowsFile(object):
     def _load_rows(self, source,  intuit_rows=None, intuit_type=True, run_stats=True):
         from .exceptions import RowIntuitError
         if self.n_rows:
-            raise MPRError("Can't load_rows; rows already loaded. n_rows = {}".format(self.n_rows))
+            raise MPRError("Can't load_rows into {}; rows already loaded. n_rows = {}".format(self.path, self.n_rows))
 
         spec = getattr(source, 'spec', None)
 
@@ -512,6 +530,8 @@ class MPRowsFile(object):
                 if not w.data_end_row:
                     w.data_end_row = w.n_rows
 
+                w.finalize()
+
         finally:
             self._process = None
 
@@ -530,7 +550,7 @@ class MPRowsFile(object):
         """Iterate over a reader"""
 
         # There is probably a more efficient way in python 2 to do this than to have another yield loop,
-        # but just returning the reader iterator doesn't work
+        # but just returning the reader iterator doesn't work. It should probably be yield from in Python 3
         with self.reader as r:
             for row in r:
                 yield row
@@ -664,6 +684,14 @@ class MPRWriter(object):
     def info(self):
         return MPRowsFile._info(self)
 
+    @property
+    def path(self):
+        return self.parent.path
+
+    @property
+    def syspath(self):
+        return self.parent.syspath
+
     def set_col_val(name_or_pos, **kwargs):
         pass
 
@@ -768,6 +796,14 @@ class MPRWriter(object):
             pass
 
         self._write_rows()
+
+    def finalize(self):
+        """Mark the loading of the file as finished. """
+        self.meta['process']['finalized'] = True
+
+    @property
+    def is_finalized(self):
+        return self.meta['process']['finalized']
 
     def close(self):
 
@@ -977,6 +1013,14 @@ class MPRReader(object):
         self._meta = None
 
     @property
+    def path(self):
+        return self.parent.path
+
+    @property
+    def syspath(self):
+        return self.parent.syspath
+
+    @property
     def info(self):
         return MPRowsFile._info(self)
 
@@ -990,6 +1034,13 @@ class MPRReader(object):
             self._meta = MPRowsFile.read_meta(self, self._fh)
 
         return self._meta
+
+    @property
+    def is_finalized(self):
+        try:
+            return self.meta['process']['finalized']
+        except KeyError: # Old version, doesn't have 'process' key
+            return False
 
     @property
     def columns(self):

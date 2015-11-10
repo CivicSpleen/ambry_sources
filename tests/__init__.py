@@ -94,9 +94,12 @@ class TestBase(unittest.TestCase):
 
                 ss = SourceSpec(**row)
 
-                if 'expect_headers' in row:
-                    ss.expect_headers = row['expect_headers']
-                    ss.expect_start = int(row['expect_start'])
+                if 'expect_headers' in row or 'expect_start' in row:
+                    ss.expect_headers = row.get('expect_headers')
+                    try:
+                        ss.expect_start = int(row.get('expect_start'))
+                    except ValueError:
+                        ss.expect_start = None
 
                 sources[ss.name] = ss
 

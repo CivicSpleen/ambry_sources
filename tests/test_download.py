@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from ambry_sources.exceptions import MissingCredentials
-from ambry_sources.download import get_s3
+from ambry_sources.fetch import get_s3
 
 from tests import TestBase
 

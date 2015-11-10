@@ -144,9 +144,6 @@ class BasicTestSuite(TestBase):
         self.assertEqual(len(rows), 10)
         self.assertEqual(sorted(rows[0].keys()), sorted(list('abcde')))
 
-        self.assertFalse(f.is_finalized)
-        with f.writer as w:
-            w.finalize()
         self.assertTrue(f.is_finalized)
 
     def test_type_intuit(self):
@@ -303,6 +300,24 @@ class BasicTestSuite(TestBase):
                 last = list(r.rows)[-1]  # islice isn't working on the reader.
                 self.assertEqual(11999, int(last[0]))
                 self.assertEqual('2q080z003Cg2', last[1])
+
+    def test_intuit_headers(self):
+        sources = self.load_sources(file_name='sources.csv')
+
+
+
+        for source_name in ['headers4', 'headers3', 'headers2', 'headers1']:
+            cache_fs = fsopendir(self.setup_temp_dir())
+
+            spec = sources[source_name]
+            print '-----', source_name
+            f = MPRowsFile(cache_fs, spec.name).load_rows(get_source(spec, cache_fs))
+
+            self.assertEqual(spec.expect_start, f.info['data_start_row'])
+            self.assertEquals([ int(e) for e in spec.expect_headers.split(',') ], f.info['header_rows'])
+
+
+
 
     @pytest.mark.slow
     def test_datafile_read_write(self):

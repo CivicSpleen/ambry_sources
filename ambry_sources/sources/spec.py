@@ -29,7 +29,6 @@ class ColumnSpec(object):
                                                 else '"{}"'.format(v))
                                                 for k, v in self.__dict__.items()))
 
-
 class SourceSpec(object):
 
     def __init__(self, url, segment=None,

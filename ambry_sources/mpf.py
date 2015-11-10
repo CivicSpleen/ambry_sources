@@ -427,10 +427,12 @@ class MPRowsFile(object):
 
             with self.reader as r:
                 # Reset the iterator to get the tail
-                tail = list(islice(r.raw, r.n_rows - RowIntuiter.N_TEST_ROWS, r.n_rows))
+                if RowIntuiter.N_TEST_ROWS < r.n_rows:
+                    tail = list(islice(r.raw, r.n_rows - RowIntuiter.N_TEST_ROWS, r.n_rows))
+                else:
+                    tail = list(islice(r.raw, 0, r.n_rows))
 
             ri = RowIntuiter().run(head, tail, n_rows)
-
 
             with self.writer as w:
                 w.set_row_spec(ri)
@@ -512,6 +514,7 @@ class MPRowsFile(object):
                     # FIXME Need to report this, but there is currently no way to get
                     # the higher level logger.
                     pass
+
 
             elif spec:
 
@@ -803,7 +806,7 @@ class MPRWriter(object):
 
     @property
     def is_finalized(self):
-        return self.meta['process']['finalized']
+        return self.meta['process']['finalized'] == True
 
     def close(self):
 

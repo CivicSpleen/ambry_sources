@@ -686,12 +686,16 @@ class RowIntuiter(object):
                 found_header = True
 
             if label is False:
-                # Could be a really wacky header
-                found_header = True
-                label = 'H'
+
+                if found_header:
+                    label = 'D'
+                else:
+                    # Could be a really wacky header
+                    found_header = True
+                    label = 'H'
 
             if self.debug:
-                print(label, picture, row)
+                print(i, label, picture, row)
 
             if label == 'C':
                 self.comment_lines.append(i)

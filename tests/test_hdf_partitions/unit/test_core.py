@@ -10,8 +10,9 @@ from tables import open_file, Float64Col, StringCol, Int64Col, Int32Col
 
 from six import b
 
-from ambry_sources.sources.util import RowProxy
 from ambry_sources.hdf_partitions.core import _serialize, _deserialize
+from ambry_sources.mpf import MPRowsFile
+from ambry_sources.sources.util import RowProxy
 
 try:
     # py3
@@ -119,7 +120,7 @@ class HDFWriterTest(TestBase):
             predefined = {}
 
         col = []
-        for el in HDFPartition.SCHEMA_TEMPLATE:
+        for el in MPRowsFile.SCHEMA_TEMPLATE:
             if el == 'name':
                 col.append(name)
             elif el == 'type':
@@ -514,12 +515,12 @@ class HDFReaderTest(TestBase):
             ret = HDFReader._read_meta(h5_file)
             self.assertIn('schema', ret)
             self.assertEqual(len(ret['schema']), 3)  # One for template, other for columns.
-            self.assertEqual(ret['schema'][0], HDFPartition.SCHEMA_TEMPLATE)
-            self.assertEqual(len(ret['schema'][1]), len(HDFPartition.SCHEMA_TEMPLATE))
-            self.assertEqual(len(ret['schema'][0]), len(HDFPartition.SCHEMA_TEMPLATE))
+            self.assertEqual(ret['schema'][0], MPRowsFile.SCHEMA_TEMPLATE)
+            self.assertEqual(len(ret['schema'][1]), len(MPRowsFile.SCHEMA_TEMPLATE))
+            self.assertEqual(len(ret['schema'][0]), len(MPRowsFile.SCHEMA_TEMPLATE))
 
-            pos_index = HDFPartition.SCHEMA_TEMPLATE.index('pos')
-            name_index = HDFPartition.SCHEMA_TEMPLATE.index('name')
+            pos_index = MPRowsFile.SCHEMA_TEMPLATE.index('pos')
+            name_index = MPRowsFile.SCHEMA_TEMPLATE.index('name')
             self.assertEqual(ret['schema'][1][pos_index], 0)
             self.assertEqual(ret['schema'][2][pos_index], 1.0)
 

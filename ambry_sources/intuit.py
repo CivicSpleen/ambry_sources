@@ -3,6 +3,7 @@
 from collections import deque, OrderedDict
 import datetime
 import logging
+import re
 
 import six
 from six import string_types, iteritems, binary_type, text_type, b
@@ -227,8 +228,8 @@ class Column(object):
             return binary_type, False
 
         # If more than 70% None, it's also a str, because ...
-        #if self.type_ratios[None] > .7:
-        #    return str, False
+        # if self.type_ratios[None] > .7:
+        #     return str, False
 
         if self.type_counts[datetime.datetime] > 0:
             num_type = datetime.datetime
@@ -386,7 +387,7 @@ class TypeIntuiter(object):
         except AttributeError:
             pass
 
-        type_precidence = ['unknown', 'int', 'float', 'date', 'time', 'datetime', 'str', 'unicode']
+        type_precidence = ['unknown', 'int', 'float', 'date', 'time', 'datetime', 'str', 'bytes', 'unicode']
 
         # TODO This will fail for dates and times.
 
@@ -536,8 +537,6 @@ class RowIntuiter(object):
         float: int}
 
     def __init__(self):
-        import re
-
         self.comment_lines = []
         self.header_lines = []
         self.start_line = 0
@@ -615,7 +614,6 @@ class RowIntuiter(object):
         return pattern_source, contributors, l
 
     def data_pattern(self, rows):
-        import re
 
         tests = 50
         test_rows = min(20, len(rows))
@@ -656,8 +654,6 @@ class RowIntuiter(object):
         return False
 
     def run(self, head_rows, tail_rows=None, n_rows = None):
-
-        import re
 
         header_rows = []
         found_header = False

@@ -203,11 +203,11 @@ class MPRowsFile(object):
     def encode_obj(obj):
 
         if isinstance(obj, datetime.datetime):
-            return {'__datetime__': True, 'as_str': obj.isoformat()}
+            return {'__datetime__': True, 'value': tuple(obj.timetuple()[:6])}
         elif isinstance(obj, datetime.date):
-            return {'__date__': True, 'as_str': obj.isoformat()}
+            return {'__date__': True, 'value': (obj.year, obj.month, obj.day)}
         elif isinstance(obj, datetime.time):
-            return {'__time__': True, 'as_str': obj.strftime('%H:%M:%S')}
+            return {'__time__': True, 'value': (obj.hour, obj.minute, obj.second)}
         elif hasattr(obj, 'render'):
             return obj.render()
         elif hasattr(obj, '__str__'):
@@ -219,16 +219,11 @@ class MPRowsFile(object):
     def decode_obj(obj):
 
         if '__datetime__' in obj:
-            try:
-                obj = datetime.datetime.strptime(obj['as_str'], '%Y-%m-%dT%H:%M:%S')
-            except ValueError:
-                # The preferred format is without the microseconds, but there are some lingering
-                # bundle that still have it.
-                obj = datetime.datetime.strptime(obj['as_str'], '%Y-%m-%dT%H:%M:%S.%f')
+            obj = datetime.datetime(*obj['value'])
         elif '__time__' in obj:
-            obj = datetime.time(*list(time.strptime(obj['as_str'], '%H:%M:%S'))[3:6])
+            obj = datetime.time(*obj['value'])
         elif '__date__' in obj:
-            obj = datetime.datetime.strptime(obj['as_str'], '%Y-%m-%d').date()
+            obj = datetime.date(*obj['value'])
         else:
             raise Exception('Unknown type on decode: {} '.format(obj))
 

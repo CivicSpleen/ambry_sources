@@ -21,6 +21,7 @@ from six import string_types, iteritems, text_type, binary_type
 
 from ambry_sources.sources import RowProxy
 from ambry_sources.stats import Stats
+from ambry_sources.mpf import MPRowsFile
 
 logger = logging.getLogger(__name__)
 
@@ -38,88 +39,6 @@ class HDFPartition(object):
 
     EXTENSION = '.h5'
     VERSION = 1
-
-    # These are all of the keys for the  schema. The schema is a collection of rows, with these
-    # keys being the first, followed by one row per column.
-    SCHEMA_TEMPLATE = [
-        'pos',
-        'name',
-        'type',
-        'description',
-        'start',
-        'width',
-
-        # types
-        'position',
-        'header',
-        'length',
-        'has_codes',
-        'type_count',  # Note! Row Intuiter object call this 'count'
-
-        'ints',
-        'floats',
-        'strs',
-        'unicode',
-        'nones',
-        'datetimes',
-        'dates',
-        'times',
-        'strvals',
-
-        # Stats
-        'flags',
-        'lom',
-        'resolved_type',
-        'stat_count',  # Note! Stat object calls this 'count'
-        'nuniques',
-        'mean',
-        'std',
-        'min',
-        'p25',
-        'p50',
-        'p75',
-        'max',
-        'skewness',
-        'kurtosis',
-        'hist',
-        'text_hist',
-        'uvalues']
-
-    META_TEMPLATE = {
-
-        'schema': [SCHEMA_TEMPLATE],
-        'about': {
-            'create_time': None,  # Timestamp when file was  created.
-            'load_time': None  # Length of time MPRowsFile.load_rows ran, in seconds()
-        },
-        'geo': {
-            'srs': None,
-            'bb': None
-        },
-        'excel': {
-            'datemode': None,
-            'worksheet': None
-        },
-        'source': {
-            'url': None,
-            'fetch_time': None,
-            'file_type': None,
-            'url_type': None,
-            'inner_file': None,
-            'encoding': None
-        },
-        'row_spec': {
-            'header_rows': None,
-            'comment_rows': None,
-            'start_row': None,
-            'end_row': None,
-            'data_pattern': None
-        },
-        'comments': {
-            'header': None,
-            'footer': None
-        }
-    }
 
     def __init__(self, url_or_fs, path=None):
         """
@@ -326,7 +245,7 @@ class HDFPartition(object):
         s = o.meta['schema']
 
         assert len(s) >= 1  # Should always have header row.
-        assert o.meta['schema'][0] == HDFPartition.SCHEMA_TEMPLATE, (o.meta['schema'][0], HDFPartition.SCHEMA_TEMPLATE)
+        assert o.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE, (o.meta['schema'][0], MPRowsFile.SCHEMA_TEMPLATE)
 
         # n_cols here is for columns in the data table, which are rows in the headers table
         n_cols = max(n_cols, o.n_cols, len(s) - 1)
@@ -346,7 +265,7 @@ class HDFPartition(object):
 
             yield rp.set_row(row)
 
-        assert o.meta['schema'][0] == HDFPartition.SCHEMA_TEMPLATE
+        assert o.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
 
     @classmethod
     def _info(cls, o):
@@ -389,7 +308,7 @@ class HDFWriter(object):
         else:
             # No, doesn't exist
             self._h5_file = open_file(filename, mode='w')
-            self.meta = deepcopy(HDFPartition.META_TEMPLATE)
+            self.meta = deepcopy(MPRowsFile.META_TEMPLATE)
 
         self.header_mangler = lambda name: re.sub('_+', '_', re.sub('[^\w_]', '_', name).lower()).rstrip('_')
 
@@ -421,7 +340,7 @@ class HDFWriter(object):
             assert isinstance(headers[i], string_types)
             row.name = headers[i]
 
-        assert self.meta['schema'][0] == HDFPartition.SCHEMA_TEMPLATE
+        assert self.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
 
     @property
     def columns(self):
@@ -661,7 +580,7 @@ class HDFWriter(object):
 
     def _write_meta(self):
         """ Writes meta to the h5 file. """
-        assert self.meta['schema'][0] == HDFPartition.SCHEMA_TEMPLATE
+        assert self.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
         self._validate_groups()
         self._save_about()
         self._save_comments()
@@ -709,7 +628,7 @@ class HDFWriter(object):
             'name': StringCol(itemsize=255),
             'type': StringCol(itemsize=255),
             'description': StringCol(itemsize=1024),
-            'start': Int32Col(),  # FIXME: Ask Eric about type.
+            'start': Int32Col(),
             'width': Int32Col(),
             'position': Int32Col(),
             'header': StringCol(itemsize=255),
@@ -725,8 +644,8 @@ class HDFWriter(object):
             'dates': Int32Col(),
             'times': Int32Col(),
             'strvals': StringCol(itemsize=255),
-            'flags': StringCol(itemsize=255),  # FIXME: Ask Eric about type.
-            'lom': StringCol(itemsize=255),  # FIXME: Ask Eric about type.
+            'flags': StringCol(itemsize=255),
+            'lom': StringCol(itemsize=1),
             'resolved_type': StringCol(itemsize=40),
             'stat_count': Int32Col(),
             'nuniques': Int32Col(),
@@ -737,11 +656,11 @@ class HDFWriter(object):
             'p50': Float64Col(),
             'p75': Float64Col(),
             'max': Float64Col(),
-            'skewness': Float64Col(),  # FIXME: Ask Eric about type.
-            'kurtosis': Float64Col(),  # FIXME: Ask Eric about type.
-            'hist': StringCol(itemsize=255),  # FIXME: Ask Eric about type.
+            'skewness': Float64Col(),
+            'kurtosis': Float64Col(),
+            'hist': StringCol(itemsize=255),
             'text_hist': StringCol(itemsize=255),
-            'uvalues': StringCol(itemsize=5000)  # FIXME: Ask Eric about size.
+            'uvalues': StringCol(itemsize=5000)
         }
         # always re-create table on save. It works better than rows removing.
         if 'schema' in self._h5_file.root.partition.meta:
@@ -786,10 +705,10 @@ class HDFWriter(object):
         descriptor = {
             'fetch_time': Float64Col(),
             'encoding': StringCol(itemsize=255),
-            'url': StringCol(itemsize=1024),  # FIXME: Ask Eric about max length of the url.
+            'url': StringCol(itemsize=1024),
             'file_type': StringCol(itemsize=50),
-            'inner_file': StringCol(itemsize=255),  # FIXME: Ask Eric about length.
-            'url_type': StringCol(itemsize=255),  # FIXME: Ask Eric about length.
+            'inner_file': StringCol(itemsize=255),
+            'url_type': StringCol(itemsize=255),
         }
         self._save_meta_child('source', descriptor)
 
@@ -799,14 +718,14 @@ class HDFWriter(object):
             'header_rows': StringCol(itemsize=255),  # comma separated ints or empty string.
             'start_row': Int32Col(),
             'comment_rows': StringCol(itemsize=255),  # comma separated ints or empty string.
-            'data_pattern': StringCol(itemsize=255)  # FIXME: Ask Eric about size.
+            'data_pattern': StringCol(itemsize=255)
         }
         self._save_meta_child('row_spec', descriptor)
 
     def _save_geo(self):
         descriptor = {
-            'srs': Int32Col(),  # FIXME: Ask Eric about type.
-            'bb': Int32Col(),  # FIXME: Ask Eric about type.
+            'srs': Int32Col(),
+            'bb': Int32Col(),
         }
         self._save_meta_child('geo', descriptor)
 
@@ -973,14 +892,14 @@ class HDFReader(object):
 
     @classmethod
     def _read_meta(self, h5_file):
-        meta = deepcopy(HDFPartition.META_TEMPLATE)
+        meta = deepcopy(MPRowsFile.META_TEMPLATE)
         for child, group in meta.items():
             if child == 'schema':
                 # This is the special case because meta.schema construct from many rows.
-                new_schema = [HDFPartition.SCHEMA_TEMPLATE]
+                new_schema = [MPRowsFile.SCHEMA_TEMPLATE]
                 for col_descr in self._read_meta_child(h5_file, 'schema'):
                     col = []
-                    for e in HDFPartition.SCHEMA_TEMPLATE:
+                    for e in MPRowsFile.SCHEMA_TEMPLATE:
                         col.append(_deserialize(col_descr.get(e)))
                     new_schema.append(col)
                 meta['schema'] = new_schema
@@ -1034,10 +953,10 @@ def _get_rows_descriptor(columns):
     TYPE_MAP = {
         'int': lambda pos: Int32Col(pos=pos),
         'long': lambda pos: Int64Col(pos=pos),
-        'str': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: Ask Eric about size.
-        'bytes': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: Ask Eric about size.
+        'str': lambda pos: StringCol(itemsize=255, pos=pos),
+        'bytes': lambda pos: StringCol(itemsize=255, pos=pos),
         'float': lambda pos: Float64Col(pos=pos),
-        'unknown': lambda pos: StringCol(itemsize=255, pos=pos),  # FIXME: Ask Eric about type and size.
+        'unknown': lambda pos: StringCol(itemsize=255, pos=pos),
     }
     descriptor = {}
 

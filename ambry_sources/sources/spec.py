@@ -101,7 +101,7 @@ class SourceSpec(object):
 
         # If it is an actual list.
         elif isinstance(self.header_lines, (list, tuple)):
-            self.header_lines = [int(e) for e in self.header_lines if binary_type(e).strip() != '']
+            self.header_lines = [int(e) for e in self.header_lines if str(e).strip() != '']
 
         if self.header_lines:
             self.start_line = max(self.header_lines) + 1

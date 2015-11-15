@@ -357,6 +357,14 @@ class MPRowsFile(object):
         if self.exists:
             self._fs.remove(self.path)
 
+    def close(self):
+
+        if self._reader:
+            self._reader.close()
+
+        if self._writer:
+            self._reader.close()
+
     @property
     def meta(self):
 

@@ -20,3 +20,19 @@ logging.basicConfig()
 if __name__ == "__main__":
     from .cli import main
     main()
+
+
+# Some utilities
+
+def head(iterable, n ):
+    """Return a list of the first N rows from the iterable"""
+    from itertools import islice
+    return list(islice(iterable, n))
+
+
+def tail(iterable, n):
+    import collections
+    "Return an iterator over the last n items"
+    # tail(3, 'ABCDEFG') --> E F G
+    return list(iter(collections.deque(iterable, maxlen=n)))
+

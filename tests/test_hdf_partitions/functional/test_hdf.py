@@ -81,6 +81,7 @@ class Test(TestBase):
     @pytest.mark.slow
     def test_load_and_headers(self):
         """ Just checks that all of the sources can be loaded without exceptions. """
+        from ambry_sources import head, tail
 
         cache_fs = fsopendir('temp://')
 
@@ -130,7 +131,7 @@ class Test(TestBase):
                     w.set_row_spec(row_spec, headers)
                     w.set_types(ti)
                 else:
-                    ri = RowIntuiter().run(s)
+                    ri = RowIntuiter().run(head(s,20), tail(s,20), w.n_rows)
                     row_spec = self._row_intuiter_to_dict(ri)
                     ti = TypeIntuiter().process_header(ri.headers).run(s)
                     w.set_row_spec(row_spec, ri.headers)
@@ -143,6 +144,7 @@ class Test(TestBase):
                 # FIXME: test head, middle and tail rows.
 
     def test_fixed(self):
+        from ambry_sources import head, tail
         cache_fs = fsopendir(self.setup_temp_dir())
         spec = self.sources['simple_fixed']
         assert spec.has_rowspec is False
@@ -150,7 +152,9 @@ class Test(TestBase):
 
         # prepare HDFPartition.
         f = HDFPartition(cache_fs, spec.name)
-        ri = RowIntuiter().run(s)
+
+
+        ri = RowIntuiter().run(head(s,100), tail(s,100))
         row_spec = self._row_intuiter_to_dict(ri)
         ti = TypeIntuiter().process_header(ri.headers).run(s)
         with f.writer as w:
@@ -162,7 +166,7 @@ class Test(TestBase):
 
     def test_generator(self):
         from ambry_sources.sources import GeneratorSource, SourceSpec
-
+        from ambry_sources import head, tail
         cache_fs = fsopendir(self.setup_temp_dir())
 
         def gen():
@@ -174,7 +178,9 @@ class Test(TestBase):
 
         f = HDFPartition(cache_fs, 'foobar')
 
-        ri = RowIntuiter().run(GeneratorSource(SourceSpec('foobar'), gen()))
+        s = GeneratorSource(SourceSpec('foobar'), gen())
+
+        ri = RowIntuiter().run(head(s,100), tail(s,100))
         row_spec = self._row_intuiter_to_dict(ri)
         ti = TypeIntuiter().process_header(ri.headers).run(GeneratorSource(SourceSpec('foobar'), gen()))
         with f.writer as w:
@@ -240,6 +246,7 @@ class Test(TestBase):
     def test_stats(self):
         """Check that the sources can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
+        from ambry_sources import head, tail
 
         cache_fs = fsopendir('temp://')
 
@@ -248,7 +255,7 @@ class Test(TestBase):
         f = HDFPartition(cache_fs, source.spec.name)
 
         with f.writer as w:
-            ri = RowIntuiter().run(source)
+            ri = RowIntuiter().run(head(source,100), tail(source,100))
             row_spec = self._row_intuiter_to_dict(ri)
             ti = TypeIntuiter().process_header(ri.headers).run(source)
             w.set_row_spec(row_spec, ri.headers)

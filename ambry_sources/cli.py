@@ -55,7 +55,10 @@ def main(args=None):
         parser = make_arg_parser()
         args = parser.parse_args()
 
-    f = MPRowsFile(args.path[0])
+    if isinstance(args.path[0], MPRowsFile):
+        f = args.path[0] # When it is called from the ambry cli with a remote file.
+    else:
+        f = MPRowsFile(args.path[0])
 
     r = f.reader
 
@@ -96,7 +99,13 @@ def main(args=None):
             print('{:<12s}: {}'.format(l, m))
 
     with f.reader as r:
-        pm("MPR File", args.path[0])
+
+        try:
+            path = f.syspath
+        except:
+            path = "{} / {}".format(f._fs, f._path)
+
+        pm("MPR File", path)
         pm("Created",
            (r.meta['about']['create_time'] and datetime.fromtimestamp(r.meta['about']['create_time'])))
         pm("version", r.info['version'])

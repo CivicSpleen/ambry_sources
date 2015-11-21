@@ -120,6 +120,9 @@ def extract_file_from_zip(cache_fs, cache_path, url, fn_pattern = None):
 
     from fs.zipfs import ZipOpenError
 
+    # FIXME Not sure what is going on here, but in multiproccessing mode,
+    # the 'try' version of opening the file can fail with an error about the file being missing or corrupy
+    # but the second successedes. However, the second will faile in test environments that have a memory cache.
     try:
         fs = ZipFS(cache_fs.open(cache_path, 'rb'))
     except ZipOpenError:

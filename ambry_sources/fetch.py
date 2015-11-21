@@ -29,7 +29,7 @@ from .sources import GoogleSource, CsvSource, TsvSource, FixedSource, ExcelSourc
     SourceError, DelayedOpen, ShapefileSource
 
 
-def get_source(spec, cache_fs,  account_accessor=None, clean=False):
+def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger = None):
     """
     Download a file from a URL and return it wrapped in a row-generating acessor object.
 
@@ -46,7 +46,8 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False):
 
     if url_type != 'gs': #FIXME. Need to clean up the logic for gs types.
         try:
-            cache_path, download_time = download(spec.url, cache_fs, account_accessor, clean=clean)
+            cache_path, download_time = download(spec.url, cache_fs, account_accessor,
+                                                 clean=clean, logger = logger)
             spec.download_time = download_time
         except HTTPError as e:
             raise DownloadError("Failed to download {}; {}".format(spec.url, e))
@@ -117,7 +118,13 @@ def extract_file_from_zip(cache_fs, cache_path, url, fn_pattern = None):
     :return:
     """
 
-    fs = ZipFS(cache_fs.open(cache_path, 'rb'))
+    from fs.zipfs import ZipOpenError
+
+    try:
+        fs = ZipFS(cache_fs.open(cache_path, 'rb'))
+    except ZipOpenError:
+        fs = ZipFS(cache_fs.getsyspath(cache_path))
+
     fstor = None
 
     def walk_all(fs):
@@ -142,14 +149,71 @@ def extract_file_from_zip(cache_fs, cache_path, url, fn_pattern = None):
                 fstor = DelayedOpen(fs, file_name, 'rb', container=(cache_fs, cache_path))
                 break
 
-
         if not fstor:
             raise ConfigurationError("Failed to get file for pattern '{}' from archive {}".format(fn_pattern, fs))
 
     return fstor
 
+def _download(url, cache_fs, cache_path, account_accessor, logger ):
 
-def download(url, cache_fs, account_accessor=None, clean=False):
+    import requests
+    import os
+
+    if url.startswith('s3:'):
+        s3 = get_s3(url, account_accessor)
+        pd = parse_url_to_dict(url)
+
+        with cache_fs.open(cache_path, 'wb') as fout:
+            with s3.open(pd['path'], 'rb') as fin:
+                copy_file_or_flo(fin, fout)
+
+    elif url.startswith('ftp:'):
+        import shutil
+        from contextlib import closing
+
+        with closing(urlopen(url)) as fin:
+            with cache_fs.open(cache_path, 'wb') as fout:
+                shutil.copyfileobj(fin, fout)
+    else:
+
+        r = requests.get(url, stream=True)
+        r.raise_for_status()
+
+        # Requests will auto decode gzip responses, but not when streaming. This following
+        # monkey patch is recommended by a core developer at
+        # https://github.com/kennethreitz/requests/issues/2155
+        if r.headers.get('content-encoding') == 'gzip':
+            r.raw.read = functools.partial(r.raw.read, decode_content=True)
+
+        # TODO
+        def progress_logger(read_len, total_len):
+            pass
+
+        with cache_fs.open(cache_path, 'wb') as f:
+            copy_file_or_flo(r.raw, f, cb = progress_logger)
+
+        assert cache_fs.exists(cache_path)
+
+
+class _NoOpFileLock(object):
+    """No Op for pyfilesystem caches where locking wont work"""
+    def __init__(self, lf):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_val:
+            raise exc_val
+
+    def acquire(self):
+        pass
+
+    def release(self):
+        pass
+
+def download(url, cache_fs, account_accessor=None, clean=False, logger = None):
     """
     Download a URL and store it in the cache.
 
@@ -162,7 +226,7 @@ def download(url, cache_fs, account_accessor=None, clean=False):
     import os.path
     import requests
     from fs.errors import NoSysPathError, ResourceInvalidError
-    import filelock
+
     import time
 
     parsed = urlparse(url)
@@ -175,87 +239,48 @@ def download(url, cache_fs, account_accessor=None, clean=False):
         hash = hashlib.sha224(parsed.query).hexdigest()
         cache_path = os.path.join(cache_path, hash)
 
-    download_time = False
+    try:
+        from  filelock import FileLock
+        lock = FileLock(cache_fs.getsyspath(cache_path + '.lock'))
 
-    if clean and cache_fs.exists(cache_path):
-        try:
-            cache_fs.remove(cache_path)
-        except ResourceInvalidError:
-            pass # Well, we tried.
-
+    except NoSysPathError:
+        # mem: caches, and others, don't have sys paths.
+        # FIXME should check for MP operation and raise if there would be
+        # contention. Mem  caches are only for testing with single processes
+        lock = _NoOpFileLock()
 
     if not cache_fs.exists(cache_path):
-
         cache_fs.makedir(os.path.dirname(cache_path), recursive=True, allow_recreate=True)
 
-        try:
-            lock_file = cache_fs.getsyspath(cache_path + '.lock')
-            FileLock = filelock.FileLock
-
-        except NoSysPathError:
-            # mem: caches, and others, don't have sys paths.
-            class FileLock(object):
-
-                def __init__(self, lf):
-                    pass
-
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, exc_type, exc_val, exc_tb):
-                    if exc_val:
-                        raise exc_val
-
-            lock_file = None
-
-        # Use a file lock, in case two processes try to download the file at the same time.
-        with FileLock(lock_file):
-
-            try:
-
-                if url.startswith('s3:'):
-                    s3 = get_s3(url, account_accessor)
-                    pd = parse_url_to_dict(url)
-
-                    with cache_fs.open(cache_path, 'wb') as fout:
-                        with s3.open(pd['path'], 'rb') as fin:
-                            copy_file_or_flo(fin, fout)
-
-                elif url.startswith('ftp:'):
-                    import shutil
-                    from contextlib import closing
-
-                    with closing(urlopen(url)) as fin:
-                        with cache_fs.open(cache_path, 'wb') as fout:
-                            shutil.copyfileobj(fin, fout)
-                else:
-
-                    r = requests.get(url, stream=True)
-
-                    r.raise_for_status()
-
-                    # Requests will auto decode gzip responses, but not when streaming. This following
-                    # monkey patch is recommended by a core developer at
-                    # https://github.com/kennethreitz/requests/issues/2155
-                    if r.headers.get('content-encoding') == 'gzip':
-                        r.raw.read = functools.partial(r.raw.read, decode_content=True)
-
-                    with cache_fs.open(cache_path, 'wb') as f:
-                        copy_file_or_flo(r.raw, f)
-
-                download_time = time.time()
-
-            except KeyboardInterrupt:
-                # This is really important -- its really bad to have partly downloaded
-                # files being confused with fully downloaded ones.
-                # FIXME. SHould also handle signals. deleteing partly downloaded files is important.
-                # Maybe should have a sentinel file, or download to another name and move the
-                # file after done.
-                if cache_fs.exists(cache_path):
+    with lock:
+        if cache_fs.exists(cache_path):
+            if clean:
+                try:
                     cache_fs.remove(cache_path)
-                raise
+                except ResourceInvalidError:
+                    pass  # Well, we tried.
+            else:
+                return cache_path, None
 
-    return cache_path, download_time
+        try:
+            _download(url, cache_fs, cache_path, account_accessor, logger)
+
+            return cache_path, time.time()
+
+        except KeyboardInterrupt:
+            # This is really important -- its really bad to have partly downloaded
+            # files being confused with fully downloaded ones.
+            # FIXME. Should also handle signals. deleteing partly downloaded files is important.
+            # Maybe should have a sentinel file, or download to another name and move the
+            # file after done.
+            if cache_fs.exists(cache_path):
+                cache_fs.remove(cache_path)
+
+            raise
+
+    assert False, "Should never get here"
+
+
 
 
 def get_s3(url, account_accessor):

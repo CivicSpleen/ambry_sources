@@ -3,7 +3,7 @@ from datetime import datetime, date
 
 from six import binary_type, text_type
 
-from apsw import MisuseError
+
 
 # Documents used to implement module and function:
 # Module: http://apidoc.apsw.googlecode.com/hg/vtable.html
@@ -91,6 +91,7 @@ def add_partition(connection, partition, vid):
         partition (mpf.MPRowsFile):
 
     """
+    from apsw import MisuseError # Moved into function to allow tests to run when it isn't installed
 
     module_name = 'mod_partition'
     try:

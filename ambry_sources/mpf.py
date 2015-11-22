@@ -351,6 +351,7 @@ class MPRowsFile(object):
     def remove(self):
         if self.exists:
             self._fs.remove(self.path)
+            self.close()
 
     def close(self):
 

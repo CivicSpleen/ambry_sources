@@ -519,7 +519,6 @@ class MPRowsFile(object):
                     # the higher level logger.
                     pass
 
-
             elif spec:
 
                 with self.writer as w:
@@ -1046,22 +1045,17 @@ class MPRReader(object):
     def is_finalized(self):
         try:
             return self.meta['process']['finalized']
-        except KeyError: # Old version, doesn't have 'process' key
+        except KeyError:  # Old version, doesn't have 'process' key
             return False
 
     @property
     def columns(self):
-        """Return the headers rows
-
-        """
+        """Return columns."""
         return MPRowsFile._columns(self)
 
     @property
     def headers(self):
-        """Return the headers rows
-
-        """
-
+        """Return the headers (column names)."""
         return [e.name for e in MPRowsFile._columns(self)]
 
     @property

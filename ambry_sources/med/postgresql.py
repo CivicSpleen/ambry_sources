@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
+import getpass
 import logging
 import operator
 import re
+
 from fs.opener import fsopendir
 
 from six import binary_type, text_type
 
 from multicorn import ForeignDataWrapper
-from multicorn.utils import log_to_postgres, ERROR, WARNING
+from multicorn.utils import log_to_postgres, ERROR, WARNING, DEBUG
 
 from ambry_sources.mpf import MPRowsFile
 
@@ -37,7 +39,7 @@ def add_partition(cursor, partition, vid):
     """
     _create_if_not_exists(cursor, FOREIGN_SERVER_NAME)
     query = _get_create_query(partition, vid)
-    logging.debug('Create foreign table for {} partition. Query:\n{}.'.format(partition.path, query))
+    logger.debug('Create foreign table for {} partition. Query:\n{}.'.format(partition.path, query))
     cursor.execute(query)
 
 
@@ -83,7 +85,7 @@ def _server_exists(cursor, server_name):
 def _create_if_not_exists(cursor, server_name):
     """ Creates foreign server if it does not exist. """
     if not _server_exists(cursor, server_name):
-        logging.info('Create {} foreign server because it does not exist.'.format(server_name))
+        logger.info('Create {} foreign server because it does not exist.'.format(server_name))
         query = """
             CREATE SERVER {} FOREIGN DATA WRAPPER multicorn
             options (
@@ -92,7 +94,7 @@ def _create_if_not_exists(cursor, server_name):
         """.format(server_name)
         cursor.execute(query)
     else:
-        logging.debug('{} foreign server already exists. Do nothing.'.format(server_name))
+        logger.debug('{} foreign server already exists. Do nothing.'.format(server_name))
 
 
 def table_name(vid):
@@ -175,6 +177,13 @@ class MPRForeignDataWrapper(ForeignDataWrapper):
             raise RuntimeError('`filesystem` is required option of the MPR (Message Pack Rows) fdw.')
         self.filesystem = fsopendir(options['filesystem'])
         self.path = options['path']
+
+        if logger.level == logging.DEBUG:
+            current_user = getpass.getuser()
+            log_to_postgres(
+                'Initializing Foreign Data Wrapper: user: {}, filesystem: {}, path: {}'
+                .format(current_user, options['filesystem'], options['path']),
+                DEBUG)
         self._mp_rows = MPRowsFile(self.filesystem, self.path)
 
     def _matches(self, quals, row):
@@ -193,7 +202,7 @@ class MPRForeignDataWrapper(ForeignDataWrapper):
                 log_to_postgres(
                     'Unknown operator {} in the {} qual. Row will be returned.'.format(qual.operator, qual),
                     WARNING,
-                    hint='Implement that operator in the ambryfdw wrapper.')
+                    hint='Implement {} operator in the MPR FDW wrapper.'.format(qual.operator))
                 continue
 
             elem_index = self.columns.index(qual.field_name)
@@ -202,11 +211,36 @@ class MPRForeignDataWrapper(ForeignDataWrapper):
         return True
 
     def execute(self, quals, columns):
-        with self._mp_rows.reader as reader:
-            for row in reader.rows:
-                assert isinstance(row, (tuple, list)), row
+        if logger.level == logging.DEBUG:
+            syspath = self._mp_rows.syspath
+            log_to_postgres(
+                'Executing query over rows of the MPR: mpr: {}, quals: {}, columns: {}'
+                .format(syspath, quals, columns),
+                DEBUG)
+            with self._mp_rows.reader as reader:
+                for row in reader.rows:
+                    assert isinstance(row, (tuple, list)), row
 
-                if not self._matches(quals, row):
-                    continue
+                    if not self._matches(quals, row):
+                        log_to_postgres(
+                            'No match, continue with another: mpr: {}, row: {}, quals: {}'
+                            .format(syspath, row, quals),
+                            DEBUG)
+                        continue
 
-                yield row
+                    log_to_postgres(
+                        'Match found, yielding row {}: mpr: {}, quals: {}'
+                        .format(syspath, row, quals),
+                        DEBUG)
+
+                    yield row
+        else:
+            # it is the same, except debug logging.
+            with self._mp_rows.reader as reader:
+                for row in reader.rows:
+                    assert isinstance(row, (tuple, list)), row
+
+                    if not self._matches(quals, row):
+                        continue
+
+                    yield row

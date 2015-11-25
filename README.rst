@@ -73,3 +73,25 @@ these extras in develop, run from the root of the distribution:
 .. code-block:: bash
 
     pip install -e .[geo,fdw]
+
+Debugging postgres FDW
+----------------------
+
+1. Set postgres log level to debug by changing log_min_messages to DEBUG1:
+
+.. code-block:: python
+
+    log_min_messages = debug1
+
+2. Set level of the ambry_sources.med.postgres to DEBUG level:
+
+.. code-block:: python
+
+    import logging
+    import ambry_sources
+    logger = logging.getLogger(ambry_sources.med.postgresql.__name__)
+    logger.setLevel(logging.DEBUG)
+    # Now use ambry_sources.med.postgres
+    # ...
+
+3. Restart postgres and run code. Check both - postgres and ambry_sources log files.

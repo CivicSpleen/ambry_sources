@@ -198,7 +198,7 @@ class MPRowsFile(object):
 
     @property
     def syspath(self):
-        if self.exists:
+        if self.exists and self._fs.hassyspath(self.path):
             return self._fs.getsyspath(self.path)
         else:
             return None
@@ -353,6 +353,7 @@ class MPRowsFile(object):
 
     @property
     def exists(self):
+        """ Returns True if mpr file (self.path) exists in the filesystem (self._fs). False otherwise. """
         return self._fs.exists(self.path)
 
     def remove(self):
@@ -789,8 +790,9 @@ class MPRWriter(object):
             the user who executes ambry_sources.
 
         """
-        if self.parent.syspath:
-            parts = self.parent.syspath.split(os.sep)
+        syspath = self.syspath
+        if syspath:
+            parts = syspath.split(os.sep)
             parts[0] = os.sep
             for i, dir_ in enumerate(parts):
                 if dir_ == '/':

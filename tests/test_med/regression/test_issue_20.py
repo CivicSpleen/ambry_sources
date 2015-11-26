@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 
+try:
+    # py2, mock is external lib.
+    from mock import patch
+except ImportError:
+    # py3, mock is included
+    from unittest.mock import patch
+
 import psycopg2
 
 from fs.opener import fsopendir
@@ -15,7 +22,9 @@ from tests import PostgreSQLTestBase, TestBase
 
 class Test(TestBase):
 
-    def test_executes_select_query_without_any_error(self):
+    @patch('ambry_sources.med.postgresql._postgres_shares_group')
+    def test_executes_select_query_without_any_error(self, fake_shares):
+        fake_shares.return_value = True
 
         def gen():
             # generate header

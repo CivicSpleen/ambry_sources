@@ -15,7 +15,7 @@ from six import binary_type
 from fs.opener import fsopendir
 
 from ambry_sources import get_source
-from ambry_sources.med.postgresql import add_partition, table_name
+from ambry_sources.med.postgresql import add_partition, table_name, _postgres_shares_group
 from ambry_sources.mpf import MPRowsFile
 
 from tests import PostgreSQLTestBase, TestBase
@@ -72,3 +72,6 @@ class Test(TestBase):
                 conn.close()
         finally:
             PostgreSQLTestBase._drop_postgres_test_db()
+
+    def test_postgres_user_is_a_member_of_ambry_executor_group(self):
+        self.assertTrue(_postgres_shares_group(), 'Add postgres user to ambry executor group.')

@@ -40,7 +40,7 @@ def add_partition(cursor, mprows, vid):
     if not _postgres_shares_group():
         details_link = 'http://example.com/FIXME:'
         raise AssertionError(
-            'postgres user will not have permission to read mpr file.\n'
+            'postgres user does not have permission to read mpr file.\n'
             'Hint: postgres user should share group with user who executes ambry. See {} for details.'
             .format(details_link))
     _create_if_not_exists(cursor, FOREIGN_SERVER_NAME)

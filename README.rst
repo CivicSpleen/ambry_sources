@@ -74,6 +74,19 @@ these extras in develop, run from the root of the distribution:
 
     pip install -e .[geo,fdw]
 
+Making mpr files readable by postgres user.
+-------------------------------------------
+
+ambry_sources gives read permission to each member of the group of the user who executes ambry_sources. So,
+to allow postgres read mpr files while executing queries you need to add postgres user to group of the user
+who executes ambry_sources. Here is an example for debian (ubuntu).
+
+.. code-block:: bash
+
+    # add postgres user the executor group
+    $ sudo usermod -a -G `id -g -n` postgres
+
+
 Debugging postgres FDW
 ----------------------
 

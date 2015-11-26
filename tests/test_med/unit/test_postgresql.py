@@ -51,7 +51,7 @@ class AddPartitionTest(TestBase):
             add_partition(cursor, mprows, 'vid1')
         except AssertionError as exc:
             raises = True
-            self.assertIn('postgres user will not have permission to read mpr file.', str(exc))
+            self.assertIn('postgres user does not have permission to read mpr file.', str(exc))
         self.assertTrue(raises)
 
 

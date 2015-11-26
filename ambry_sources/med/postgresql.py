@@ -38,7 +38,7 @@ def add_partition(cursor, mprows, vid):
         vid (str): vid of the partition.
     """
     if not _postgres_shares_group():
-        details_link = 'https://github.com/CivicKnowledge/ambry_sources/blob/master/README.rst#making-mpr-files-readable-by-postgres-user'
+        details_link = 'https://github.com/CivicKnowledge/ambry_sources#making-mpr-files-readable-by-postgres-user'
         raise AssertionError(
             'postgres user does not have permission to read mpr file.\n'
             'Hint: postgres user should share group with user who executes ambry. See {} for details.'

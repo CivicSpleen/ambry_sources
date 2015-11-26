@@ -29,31 +29,32 @@ TYPE_MAP = {
 }
 
 
-def add_partition(cursor, partition, vid):
+def add_partition(cursor, mprows, vid):
     """ Creates foreign table for given partition.
 
     Args:
         cursor (psycopg2.cursor):
-        partition (mpf.MPRowsFile):
+        mprows (mpf.MPRowsFile):
         vid (str): vid of the partition.
     """
     _create_if_not_exists(cursor, FOREIGN_SERVER_NAME)
-    query = _get_create_query(partition, vid)
-    logger.debug('Create foreign table for {} partition. Query:\n{}.'.format(partition.path, query))
+    query = _get_create_query(mprows, vid)
+    logger.debug('Create foreign table for {} mprows. Query:\n{}.'.format(mprows.path, query))
     cursor.execute(query)
 
 
-def _get_create_query(partition, vid):
+def _get_create_query(mprows, vid):
     """ Returns query to create foreign table.
 
     Args:
-        connection (sqlalchemy.engine.Connection)
+        mprows (mpf.MPRowsFile):
+        vid (str): vid of the partition.
 
     Returns:
         str: sql query to craete foreign table.
     """
     columns = []
-    for column in sorted(partition.reader.columns, key=lambda x: x['pos']):
+    for column in sorted(mprows.reader.columns, key=lambda x: x['pos']):
         postgres_type = TYPE_MAP.get(column['type'])
         if not postgres_type:
             raise Exception('Do not know how to convert {} to postgresql type.'.format(column['type']))
@@ -68,8 +69,8 @@ def _get_create_query(partition, vid):
         );
     """.format(table=table_name(vid),
                columns=',\n'.join(columns), server_name=FOREIGN_SERVER_NAME,
-               filesystem=partition._fs.root_path,
-               path=partition.path)
+               filesystem=mprows._fs.root_path,
+               path=mprows.path)
     return query
 
 

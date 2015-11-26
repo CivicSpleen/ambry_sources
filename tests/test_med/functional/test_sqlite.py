@@ -21,16 +21,16 @@ class Test(TestBase):
         sources = self.load_sources()
         spec = sources['simple_fixed']
         s = get_source(spec, cache_fs)
-        partition = MPRowsFile(cache_fs, spec.name).load_rows(s)
+        mprows = MPRowsFile(cache_fs, spec.name).load_rows(s)
 
         # first make sure file not changed.
         expected_names = ['id', 'uuid', 'int', 'float']
         expected_types = ['int', binary_type.__name__, 'int', 'float']
-        self.assertEqual([x['name'] for x in partition.reader.columns], expected_names)
-        self.assertEqual([x['type'] for x in partition.reader.columns], expected_types)
+        self.assertEqual([x['name'] for x in mprows.reader.columns], expected_names)
+        self.assertEqual([x['type'] for x in mprows.reader.columns], expected_types)
 
         connection = apsw.Connection(':memory:')
-        add_partition(connection, partition, 'vid1')
+        add_partition(connection, mprows, 'vid1')
 
         # check all columns and some rows.
         cursor = connection.cursor()
@@ -38,7 +38,7 @@ class Test(TestBase):
         result = cursor.execute(query).fetchall()
         self.assertEqual(result, [(10000,)])
 
-        with partition.reader as r:
+        with mprows.reader as r:
             expected_first_row = next(iter(r)).row
 
         # query by columns.

@@ -3,8 +3,6 @@ from datetime import datetime, date
 
 from six import binary_type, text_type
 
-
-
 # Documents used to implement module and function:
 # Module: http://apidoc.apsw.googlecode.com/hg/vtable.html
 # Functions: http://www.drdobbs.com/database/query-anything-with-sqlite/202802959?pgno=3
@@ -22,16 +20,16 @@ TYPE_MAP = {
 
 class Table:
     """ Represents a table """
-    def __init__(self, columns, partition):
+    def __init__(self, columns, mprows):
         """
 
         Args:
             columns (list of str): column names
-            partition (mpf.MPRowsFile):
+            mprows (mpf.MPRowsFile):
 
         """
         self.columns = columns
-        self.partition = partition
+        self.mprows = mprows
 
     def BestIndex(self, *args):
         return None
@@ -49,7 +47,7 @@ class Cursor:
     """ Represents a cursor """
     def __init__(self, table):
         self.table = table
-        self._reader = table.partition.reader
+        self._reader = table.mprows.reader
         self._rows_iter = iter(self._reader.rows)
         self._current_row = next(self._rows_iter)
         self._row_id = 1
@@ -83,19 +81,19 @@ class Cursor:
         self._reader = None
 
 
-def add_partition(connection, partition, vid):
+def add_partition(connection, mprows, vid):
     """ Creates virtual table for partition.
 
     Args:
         connection (apsw.Connection):
-        partition (mpf.MPRowsFile):
+        mprows (mpf.MPRowsFile):
 
     """
-    from apsw import MisuseError # Moved into function to allow tests to run when it isn't installed
+    from apsw import MisuseError  # Moved into function to allow tests to run when it isn't installed
 
     module_name = 'mod_partition'
     try:
-        connection.createmodule(module_name, _get_module_class(partition)())
+        connection.createmodule(module_name, _get_module_class(mprows)())
     except MisuseError:
         # TODO: The best solution I've found to check for existance. Try again later,
         # because MisuseError might mean something else.
@@ -119,14 +117,14 @@ def table_name(vid):
     return 'p_{vid}_vt'.format(vid=vid)
 
 
-def _get_module_class(partition):
+def _get_module_class(mprows):
     """ Returns module class for the partition. """
 
     class Source:
         def Create(self, db, modulename, dbname, tablename, *args):
             columns_types = []
             column_names = []
-            for column in sorted(partition.reader.columns, key=lambda x: x['pos']):
+            for column in sorted(mprows.reader.columns, key=lambda x: x['pos']):
                 sqlite_type = TYPE_MAP.get(column['type'])
                 if not sqlite_type:
                     raise Exception('Do not know how to convert {} to sql column.'.format(column['type']))
@@ -134,6 +132,6 @@ def _get_module_class(partition):
                 column_names.append(column['name'])
             columns_types_str = ',\n'.join(columns_types)
             schema = 'CREATE TABLE {}({})'.format(tablename, columns_types_str)
-            return schema, Table(column_names, partition)
+            return schema, Table(column_names, mprows)
         Connect = Create
     return Source

@@ -20,23 +20,39 @@ from tests import TestBase
 class AddPartitionTest(TestBase):
 
     @patch('ambry_sources.med.postgresql._create_if_not_exists')
-    def test_creates_foreign_server(self, fake_create):
+    @patch('ambry_sources.med.postgresql._postgres_shares_group')
+    def test_creates_foreign_server(self, fake_shares, fake_create):
+        fake_shares.return_value = True
         cursor = AttrDict({
             'execute': lambda q: None})
         mprows = _get_fake_partition()
         add_partition(cursor, mprows, 'vid1')
-        self.assertEqual(len(fake_create.mock_calls), 1)
+        self.assertEqual(fake_create.call_count, 1)
 
     @patch('ambry_sources.med.postgresql._create_if_not_exists')
-    def test_creates_foreign_table(self, fake_create):
+    @patch('ambry_sources.med.postgresql._postgres_shares_group')
+    def test_creates_foreign_table(self, fake_shares, fake_create):
+        fake_shares.return_value = True
         fake_execute = Mock()
         cursor = AttrDict({
             'execute': fake_execute})
         mprows = _get_fake_partition()
         add_partition(cursor, mprows, 'vid1')
-        self.assertEqual(len(fake_create.mock_calls), 1)
         self.assertEqual(fake_execute.call_count, 1)
         self.assertIn('CREATE FOREIGN TABLE', str(fake_execute.mock_calls[0]))
+
+    @patch('ambry_sources.med.postgresql._postgres_shares_group')
+    def test_raises_exception_if_postgres_user_does_not_have_read_permission(self, fake_shares):
+        fake_shares.return_value = False
+        cursor = AttrDict({'execute': lambda q: None})
+        mprows = _get_fake_partition()
+        raises = False
+        try:
+            add_partition(cursor, mprows, 'vid1')
+        except AssertionError as exc:
+            raises = True
+            self.assertIn('postgres user will not have permission to read mpr file.', str(exc))
+        self.assertTrue(raises)
 
 
 class GetCreateQueryTest(TestBase):

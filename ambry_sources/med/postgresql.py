@@ -37,6 +37,12 @@ def add_partition(cursor, mprows, vid):
         mprows (mpf.MPRowsFile):
         vid (str): vid of the partition.
     """
+    if not _postgres_shares_group():
+        details_link = 'http://example.com/FIXME:'
+        raise AssertionError(
+            'postgres user will not have permission to read mpr file.\n'
+            'Hint: postgres user should share group with user who executes ambry. See {} for details.'
+            .format(details_link))
     _create_if_not_exists(cursor, FOREIGN_SERVER_NAME)
     query = _get_create_query(mprows, vid)
     logger.debug('Create foreign table for {} mprows. Query:\n{}.'.format(mprows.path, query))
@@ -245,3 +251,22 @@ class MPRForeignDataWrapper(ForeignDataWrapper):
                         continue
 
                     yield row
+
+
+def _postgres_shares_group():
+    """ Returns True if postgres user shares group with app executor. Otherwise returns False.
+
+    Returns:
+        bool:
+
+    """
+
+    user = 'postgres'
+    import getpass
+    import grp
+    import pwd
+    current_user_group_id = pwd.getpwnam(getpass.getuser()).pw_gid
+    current_user_group = grp.getgrgid(current_user_group_id).gr_name
+
+    other_user_groups = [g.gr_name for g in grp.getgrall() if user in g.gr_mem]
+    return current_user_group in other_user_groups

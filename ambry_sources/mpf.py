@@ -10,6 +10,8 @@ Revised BSD License, included in this distribution as LICENSE.txt
 import datetime
 import gzip
 from functools import reduce
+import os
+import stat
 import struct
 import time
 import zlib
@@ -18,6 +20,8 @@ import six
 from six import string_types, iteritems, text_type
 
 import msgpack
+
+from ambry_sources.util import get_perm, is_group_readable
 
 
 def new_mpr(fs, path, stats=None):
@@ -302,7 +306,10 @@ class MPRowsFile(object):
         s = o.meta['schema']
 
         assert len(s) >= 1  # Should always have header row.
-        assert o.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE, (o.meta['schema'][0], MPRowsFile.SCHEMA_TEMPLATE)
+        if o.meta['schema'][0] != MPRowsFile.SCHEMA_TEMPLATE:
+            raise AssertionError(
+                'Object schema does not match to template. object schema: {}, template: {}'
+                .format(o.meta['schema'][0], MPRowsFile.SCHEMA_TEMPLATE))
 
         # n_cols here is for columns in the data table, which are rows in the headers table
         n_cols = max(n_cols, o.n_cols, len(s)-1)
@@ -485,7 +492,9 @@ class MPRowsFile(object):
     def _load_rows(self, source,  intuit_rows=None, intuit_type=True, run_stats=True):
         from .exceptions import RowIntuitError
         if self.n_rows:
-            raise MPRError("Can't load_rows into {}; rows already loaded. n_rows = {}".format(self.path, self.n_rows))
+            raise MPRError(
+                "Can't load_rows into {}; rows already loaded. n_rows = {}"
+                .format(self.path, self.n_rows))
 
         spec = getattr(source, 'spec', None)
 
@@ -627,7 +636,7 @@ class MPRWriter(object):
     # cost of writing.
     # There is, however, a very large gain from writing a collection of rows as a single block with insert_rows()
 
-    BLOCK_SIZE = 1000 # Size of blocks of rows to write
+    BLOCK_SIZE = 1000  # Size of blocks of rows to write
 
     def __init__(self, parent, fh, compress=True):
 
@@ -770,6 +779,28 @@ class MPRWriter(object):
         if clear_cache:
             self.cache = []
 
+        self._fix_permissions()
+
+    def _fix_permissions(self):
+        """ Adds read permission to each directory in the mpr path to user group.
+
+        Note:
+            This is the required thing for postgres FDW. Also you need to add postgres system user to group of
+            the user who executes ambry_sources.
+
+        """
+        if self.parent.syspath:
+            parts = self.parent.syspath.split(os.sep)
+            parts[0] = os.sep
+            for i, dir_ in enumerate(parts):
+                if dir_ == '/':
+                    continue
+                path = parts[:i]
+                path.append(dir_)
+                path = os.path.join(*path)
+                if not is_group_readable(path):
+                    os.chmod(path, get_perm(path) | stat.S_IRGRP | stat.S_IXGRP)
+
     def insert_row(self, row):
 
         self.n_rows += 1
@@ -780,7 +811,7 @@ class MPRWriter(object):
             self._write_rows()
 
     def insert_rows(self, rows):
-        '''Insert a list of rows. Don't insert iterators'''
+        """ Insert a list of rows. Don't insert iterators. """
 
         self.n_rows += len(rows)
 
@@ -809,7 +840,7 @@ class MPRWriter(object):
 
     @property
     def is_finalized(self):
-        return self.meta['process']['finalized'] == True
+        return self.meta['process']['finalized'] is True
 
     def close(self):
 
@@ -1148,8 +1179,8 @@ class MPRReader(object):
 
                     self.pos += 1
 
-                #if self._fh.tell() >= self.meta_start:
-                #    break
+                # if self._fh.tell() >= self.meta_start:
+                #     break
 
         finally:
             self._in_iteration = False

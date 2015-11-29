@@ -67,7 +67,7 @@ def _get_create_query(mprows, vid):
         columns.append('{} {}'.format(column['name'], postgres_type))
 
     query = """
-        CREATE FOREIGN TABLE {table} (
+        CREATE FOREIGN TABLE IF NOT EXISTS {table} (
             {columns}
         ) server {server_name} options (
             filesystem '{filesystem}',

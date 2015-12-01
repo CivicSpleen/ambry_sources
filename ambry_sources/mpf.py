@@ -1154,9 +1154,6 @@ class MPRReader(object):
 
                     self.pos += 1
 
-                #if self._fh.tell() >= self.meta_start:
-                #    break
-
         finally:
             self._in_iteration = False
 

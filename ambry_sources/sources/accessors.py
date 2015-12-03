@@ -48,7 +48,7 @@ class SourceFile(object):
         """Return a list of the names of the columns of this file, or None if the header is not defined.
 
         This should *only* return headers if the headers are unambiguous, such as for database tables,
-        or shapefiles. For other files, like CSV and Excel, the header row can now be determined without analysis
+        or shapefiles. For other files, like CSV and Excel, the header row can not be determined without analysis
         or specification."""
 
         return None

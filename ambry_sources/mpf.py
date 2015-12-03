@@ -554,7 +554,12 @@ class MPRowsFile(object):
         return self
 
     def open(self,  mode='rb'):
+        """Open the file, and return a file-like pyfilesystem object"""
         return self._fs.open(self.path, mode=mode)
+
+    def set_contents(self,  data='',  errors=None, chunk_size=65536):
+        """Pass-though to the PySilesystem setcontents function"""
+        return self._fs.setcontents(self.path,  data,  errors=errors, chunk_size=chunk_size)
 
     @property
     def reader(self):
@@ -1180,9 +1185,6 @@ class MPRReader(object):
                         yield rp.set_row(row)
 
                     self.pos += 1
-
-                # if self._fh.tell() >= self.meta_start:
-                #     break
 
         finally:
             self._in_iteration = False

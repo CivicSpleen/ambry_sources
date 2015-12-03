@@ -29,6 +29,8 @@ def make_arg_parser(parser=None):
                         help='Show the schema')
     parser.add_argument('-S', '--stats', action='store_true',
                         help='Show the statistics')
+    parser.add_argument('-t', '--types', action='store_true',
+                        help='Show type resolution information')
     parser.add_argument('-H', '--head', action='store_true',
                         help='Display the first 10 records. Will only display 80 chars wide')
     parser.add_argument('-T', '--tail', action='store_true',
@@ -64,8 +66,11 @@ def main(args=None):
 
     schema_fields = ['pos', 'name', 'type', 'resolved_type', 'description', 'start', 'width']
     schema_getter = itemgetter(*schema_fields)
-    types_fields = ['header', 'count', 'length',  'floats',  'ints', 'unicode',  'strs', 'dates',
-                    'times', 'datetimes', 'nones', 'has_codes', 'strvals']
+
+    types_fields = ['header', 'type_count', 'length',  'floats',  'ints', 'unicode',  'strs', 'dates',
+                    'times', 'datetimes', 'nones', 'has_codes' ]
+
+    types_getter = itemgetter(*types_fields)
 
     stats_fields_all = ['name', 'stat_count', 'nuniques', 'mean', 'min', 'p25', 'p50', 'p75', 'max', 'std',
                         'uvalues', 'lom',  'skewness', 'kurtosis', 'flags', 'hist', 'text_hist']
@@ -128,6 +133,11 @@ def main(args=None):
         with f.reader as r:
             print('\nSTATS')
             print(tabulate.tabulate((stats_getter(row.dict) for row in r.columns), stats_fields))
+
+    if args.types:
+        with f.reader as r:
+            print('\nTYPES')
+            print(tabulate.tabulate((types_getter(row.dict) for row in r.columns), types_fields))
 
     if args.head or args.tail:
         with f.reader as r:

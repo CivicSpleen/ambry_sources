@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 from decimal import Decimal
 
+try:
+    # py2, mock is external lib.
+    from mock import patch
+except ImportError:
+    # py3, mock is included
+    from unittest.mock import patch
+
 import psycopg2
 
 from six import binary_type
@@ -8,7 +15,7 @@ from six import binary_type
 from fs.opener import fsopendir
 
 from ambry_sources import get_source
-from ambry_sources.med.postgresql import add_partition, table_name
+from ambry_sources.med.postgresql import add_partition, table_name, _postgres_shares_group
 from ambry_sources.mpf import MPRowsFile
 
 from tests import PostgreSQLTestBase, TestBase
@@ -16,19 +23,21 @@ from tests import PostgreSQLTestBase, TestBase
 
 class Test(TestBase):
 
-    def test_creates_foreign_data_table_for_simple_fixed_mpr(self):
+    @patch('ambry_sources.med.postgresql._postgres_shares_group')
+    def test_creates_foreign_data_table_for_simple_fixed_mpr(self, fake_shares):
+        fake_shares.return_value = True
         # build rows reader
         cache_fs = fsopendir(self.setup_temp_dir())
         sources = self.load_sources()
         spec = sources['simple_fixed']
         s = get_source(spec, cache_fs)
-        partition = MPRowsFile(cache_fs, spec.name).load_rows(s)
+        mprows = MPRowsFile(cache_fs, spec.name).load_rows(s)
 
         # first make sure file was not changed.
         expected_names = ['id', 'uuid', 'int', 'float']
         expected_types = ['int', binary_type.__name__, 'int', 'float']
-        self.assertEqual(sorted([x['name'] for x in partition.reader.columns]), sorted(expected_names))
-        self.assertEqual(sorted([x['type'] for x in partition.reader.columns]), sorted(expected_types))
+        self.assertEqual(sorted([x['name'] for x in mprows.reader.columns]), sorted(expected_names))
+        self.assertEqual(sorted([x['type'] for x in mprows.reader.columns]), sorted(expected_types))
 
         try:
             # create foreign data table
@@ -38,8 +47,8 @@ class Test(TestBase):
             try:
                 with conn.cursor() as cursor:
                     # we have to close opened transaction.
-                    cursor.execute('commit;')
-                    add_partition(cursor, partition, 'vid1')
+                    cursor.execute('COMMIT;')
+                    add_partition(cursor, mprows, 'vid1')
 
                 # try to query just added partition foreign data table.
                 with conn.cursor() as cursor:
@@ -63,3 +72,6 @@ class Test(TestBase):
                 conn.close()
         finally:
             PostgreSQLTestBase._drop_postgres_test_db()
+
+    def test_postgres_user_is_a_member_of_ambry_executor_group(self):
+        self.assertTrue(_postgres_shares_group(), 'Add postgres user to ambry executor group.')

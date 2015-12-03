@@ -73,3 +73,38 @@ these extras in develop, run from the root of the distribution:
 .. code-block:: bash
 
     pip install -e .[geo,fdw]
+
+Making mpr files readable by postgres user.
+-------------------------------------------
+
+ambry_sources gives read permission to each member of the group of the user who executes ambry_sources. So,
+to allow postgres read mpr files while executing queries you need to add postgres user to group of the user
+who executes ambry_sources. Here is an example for debian (ubuntu).
+
+.. code-block:: bash
+
+    # add postgres user the executor group
+    $ sudo usermod -a -G `id -g -n` postgres
+
+
+Debugging postgres FDW
+----------------------
+
+1. Set postgres log level to debug by changing log_min_messages to DEBUG1:
+
+.. code-block:: python
+
+    log_min_messages = debug1
+
+2. Set level of the ambry_sources.med.postgres to DEBUG level:
+
+.. code-block:: python
+
+    import logging
+    import ambry_sources
+    logger = logging.getLogger(ambry_sources.med.postgresql.__name__)
+    logger.setLevel(logging.DEBUG)
+    # Now use ambry_sources.med.postgres
+    # ...
+
+3. Restart postgres and run code. Check both - postgres and ambry_sources log files.

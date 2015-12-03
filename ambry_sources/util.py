@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import stat
 
 from six import string_types
 from six.moves.urllib.parse import urlparse
@@ -76,3 +77,18 @@ def parse_url_to_dict(url):
         'hostname': p.hostname,
         'port': p.port
     }
+
+
+def is_group_readable(filepath):
+    """ Returns True if given file is group readable, otherwise returns False.
+
+    Args:
+        filepath (str):
+
+    """
+    st = os.stat(filepath)
+    return bool(st.st_mode & stat.S_IRGRP)
+
+
+def get_perm(filepath):
+    return stat.S_IMODE(os.lstat(filepath)[stat.ST_MODE])

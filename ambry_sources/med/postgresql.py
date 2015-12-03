@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
+import getpass
 import logging
 import operator
 import re
+
 from fs.opener import fsopendir
 
 from six import binary_type, text_type
 
 from multicorn import ForeignDataWrapper
-from multicorn.utils import log_to_postgres, ERROR, WARNING
+from multicorn.utils import log_to_postgres, ERROR, WARNING, DEBUG
 
 from ambry_sources.mpf import MPRowsFile
 
@@ -27,38 +29,45 @@ TYPE_MAP = {
 }
 
 
-def add_partition(cursor, partition, vid):
+def add_partition(cursor, mprows, vid):
     """ Creates foreign table for given partition.
 
     Args:
         cursor (psycopg2.cursor):
-        partition (mpf.MPRowsFile):
+        mprows (mpf.MPRowsFile):
         vid (str): vid of the partition.
     """
+    if not _postgres_shares_group():
+        details_link = 'https://github.com/CivicKnowledge/ambry_sources#making-mpr-files-readable-by-postgres-user'
+        raise AssertionError(
+            'postgres user does not have permission to read mpr file.\n'
+            'Hint: postgres user should share group with user who executes ambry. See {} for details.'
+            .format(details_link))
     _create_if_not_exists(cursor, FOREIGN_SERVER_NAME)
-    query = _get_create_query(partition, vid)
-    logging.debug('Create foreign table for {} partition. Query:\n{}.'.format(partition.path, query))
+    query = _get_create_query(mprows, vid)
+    logger.debug('Create foreign table for {} mprows. Query:\n{}.'.format(mprows.path, query))
     cursor.execute(query)
 
 
-def _get_create_query(partition, vid):
+def _get_create_query(mprows, vid):
     """ Returns query to create foreign table.
 
     Args:
-        connection (sqlalchemy.engine.Connection)
+        mprows (mpf.MPRowsFile):
+        vid (str): vid of the partition.
 
     Returns:
         str: sql query to craete foreign table.
     """
     columns = []
-    for column in sorted(partition.reader.columns, key=lambda x: x['pos']):
+    for column in sorted(mprows.reader.columns, key=lambda x: x['pos']):
         postgres_type = TYPE_MAP.get(column['type'])
         if not postgres_type:
             raise Exception('Do not know how to convert {} to postgresql type.'.format(column['type']))
         columns.append('{} {}'.format(column['name'], postgres_type))
 
     query = """
-        CREATE FOREIGN TABLE {table} (
+        CREATE FOREIGN TABLE IF NOT EXISTS {table} (
             {columns}
         ) server {server_name} options (
             filesystem '{filesystem}',
@@ -66,8 +75,8 @@ def _get_create_query(partition, vid):
         );
     """.format(table=table_name(vid),
                columns=',\n'.join(columns), server_name=FOREIGN_SERVER_NAME,
-               filesystem=partition._fs.root_path,
-               path=partition.path)
+               filesystem=mprows._fs.root_path,
+               path=mprows.path)
     return query
 
 
@@ -83,7 +92,7 @@ def _server_exists(cursor, server_name):
 def _create_if_not_exists(cursor, server_name):
     """ Creates foreign server if it does not exist. """
     if not _server_exists(cursor, server_name):
-        logging.info('Create {} foreign server because it does not exist.'.format(server_name))
+        logger.info('Create {} foreign server because it does not exist.'.format(server_name))
         query = """
             CREATE SERVER {} FOREIGN DATA WRAPPER multicorn
             options (
@@ -92,7 +101,7 @@ def _create_if_not_exists(cursor, server_name):
         """.format(server_name)
         cursor.execute(query)
     else:
-        logging.debug('{} foreign server already exists. Do nothing.'.format(server_name))
+        logger.debug('{} foreign server already exists. Do nothing.'.format(server_name))
 
 
 def table_name(vid):
@@ -175,6 +184,13 @@ class MPRForeignDataWrapper(ForeignDataWrapper):
             raise RuntimeError('`filesystem` is required option of the MPR (Message Pack Rows) fdw.')
         self.filesystem = fsopendir(options['filesystem'])
         self.path = options['path']
+
+        if logger.level == logging.DEBUG:
+            current_user = getpass.getuser()
+            log_to_postgres(
+                'Initializing Foreign Data Wrapper: user: {}, filesystem: {}, path: {}'
+                .format(current_user, options['filesystem'], options['path']),
+                DEBUG)
         self._mp_rows = MPRowsFile(self.filesystem, self.path)
 
     def _matches(self, quals, row):
@@ -193,7 +209,7 @@ class MPRForeignDataWrapper(ForeignDataWrapper):
                 log_to_postgres(
                     'Unknown operator {} in the {} qual. Row will be returned.'.format(qual.operator, qual),
                     WARNING,
-                    hint='Implement that operator in the ambryfdw wrapper.')
+                    hint='Implement {} operator in the MPR FDW wrapper.'.format(qual.operator))
                 continue
 
             elem_index = self.columns.index(qual.field_name)
@@ -202,11 +218,55 @@ class MPRForeignDataWrapper(ForeignDataWrapper):
         return True
 
     def execute(self, quals, columns):
-        with self._mp_rows.reader as reader:
-            for row in reader.rows:
-                assert isinstance(row, (tuple, list)), row
+        if logger.level == logging.DEBUG:
+            syspath = self._mp_rows.syspath
+            log_to_postgres(
+                'Executing query over rows of the MPR: mpr: {}, quals: {}, columns: {}'
+                .format(syspath, quals, columns),
+                DEBUG)
+            with self._mp_rows.reader as reader:
+                for row in reader.rows:
+                    assert isinstance(row, (tuple, list)), row
 
-                if not self._matches(quals, row):
-                    continue
+                    if not self._matches(quals, row):
+                        log_to_postgres(
+                            'No match, continue with another: mpr: {}, row: {}, quals: {}'
+                            .format(syspath, row, quals),
+                            DEBUG)
+                        continue
 
-                yield row
+                    log_to_postgres(
+                        'Match found, yielding row {}: mpr: {}, quals: {}'
+                        .format(syspath, row, quals),
+                        DEBUG)
+
+                    yield row
+        else:
+            # it is the same, except debug logging.
+            with self._mp_rows.reader as reader:
+                for row in reader.rows:
+                    assert isinstance(row, (tuple, list)), row
+
+                    if not self._matches(quals, row):
+                        continue
+
+                    yield row
+
+
+def _postgres_shares_group():
+    """ Returns True if postgres user shares group with app executor. Otherwise returns False.
+
+    Returns:
+        bool:
+
+    """
+
+    user = 'postgres'
+    import getpass
+    import grp
+    import pwd
+    current_user_group_id = pwd.getpwnam(getpass.getuser()).pw_gid
+    current_user_group = grp.getgrgid(current_user_group_id).gr_name
+
+    other_user_groups = [g.gr_name for g in grp.getgrall() if user in g.gr_mem]
+    return current_user_group in other_user_groups

@@ -34,7 +34,7 @@ class TestCursor(unittest.TestCase):
             reader = {'rows': rows, 'close': lambda x: None}
 
         table = AttrDict({
-            'partition': {
+            'mprows': {
                 'reader': reader}})
         return table
 
@@ -105,8 +105,8 @@ class AddPartitionTest(unittest.TestCase):
         fake_connection = AttrDict({
             'createmodule': fake_create_module,
             'cursor': lambda: fudge.Fake().is_a_stub()})
-        fake_partition = AttrDict()
-        add_partition(fake_connection, fake_partition, 'vid1')
+        fake_mprows = AttrDict()
+        add_partition(fake_connection, fake_mprows, 'vid1')
 
     @fudge.patch(
         'ambry_sources.med.sqlite._get_module_class',
@@ -119,8 +119,8 @@ class AddPartitionTest(unittest.TestCase):
         fake_connection = AttrDict({
             'createmodule': fake_create_module,
             'cursor': lambda: AttrDict({'execute': fake_execute})})
-        fake_partition = AttrDict()
-        add_partition(fake_connection, fake_partition, 'vid1')
+        fake_mprows = AttrDict()
+        add_partition(fake_connection, fake_mprows, 'vid1')
 
 
 class GetModuleClassTest(unittest.TestCase):
@@ -138,8 +138,8 @@ class GetModuleClassTest(unittest.TestCase):
 
     # Source.Create tests
     def test_returns_create_table_query_and_table(self):
-        partition = self._get_fake_partition('int')
-        cls = _get_module_class(partition)
+        mprows = self._get_fake_partition('int')
+        cls = _get_module_class(mprows)
         ret = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertEqual(len(ret), 2)
         query, table = ret
@@ -147,38 +147,38 @@ class GetModuleClassTest(unittest.TestCase):
         self.assertTrue(hasattr(table, 'Open'))
 
     def test_converts_int_to_integer_sqlite_type(self):
-        partition = self._get_fake_partition('int')
-        cls = _get_module_class(partition)
+        mprows = self._get_fake_partition('int')
+        cls = _get_module_class(mprows)
         query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertIn('(column1 INTEGER)', query)
 
     def test_converts_float_to_real_sqlite_type(self):
-        partition = self._get_fake_partition('float')
-        cls = _get_module_class(partition)
+        mprows = self._get_fake_partition('float')
+        cls = _get_module_class(mprows)
         query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertIn('(column1 REAL)', query)
 
     def test_converts_str_to_text_sqlite_type(self):
-        partition = self._get_fake_partition('str')
-        cls = _get_module_class(partition)
+        mprows = self._get_fake_partition('str')
+        cls = _get_module_class(mprows)
         query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertIn('(column1 TEXT)', query)
 
     def test_converts_date_to_date_sqlite_type(self):
-        partition = self._get_fake_partition('date')
-        cls = _get_module_class(partition)
+        mprows = self._get_fake_partition('date')
+        cls = _get_module_class(mprows)
         query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertIn('(column1 DATE)', query)
 
     def test_converts_datetime_to_timestamp_sqlite_type(self):
-        partition = self._get_fake_partition('datetime')
-        cls = _get_module_class(partition)
+        mprows = self._get_fake_partition('datetime')
+        cls = _get_module_class(mprows)
         query, table = cls().Create('db', 'modulename', 'dbname', 'table1')
         self.assertIn('(column1 TIMESTAMP WITHOUT TIME ZONE)', query)
 
     def test_raises_exception_if_type_conversion_failed(self):
-        partition = self._get_fake_partition('unknown')
-        cls = _get_module_class(partition)
+        mprows = self._get_fake_partition('unknown')
+        cls = _get_module_class(mprows)
         try:
             cls().Create('db', 'modulename', 'dbname', 'table1')
         except Exception as exc:

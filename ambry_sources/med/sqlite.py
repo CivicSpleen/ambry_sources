@@ -105,10 +105,15 @@ def add_partition(connection, mprows, vid):
 
     # create a virtual table.
     cursor = connection.cursor()
-    cursor.execute(
-        'CREATE VIRTUAL TABLE {table} using {module}({filesystem}, {path});'
-        .format(table=table_name(vid), module=module_name,
-                filesystem=mprows._fs.root_path, path=mprows.path))
+    # drop extension because some partition may fail with SQLError: SQLError: unrecognized token:
+    # See https://github.com/CivicKnowledge/ambry_sources/issues/22 for details.
+    # MPRows implementation is clever enough to restore partition before reading.
+    path = mprows.path.rstrip('.mpr')
+
+    query = 'CREATE VIRTUAL TABLE {table} using {module}({filesystem}, {path});'\
+            .format(table=table_name(vid), module=module_name,
+                    filesystem=mprows._fs.root_path, path=path)
+    cursor.execute(query)
 
 
 def table_name(vid):

@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime, date
 
+from fs.opener import fsopendir
+
 from six import binary_type, text_type
+
+from ambry_sources.mpf import MPRowsFile
 
 # Documents used to implement module and function:
 # Module: http://apidoc.apsw.googlecode.com/hg/vtable.html
@@ -93,15 +97,18 @@ def add_partition(connection, mprows, vid):
 
     module_name = 'mod_partition'
     try:
-        connection.createmodule(module_name, _get_module_class(mprows)())
+        connection.createmodule(module_name, _get_module_instance())
     except MisuseError:
         # TODO: The best solution I've found to check for existance. Try again later,
         # because MisuseError might mean something else.
         pass
 
-    # create virtual table.
+    # create a virtual table.
     cursor = connection.cursor()
-    cursor.execute('CREATE VIRTUAL TABLE {} using {};'.format(table_name(vid), module_name))
+    cursor.execute(
+        'CREATE VIRTUAL TABLE {table} using {module}({filesystem}, {path});'
+        .format(table=table_name(vid), module=module_name,
+                filesystem=mprows._fs.root_path, path=mprows.path))
 
 
 def table_name(vid):
@@ -111,17 +118,24 @@ def table_name(vid):
         vid (str): vid of the partition
 
     Returns:
-        str: name of the table associated with partition.
+        str: name of the table associated with the partition.
 
     """
     return 'p_{vid}_vt'.format(vid=vid)
 
 
-def _get_module_class(mprows):
-    """ Returns module class for the partition. """
+def _get_module_instance():
+    """ Returns module instance for the partitions virtual tables.
+
+    Note:
+        There is only one module for all virtual tables.
+
+    """
 
     class Source:
-        def Create(self, db, modulename, dbname, tablename, *args):
+        def Create(self, db, modulename, dbname, tablename, filesystem_root, path, *args):
+            filesystem = fsopendir(filesystem_root)
+            mprows = MPRowsFile(filesystem, path)
             columns_types = []
             column_names = []
             for column in sorted(mprows.reader.columns, key=lambda x: x['pos']):
@@ -131,7 +145,7 @@ def _get_module_class(mprows):
                 columns_types.append('{} {}'.format(column['name'], sqlite_type))
                 column_names.append(column['name'])
             columns_types_str = ',\n'.join(columns_types)
-            schema = 'CREATE TABLE {}({})'.format(tablename, columns_types_str)
+            schema = 'CREATE TABLE {}({});'.format(tablename, columns_types_str)
             return schema, Table(column_names, mprows)
         Connect = Create
-    return Source
+    return Source()

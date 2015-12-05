@@ -321,7 +321,8 @@ def get_s3(url, account_accessor):
         raise TypeError('account_accessor argument must be callable of one argument returning dict.')
 
     account = account_accessor(pd['netloc'])
-    aws_access_key = account.get('access')
+    # Direct access to the accounts file yeilds 'access', but in the Accounts ORM object, its 'access_key'
+    aws_access_key = account.get('access', account.get('access_key'))
     aws_secret_key = account.get('secret')
 
     missing_credentials = []
@@ -334,8 +335,7 @@ def get_s3(url, account_accessor):
         raise MissingCredentials(
             'dict returned by account_accessor callable for {} must contain not empty {} key(s)'
             .format(pd['netloc'], ', '.join(missing_credentials)),
-            location=pd['netloc'],
-            required_credentials=['access', 'secret'])
+            location=pd['netloc'],required_credentials=['access', 'secret'], )
 
     s3 = S3FS(
         bucket=pd['netloc'],

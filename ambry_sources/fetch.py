@@ -29,7 +29,7 @@ from .sources import GoogleSource, CsvSource, TsvSource, FixedSource, ExcelSourc
     SourceError, DelayedOpen, ShapefileSource
 
 
-def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger = None):
+def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger=None, callback=None):
     """
     Download a file from a URL and return it wrapped in a row-generating acessor object.
 
@@ -37,6 +37,8 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger = Non
     :param cache_fs: A pyfilesystem filesystem to use for caching downloaded files.
     :param account_accessor: A callable to return the username and password to use for access FTP and S3 URLs.
     :param clean: Delete files in cache and re-download.
+    :param logger: A logger, for logging.
+    :param callback: A callback, called while reading files in download. signatire is f(read_len, total_len)
 
     :return: a SourceFile object.
     """
@@ -47,7 +49,7 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger = Non
     if url_type != 'gs': #FIXME. Need to clean up the logic for gs types.
         try:
             cache_path, download_time = download(spec.url, cache_fs, account_accessor,
-                                                 clean=clean, logger = logger)
+                                                 clean=clean, logger=logger, callback=callback)
             spec.download_time = download_time
         except HTTPError as e:
             raise DownloadError("Failed to download {}; {}".format(spec.url, e))
@@ -157,10 +159,12 @@ def extract_file_from_zip(cache_fs, cache_path, url, fn_pattern = None):
 
     return fstor
 
-def _download(url, cache_fs, cache_path, account_accessor, logger ):
+def _download(url, cache_fs, cache_path, account_accessor, logger, callback ):
 
     import requests
     import os
+
+    assert callback is not None
 
     if url.startswith('s3:'):
         s3 = get_s3(url, account_accessor)
@@ -168,7 +172,7 @@ def _download(url, cache_fs, cache_path, account_accessor, logger ):
 
         with cache_fs.open(cache_path, 'wb') as fout:
             with s3.open(pd['path'], 'rb') as fin:
-                copy_file_or_flo(fin, fout)
+                copy_file_or_flo(fin, fout, cb = callback)
 
     elif url.startswith('ftp:'):
         import shutil
@@ -188,12 +192,8 @@ def _download(url, cache_fs, cache_path, account_accessor, logger ):
         if r.headers.get('content-encoding') == 'gzip':
             r.raw.read = functools.partial(r.raw.read, decode_content=True)
 
-        # TODO
-        def progress_logger(read_len, total_len):
-            pass
-
         with cache_fs.open(cache_path, 'wb') as f:
-            copy_file_or_flo(r.raw, f, cb = progress_logger)
+            copy_file_or_flo(r.raw, f, cb = callback)
 
         assert cache_fs.exists(cache_path)
 
@@ -216,7 +216,8 @@ class _NoOpFileLock(object):
     def release(self):
         pass
 
-def download(url, cache_fs, account_accessor=None, clean=False, logger = None):
+
+def download(url, cache_fs, account_accessor=None, clean=False, logger=None, callback=None):
     """
     Download a URL and store it in the cache.
 
@@ -224,6 +225,8 @@ def download(url, cache_fs, account_accessor=None, clean=False, logger = None):
     :param cache_fs:
     :param account_accessor: callable of one argument (url) returning dict with credentials.
     :param clean: Remove files from cache and re-download
+    :param logger:
+    :param callback:
     :return:
     """
     import os.path
@@ -266,11 +269,11 @@ def download(url, cache_fs, account_accessor=None, clean=False, logger = None):
                 return cache_path, None
 
         try:
-            _download(url, cache_fs, cache_path, account_accessor, logger)
+            _download(url, cache_fs, cache_path, account_accessor, logger, callback)
 
             return cache_path, time.time()
 
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, Exception):
             # This is really important -- its really bad to have partly downloaded
             # files being confused with fully downloaded ones.
             # FIXME. Should also handle signals. deleteing partly downloaded files is important.

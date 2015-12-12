@@ -21,6 +21,8 @@ TYPE_MAP = {
     'datetime': 'TIMESTAMP WITHOUT TIME ZONE'
 }
 
+MODULE_NAME = 'mod_partition'
+
 
 class Table:
     """ Represents a table """
@@ -85,6 +87,23 @@ class Cursor:
         self._reader = None
 
 
+def install_mpr_module(connection):
+    """ Install module which allow to execute queries over mpr files.
+
+    Args:
+        connection (apsw.Connection):
+
+    """
+    from apsw import MisuseError  # Moved into function to allow tests to run when it isn't installed
+
+    try:
+        connection.createmodule(MODULE_NAME, _get_module_instance())
+    except MisuseError:
+        # TODO: The best solution I've found to check for existance. Try again later,
+        # because MisuseError might mean something else.
+        pass
+
+
 def add_partition(connection, mprows, vid):
     """ Creates virtual table for partition.
 
@@ -93,15 +112,7 @@ def add_partition(connection, mprows, vid):
         mprows (mpf.MPRowsFile):
 
     """
-    from apsw import MisuseError  # Moved into function to allow tests to run when it isn't installed
-
-    module_name = 'mod_partition'
-    try:
-        connection.createmodule(module_name, _get_module_instance())
-    except MisuseError:
-        # TODO: The best solution I've found to check for existance. Try again later,
-        # because MisuseError might mean something else.
-        pass
+    install_mpr_module(connection)
 
     # create a virtual table.
     cursor = connection.cursor()
@@ -111,7 +122,7 @@ def add_partition(connection, mprows, vid):
     path = mprows.path.rstrip('.mpr')
 
     query = 'CREATE VIRTUAL TABLE {table} using {module}({filesystem}, {path});'\
-            .format(table=table_name(vid), module=module_name,
+            .format(table=table_name(vid), module=MODULE_NAME,
                     filesystem=mprows._fs.root_path, path=path)
     cursor.execute(query)
 

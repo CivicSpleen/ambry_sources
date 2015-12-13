@@ -473,7 +473,8 @@ class MPRowsFile(object):
 
         return stats
 
-    def load_rows(self, source, spec=None, intuit_rows=None, intuit_type=True, run_stats=True):
+    def load_rows(self, source, spec=None, intuit_rows=None,
+                  intuit_type=True, run_stats=True, callback=False, limit=None):
         try:
 
             # The spec should always be part of the source
@@ -481,7 +482,8 @@ class MPRowsFile(object):
 
             self._load_rows(source,
                             intuit_rows=intuit_rows,
-                            intuit_type=intuit_type, run_stats=run_stats)
+                            intuit_type=intuit_type, run_stats=run_stats,
+                            callback=callback, limit=limit)
         except:
             raise
             self.writer.close()
@@ -490,7 +492,8 @@ class MPRowsFile(object):
 
         return self
 
-    def _load_rows(self, source,  intuit_rows=None, intuit_type=True, run_stats=True):
+    def _load_rows(self, source,  intuit_rows=None, intuit_type=True, run_stats=True,
+                   callback=None, limit = None):
         from .exceptions import RowIntuitError
         if self.n_rows:
             raise MPRError(
@@ -516,7 +519,7 @@ class MPRowsFile(object):
 
             with self.writer as w:
 
-                w.load_rows(source)
+                w.load_rows(source, callback=callback, limit=limit)
 
                 if spec:
                     w.set_source_spec(spec)
@@ -814,7 +817,7 @@ class MPRWriter(object):
 
         self.cache.append(row)
 
-        if len(self.cache) >= self.BLOCK_SIZE:
+        if True or len(self.cache) >= self.BLOCK_SIZE:
             self._write_rows()
 
     def insert_rows(self, rows):
@@ -824,11 +827,15 @@ class MPRWriter(object):
 
         self._write_rows(rows)
 
-    def load_rows(self, source):
+    def load_rows(self, source, callback=None, limit=None):
         """Load rows from an iterator"""
 
-        for row in iter(source):
+        for i,row in enumerate(iter(source), 1):
             self.insert_row(row)
+            if callback:
+                callback(i)
+            if limit and i > limit:
+                break
 
         # If the source has a headers property, and it's defined, then
         # use it for the headers. This often has to be called after iteration, because

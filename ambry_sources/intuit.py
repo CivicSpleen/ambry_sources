@@ -1,4 +1,3 @@
-"""Intuit data types for rows of values."""
 
 from collections import deque, OrderedDict
 import datetime
@@ -223,13 +222,9 @@ class Column(object):
         self.type_ratios = {test: (float(self.type_counts[test]) / float(self.count)) if self.count else None
                             for test, testf in tests + [(None, None)]}
 
-        # If it is more than 20% str, it's a str
-        if self.type_ratios[binary_type] > .2:
+        # If it is more than 5% str, it's a str
+        if self.type_ratios[binary_type] > .05:
             return binary_type, False
-
-        # If more than 70% None, it's also a str, because ...
-        # if self.type_ratios[None] > .7:
-        #     return str, False
 
         if self.type_counts[datetime.datetime] > 0:
             num_type = datetime.datetime

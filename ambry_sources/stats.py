@@ -53,7 +53,10 @@ class StatSet(object):
     LOM.INTERVAL = 'i'  # A number, for which subtraction is defined, but not division
     LOM.RATIO = 'r'  # A number, for which division is defined and zero means "nothing". Kelvin, but not Celsius
 
-    def __init__(self, name, typ):
+    def __init__(self, parent, name, typ, n_rows = None):
+
+        self.parent = parent
+        self.n_rows = n_rows
 
         if isinstance(typ, string_types):
             import datetime
@@ -93,7 +96,11 @@ class StatSet(object):
         self.bin_min = None
         self.bin_max = None
         self.bin_width = None
+
         self.bin_primer_count = 5000  # how many points to collect before creating hist bins
+
+        self._hist_built = False
+
         self.num_bins = 16
         self.bins = [0] * self.num_bins
 
@@ -127,26 +134,12 @@ class StatSet(object):
             # HACK There are probably a lot of 1-off errors in this
             float_v = _force_float(v)
 
-            if self.n < self.bin_primer_count:
+            if self.n < self.bin_primer_count: # Still building the counts.
                 self.counts[unival] += 1
 
-            elif self.n == self.bin_primer_count:
-                # If less than 1% are unique, assume that this number is actually an ordinal
-                if self.nuniques < (self.bin_primer_count/100):
-                    self.lom = self.LOM.ORDINAL
-                    self.stats = livestats.LiveStats()
-                else:
-                    self.bin_min = self.stats.mean() - sqrt(self.stats.variance()) * 2
-                    self.bin_max = self.stats.mean() + sqrt(self.stats.variance()) * 2
-                    self.bin_width = (self.bin_max - self.bin_min) / self.num_bins
+            elif self.n == self.bin_primer_count: # Hit the limit, now can get the hist bins
 
-                    for v, count in iteritems(self.counts):
-                        float_v = _force_float(v)
-                        if float_v >= self.bin_min and float_v <= self.bin_max:
-                            bin_ = int((float_v - self.bin_min) / self.bin_width)
-                            self.bins[bin_] += count
-
-                self.counts = Counter()
+                self._build_hist_bins()
 
             elif self.n > self.bin_primer_count and float_v >= self.bin_min and float_v <= self.bin_max:
                 bin_ = int((float_v - self.bin_min) / self.bin_width)
@@ -158,6 +151,32 @@ class StatSet(object):
                 self.counts[unival] += 1
         else:
             assert False, 'Really should be one or the other ... '
+
+    def _build_hist_bins(self):
+        from math import sqrt
+
+        if self._hist_built:
+            return
+
+        # If less than 1% are unique, assume that this number is actually an ordinal
+        if self.nuniques < (self.n / 100):
+            self.lom = self.LOM.ORDINAL
+            self.stats = livestats.LiveStats()
+        else:
+            self.bin_min = self.stats.mean() - sqrt(self.stats.variance()) * 2
+            self.bin_max = self.stats.mean() + sqrt(self.stats.variance()) * 2
+            self.bin_width = (self.bin_max - self.bin_min) / self.num_bins
+
+            # Puts the saved entries into the hist bins.
+            for v, count in iteritems(self.counts):
+                float_v = _force_float(v)
+                if float_v >= self.bin_min and float_v <= self.bin_max:
+                    bin_ = int((float_v - self.bin_min) / self.bin_width)
+                    self.bins[bin_] += count
+
+        #self.counts = Counter()
+        self._hist_build = True
+
 
     @property
     def uniques(self):
@@ -258,7 +277,7 @@ class StatSet(object):
 class Stats(object):
     """ Stats object reads rows from the input iterator, processes the row, and yields it back out"""
 
-    def __init__(self, schema):
+    def __init__(self, schema, n_rows=None):
         """
 
         Args:
@@ -269,9 +288,10 @@ class Stats(object):
         self._stats = {}
         self._func = None
         self._func_code = None
+        self._n_rows = n_rows # May be reset in run()
 
         for col_name, col_type in schema:
-            self._stats[col_name] = StatSet(col_name, col_type)
+            self._stats[col_name] = StatSet(self, col_name, col_type, n_rows)
 
         self._func, self._func_code = self.build()
 
@@ -313,8 +333,8 @@ class Stats(object):
         """ Run the stats. The source must yield Row proxies.
 
         :param source:
-        :param sample_from: If not None, an integer givning the total number of rows. The
-            run will sample 10,000 rows.
+        :param sample_from: If not None, an integer giving the total number of rows. The
+            run will sample 10,000 rows. If none, the stats will run for all rows.
         :return:
         """
 
@@ -331,8 +351,10 @@ class Stats(object):
                     'Failed to find key in row. headers = "{}", code = "{}" '
                     .format(list(row.keys()), self._func_code))
 
+        self._n_rows = sample_from
+
         if sample_from is None:
-            for row in source:
+            for i, row in enumerate(source):
                 process_row(row)
         else:
 
@@ -346,8 +368,14 @@ class Stats(object):
                         process_row(row)
 
             else:
-                for row in source:
+                # If the skip is smaller than 4, just process everything.
+                for i, row in enumerate(source):
                     process_row(row)
+
+
+        if i < 5000: # Since the hist bins aren't built until 5K row
+            for k, v in self._stats.items():
+                v._build_hist_bins()
 
         return self
 

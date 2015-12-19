@@ -463,7 +463,8 @@ class MPRowsFile(object):
             with self.reader as r:
                 if r.n_rows == 0:
                     return
-                stats = Stats([(c.name, c.type) for c in r.columns]).run(r, sample_from=r.n_rows)
+                columns = [(c.name, c.type) for c in r.columns]
+                stats = Stats(columns, r.n_rows).run(r, sample_from=r.n_rows)
 
             with self.writer as w:
                 w.set_stats(stats)

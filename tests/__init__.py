@@ -126,11 +126,11 @@ class PostgreSQLTestBase(TestBase):
             with psycopg2.connect(**cls.pg_postgres_db_data) as conn:
                 with conn.cursor() as cursor:
                     # we have to close opened transaction.
-                    cursor.execute('commit;')
+                    cursor.execute('COMMIT;')
                     test_db_name = cls.pg_test_db_data['database']
                     assert test_db_name.endswith(SAFETY_POSTFIX), 'Can not drop database without safety postfix.'
                     cursor.execute('DROP DATABASE {};'.format(test_db_name))
-                    cursor.execute('commit')
+                    cursor.execute('COMMIT;')
         else:
             # no database were created.
             pass
@@ -166,7 +166,7 @@ class PostgreSQLTestBase(TestBase):
         with psycopg2.connect(host=host, database=postgres_db_name, user=user, password=password) as conn:
             with conn.cursor() as curs:
                 # we have to close opened transaction.
-                curs.execute('commit;')
+                curs.execute('COMMIT;')
 
                 # drop test database created by previuos run (control + c case).
                 if cls.postgres_db_exists(test_db_name, curs):
@@ -177,9 +177,9 @@ class PostgreSQLTestBase(TestBase):
                         if delete_it.lower() == 'yes':
                             try:
                                 curs.execute('DROP DATABASE {};'.format(test_db_name))
-                                curs.execute('commit')
+                                curs.execute('COMMIT;')
                             except:
-                                curs.execute('rollback')
+                                curs.execute('ROLLBACK;')
                             break
 
                         elif delete_it.lower() == 'no':
@@ -199,13 +199,13 @@ class PostgreSQLTestBase(TestBase):
                 query = 'CREATE DATABASE {} OWNER {} TEMPLATE {} encoding \'UTF8\';'\
                     .format(test_db_name, user, TEMPLATE_NAME)
                 curs.execute(query)
-                curs.execute('commit')
+                curs.execute('COMMIT;')
 
         # reconnect to test db and create schemas needed by ambry_sources.
         with psycopg2.connect(host=host, database=test_db_name, user=user, password=password) as conn:
             with conn.cursor() as curs:
                 # we have to close opened transaction.
-                curs.execute('commit;')
+                curs.execute('COMMIT;')
                 curs.execute('CREATE SCHEMA IF NOT EXISTS {};'.format(POSTGRES_SCHEMA_NAME))
                 curs.execute('CREATE SCHEMA IF NOT EXISTS {};'.format(POSTGRES_PARTITION_SCHEMA_NAME))
 

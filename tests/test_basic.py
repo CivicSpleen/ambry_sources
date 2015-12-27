@@ -31,7 +31,7 @@ class BasicTestSuite(TestBase):
 
         for source_name, spec in self.sources.items():
             try:
-                s = get_source(spec, cache_fs)
+                s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
                 for i, row in enumerate(s):
                     if i > 10:
@@ -78,7 +78,7 @@ class BasicTestSuite(TestBase):
 
         for source_name, spec in self.sources.items():
 
-            s = get_source(spec, cache_fs)
+            s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
             f = MPRowsFile(cache_fs, spec.name)
 
@@ -100,7 +100,7 @@ class BasicTestSuite(TestBase):
 
         for source_name, spec in self.sources.items():
 
-            s = get_source(spec, cache_fs)
+            s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
             # print(spec.name)
 
@@ -117,7 +117,7 @@ class BasicTestSuite(TestBase):
     def test_fixed(self):
         cache_fs = fsopendir(self.setup_temp_dir())
         spec = self.sources['simple_fixed']
-        s = get_source(spec, cache_fs)
+        s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
         f = MPRowsFile(cache_fs, spec.name).load_rows(s)
         self.assertEqual(f.headers, ['id', 'uuid', 'int', 'float'])
 
@@ -151,7 +151,7 @@ class BasicTestSuite(TestBase):
 
         cache_fs = fsopendir(self.setup_temp_dir())
         spec = self.sources['simple_fixed']
-        s = get_source(spec, cache_fs)
+        s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
         f = MPRowsFile(cache_fs, spec.name)
 
@@ -181,7 +181,7 @@ class BasicTestSuite(TestBase):
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
-            s = get_source(spec, cache_fs)
+            s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
             ri = RowIntuiter().run(s)
 
             self.assertEqual(
@@ -208,7 +208,7 @@ class BasicTestSuite(TestBase):
         for source_name, spec in sources.items():
             # if source_name != 'ed_cohort': continue
 
-            s = get_source(spec, cache_fs)
+            s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
             f = MPRowsFile(cache_fs, '/mpr/'+source_name)
 
@@ -284,8 +284,6 @@ class BasicTestSuite(TestBase):
             self.assertEqual('C', schema(3, 3))
             self.assertEqual('D', schema(4, 3))
 
-
-
     def test_intuit_footer(self):
         sources = self.load_sources(file_name='sources.csv')
 
@@ -293,8 +291,8 @@ class BasicTestSuite(TestBase):
             cache_fs = fsopendir(self.setup_temp_dir())
 
             spec = sources[source_name]
-            print '-----', source_name
-            f = MPRowsFile(cache_fs, spec.name).load_rows(get_source(spec, cache_fs))
+            f = MPRowsFile(cache_fs, spec.name)\
+                .load_rows(get_source(spec, cache_fs, callback=lambda x, y: (x, y)))
 
             with f.reader as r:
                 last = list(r.rows)[-1]  # islice isn't working on the reader.
@@ -304,20 +302,16 @@ class BasicTestSuite(TestBase):
     def test_intuit_headers(self):
         sources = self.load_sources(file_name='sources.csv')
 
-
-
         for source_name in ['headers4', 'headers3', 'headers2', 'headers1']:
             cache_fs = fsopendir(self.setup_temp_dir())
 
             spec = sources[source_name]
-            print '-----', source_name
-            f = MPRowsFile(cache_fs, spec.name).load_rows(get_source(spec, cache_fs))
+            # print '-----', source_name
+            f = MPRowsFile(cache_fs, spec.name)\
+                .load_rows(get_source(spec, cache_fs, callback=lambda x, y: (x, y)))
 
             self.assertEqual(spec.expect_start, f.info['data_start_row'])
-            self.assertEquals([ int(e) for e in spec.expect_headers.split(',') ], f.info['header_rows'])
-
-
-
+            self.assertEquals([int(e) for e in spec.expect_headers.split(',')], f.info['header_rows'])
 
     @pytest.mark.slow
     def test_datafile_read_write(self):
@@ -448,7 +442,7 @@ class BasicTestSuite(TestBase):
         cache_fs = fsopendir('temp://')
         # cache_fs = fsopendir('/tmp/ritest/')
 
-        s = get_source(self.sources['simple_stats'], cache_fs)
+        s = get_source(self.sources['simple_stats'], cache_fs, callback=lambda x, y: (x, y))
 
         f = MPRowsFile(cache_fs, s.spec.name).load_rows(s, run_stats=True)
 
@@ -580,7 +574,6 @@ class BasicTestSuite(TestBase):
             with f.reader as r:
                 l = list(r.rows)
                 self.assertEqual(11, len(l))
-
 
     def test_spec_load(self):
         """Test that setting a SourceSpec propertly sets the header_lines data start position"""

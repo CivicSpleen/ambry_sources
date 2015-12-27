@@ -3,7 +3,6 @@ import datetime
 from itertools import islice
 from operator import itemgetter
 import string
-import unittest
 
 from fs.opener import fsopendir
 
@@ -116,7 +115,7 @@ class Test(TestBase):
         }
 
         for source_name, spec in self.sources.items():
-            s = get_source(spec, cache_fs)
+            s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
             f = HDFPartition(cache_fs, spec.name)
             if f.exists:
@@ -131,7 +130,7 @@ class Test(TestBase):
                     w.set_row_spec(row_spec, headers)
                     w.set_types(ti)
                 else:
-                    ri = RowIntuiter().run(head(s,20), tail(s,20), w.n_rows)
+                    ri = RowIntuiter().run(head(s, 20), tail(s, 20), w.n_rows)
                     row_spec = self._row_intuiter_to_dict(ri)
                     ti = TypeIntuiter().process_header(ri.headers).run(s)
                     w.set_row_spec(row_spec, ri.headers)
@@ -148,13 +147,12 @@ class Test(TestBase):
         cache_fs = fsopendir(self.setup_temp_dir())
         spec = self.sources['simple_fixed']
         assert spec.has_rowspec is False
-        s = get_source(spec, cache_fs)
+        s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
         # prepare HDFPartition.
         f = HDFPartition(cache_fs, spec.name)
 
-
-        ri = RowIntuiter().run(head(s,100), tail(s,100))
+        ri = RowIntuiter().run(head(s, 100), tail(s, 100))
         row_spec = self._row_intuiter_to_dict(ri)
         ti = TypeIntuiter().process_header(ri.headers).run(s)
         with f.writer as w:
@@ -180,7 +178,7 @@ class Test(TestBase):
 
         s = GeneratorSource(SourceSpec('foobar'), gen())
 
-        ri = RowIntuiter().run(head(s,100), tail(s,100))
+        ri = RowIntuiter().run(head(s, 100), tail(s, 100))
         row_spec = self._row_intuiter_to_dict(ri)
         ti = TypeIntuiter().process_header(ri.headers).run(GeneratorSource(SourceSpec('foobar'), gen()))
         with f.writer as w:
@@ -250,12 +248,12 @@ class Test(TestBase):
 
         cache_fs = fsopendir('temp://')
 
-        source = get_source(self.sources['simple_stats'], cache_fs)
+        source = get_source(self.sources['simple_stats'], cache_fs, callback=lambda x, y: (x, y))
 
         f = HDFPartition(cache_fs, source.spec.name)
 
         with f.writer as w:
-            ri = RowIntuiter().run(head(source,100), tail(source,100))
+            ri = RowIntuiter().run(head(source, 100), tail(source, 100))
             row_spec = self._row_intuiter_to_dict(ri)
             ti = TypeIntuiter().process_header(ri.headers).run(source)
             w.set_row_spec(row_spec, ri.headers)

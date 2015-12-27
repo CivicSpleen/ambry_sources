@@ -30,7 +30,7 @@ class Test(TestBase):
         cache_fs = fsopendir(self.setup_temp_dir())
         sources = self.load_sources()
         spec = sources['simple_fixed']
-        s = get_source(spec, cache_fs)
+        s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
         mprows = MPRowsFile(cache_fs, spec.name).load_rows(s)
 
         # first make sure file was not changed.

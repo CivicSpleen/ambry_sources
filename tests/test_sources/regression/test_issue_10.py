@@ -2,7 +2,6 @@
 
 from ambry_sources import get_source
 
-from fs.zipfs import ZipFS
 from fs.opener import fsopendir
 
 from tests import TestBase
@@ -20,9 +19,9 @@ class Test(TestBase):
         cache_fs = fsopendir('temp://')
 
         spec = SourceSpec('http://public.source.civicknowledge.com/example.com/sources/simple-example.csv',
-                        name='simple')
+                          name='simple')
 
-        s = get_source(spec, cache_fs)
+        s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
         f = MPRowsFile(cache_fs, spec.name)
 

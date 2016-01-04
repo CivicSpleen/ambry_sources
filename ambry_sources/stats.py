@@ -167,10 +167,15 @@ class StatSet(object):
             self.bin_max = self.stats.mean() + sqrt(self.stats.variance()) * 2
             self.bin_width = (self.bin_max - self.bin_min) / self.num_bins
 
+            if self.bin_width == 0:
+                # I guess we just aren't getting a histogram.
+                self._hist_build = True
+                return
+
             # Puts the saved entries into the hist bins.
             for v, count in iteritems(self.counts):
                 float_v = _force_float(v)
-                if float_v >= self.bin_min and float_v <= self.bin_max:
+                if float_v >= self.bin_min and float_v <= self.bin_max and self.bin_width != 0:
                     bin_ = int((float_v - self.bin_min) / self.bin_width)
                     self.bins[bin_] += count
 

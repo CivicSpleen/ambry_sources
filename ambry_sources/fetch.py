@@ -163,6 +163,8 @@ def _download(url, cache_fs, cache_path, account_accessor, logger, callback ):
 
     import requests
     import os
+    from fs.errors import ResourceNotFoundError
+    import urllib
 
     assert callback is not None
 
@@ -170,9 +172,12 @@ def _download(url, cache_fs, cache_path, account_accessor, logger, callback ):
         s3 = get_s3(url, account_accessor)
         pd = parse_url_to_dict(url)
 
-        with cache_fs.open(cache_path, 'wb') as fout:
-            with s3.open(pd['path'], 'rb') as fin:
-                copy_file_or_flo(fin, fout, cb = callback)
+        try:
+            with cache_fs.open(cache_path, 'wb') as fout:
+                with s3.open(urllib.unquote_plus(pd['path']), 'rb') as fin:
+                    copy_file_or_flo(fin, fout, cb = callback)
+        except ResourceNotFoundError:
+            raise ResourceNotFoundError("Failed to find path '{}' in S3 FS '{}' ".format(pd['path'], s3))
 
     elif url.startswith('ftp:'):
         import shutil

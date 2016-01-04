@@ -17,16 +17,15 @@ class Test(TestBase):
 
         sources = self.load_sources(file_name='sources.csv')
 
-        for source_name in ['headers4','headers3','headers2','headers1']:
+        for source_name in ['headers4', 'headers3', 'headers2', 'headers1']:
 
             cache_fs = fsopendir(self.setup_temp_dir())
 
             spec = sources[source_name]
-            print '-----', source_name
-            f = MPRowsFile(cache_fs, spec.name).load_rows(get_source(spec, cache_fs))
+            f = MPRowsFile(cache_fs, spec.name)\
+                .load_rows(get_source(spec, cache_fs, callback=lambda x, y: (x, y)))
 
             with f.reader as r:
                 last = list(r.rows)[-1]  # islice isn't working on the reader.
                 self.assertEqual(11999, int(last[0]))
                 self.assertEqual('2q080z003Cg2', last[1])
-

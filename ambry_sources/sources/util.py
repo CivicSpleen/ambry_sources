@@ -85,7 +85,6 @@ class RowProxy(object):
         return object.__getattribute__(self, '_RowProxy__row')
 
     def set_row(self, v):
-
         object.__setattr__(self, '_RowProxy__row', v)
         return self
 

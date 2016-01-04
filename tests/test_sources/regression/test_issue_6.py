@@ -18,5 +18,5 @@ class Test(TestBase):
         cache_fs = fsopendir(self.setup_temp_dir())
         sources = self.load_sources(file_name='geo_sources.csv')
         spec = sources['community_plan']
-        source = get_source(spec, cache_fs)
+        source = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
         self.assertIsInstance(source._fstor._fs, ZipFS)

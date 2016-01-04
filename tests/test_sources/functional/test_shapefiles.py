@@ -19,7 +19,7 @@ class Test(TestBase):
 
         sources = self.load_sources(file_name='geo_sources.csv')
         spec = sources['highways']
-        source = get_source(spec, cache_fs)
+        source = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
         # first check is it converted properly.
         row_gen = source._get_row_gen()
@@ -62,7 +62,6 @@ class Test(TestBase):
         self.assertEqual(spec.columns[0]['name'], 'id')
         self.assertEqual(spec.columns[-1]['name'], 'geometry')
 
-
     @pytest.mark.slow
     def test_all(self):
         """ Test all sources from geo_sources.csv """
@@ -74,7 +73,7 @@ class Test(TestBase):
                 # it is already tested. Skip.
                 continue
 
-            source = get_source(spec, cache_fs)
+            source = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
             # now check its load to MPRows
             mpr = MPRowsFile(cache_fs, spec.name).load_rows(source)

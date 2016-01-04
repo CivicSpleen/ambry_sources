@@ -496,6 +496,7 @@ class MPRowsFile(object):
     def _load_rows(self, source,  intuit_rows=None, intuit_type=True, run_stats=True,
                    callback=None, limit = None):
         from .exceptions import RowIntuitError
+
         if self.n_rows:
             raise MPRError(
                 "Can't load_rows into {}; rows already loaded. n_rows = {}"
@@ -525,6 +526,7 @@ class MPRowsFile(object):
                 if spec:
                     w.set_source_spec(spec)
 
+
             if intuit_rows:
                 try:
                     self.run_row_intuiter()
@@ -538,6 +540,8 @@ class MPRowsFile(object):
                 with self.writer as w:
                     w.set_row_spec(spec)
                     assert w.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
+
+
 
             if intuit_type:
                 self.run_type_intuiter()
@@ -838,16 +842,20 @@ class MPRWriter(object):
             if limit and i > limit:
                 break
 
+        self._write_rows()
+
+
         # If the source has a headers property, and it's defined, then
         # use it for the headers. This often has to be called after iteration, because
         # the source may have the header as the first row
         try:
             if source.headers:
                 self.headers = source.headers
+
+
         except AttributeError:
             pass
 
-        self._write_rows()
 
     def finalize(self):
         """Mark the loading of the file as finished. """
@@ -945,6 +953,13 @@ class MPRWriter(object):
         from operator import itemgetter
         from ambry_sources.intuit import RowIntuiter
 
+        def set_descriptions(w, descriptions):
+
+            for c, d in zip(w.columns, descriptions):
+                col = w.column(c.name)
+                d = d.replace('\n', ' ').replace('\r', ' ')
+                col.description = d
+
         if isinstance(ri_or_ss, RowIntuiter):
             ri = ri_or_ss
 
@@ -958,6 +973,8 @@ class MPRWriter(object):
                 w.meta['row_spec']['start_row'] = ri.start_line
                 w.meta['row_spec']['end_row'] = ri.end_line
                 w.meta['row_spec']['data_pattern'] = ri.data_pattern_source
+
+                set_descriptions(w, [h for h in ri.headers])
 
                 w.headers = [self.header_mangler(h) for h in ri.headers]
 
@@ -992,7 +1009,9 @@ class MPRWriter(object):
                 w.meta['row_spec']['data_pattern'] = None
 
                 if header_lines:
+                    set_descriptions(w, [h for h in RowIntuiter.coalesce_headers(header_lines) ])
                     w.headers = [self.header_mangler(h) for h in RowIntuiter.coalesce_headers(header_lines)]
+
 
         # Now, look for the end line.
         if False:

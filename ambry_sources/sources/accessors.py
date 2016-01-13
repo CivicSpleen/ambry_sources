@@ -12,36 +12,19 @@ from ambry_sources.util import copy_file_or_flo
 from .exceptions import SourceError
 
 
-class SourceFile(object):
-    """Base class for accessors that generate rows from a source file
+class Source(object):
+    """Base class for accessors that generate rows from any source
 
-    Subclasses of SourceFile must override at lease _get_row_gen method.
+    Subclasses of Source must override at least _get_row_gen method.
     """
 
-    def __init__(self, spec, fstor):
-        """
-
-        :param fstor: A File-like object for the file, already opened.
-        :return:
-        """
-
+    def __init__(self, spec):
         from copy import deepcopy
 
         try:
             self.spec = deepcopy(spec)
         except TypeError:
             pass
-
-        self._fstor = fstor
-        self._headers = None  # Reserved for subclasses that extract headers from data stream
-
-    @property
-    def path(self):
-        return self._fstor.path
-
-    @property
-    def syspath(self):
-        return self._fstor.syspath
 
     @property
     def headers(self):
@@ -56,6 +39,52 @@ class SourceFile(object):
     @headers.setter
     def headers(self, v):
         raise NotImplementedError
+
+    def __iter__(self):
+        """Iterate over all of the lines in the file"""
+
+        self.start()
+
+        for row in self._get_row_gen():
+            yield row
+
+        self.finish()
+
+    def _get_row_gen(self):
+        """ Returns generator over all rows of the source. """
+        raise NotImplementedError('Subclasses of SourceFile must provide a _get_row_gen() method')
+
+    def start(self):
+        pass
+
+    def finish(self):
+        pass
+
+
+class SourceFile(Source):
+    """Base class for accessors that generate rows from a source file
+
+    Subclasses of SourceFile must override at lease _get_row_gen method.
+    """
+
+    def __init__(self, spec, fstor):
+        """
+
+        :param fstor: A File-like object for the file, already opened.
+        :return:
+        """
+        super(SourceFile, self).__init__(spec)
+
+        self._fstor = fstor
+        self._headers = None  # Reserved for subclasses that extract headers from data stream
+
+    @property
+    def path(self):
+        return self._fstor.path
+
+    @property
+    def syspath(self):
+        return self._fstor.syspath
 
     def coalesce_headers(self, header_lines):
         """Collect multiple header lines from the preamble and assemble them into a single header line"""
@@ -88,30 +117,11 @@ class SourceFile(object):
         else:
             return []
 
-    def __iter__(self):
-        """Iterate over all of the lines in the file"""
 
-        self.start()
+class GeneratorSource(Source):
 
-        for row in self._get_row_gen():
-            yield row
-
-        self.finish()
-
-    def _get_row_gen(self):
-        """ Returns generator over all rows of the source. """
-        raise NotImplementedError('Subclasses of SourceFile must provide a _get_row_gen() method')
-
-    def start(self):
-        pass
-
-    def finish(self):
-        pass
-
-
-class GeneratorSource(SourceFile):
     def __init__(self, spec, generator):
-        super(GeneratorSource, self).__init__(spec, None)
+        super(GeneratorSource, self).__init__(spec)
 
         if not (not spec.start_line or spec.start_line == 1):
             raise SourceError("For GeneratorSource, the start line must be 1 or unspecified; got '{}' "
@@ -131,6 +141,7 @@ class GeneratorSource(SourceFile):
 
     def __iter__(self):
         """ Iterate over all of the lines in the generator. """
+        # TODO (kazbek): Isn't returning self.gen from _get_row_gen method a better choice? Try it.
 
         self.start()
 
@@ -140,10 +151,45 @@ class GeneratorSource(SourceFile):
         self.finish()
 
 
-class MPRSource(SourceFile):
+class DatabaseRelationSource(Source):
+    """ Source for database table or view. """
+
+    def __init__(self, spec, connection):
+        """
+        Args:
+            FIXME:
+        """
+        super(DatabaseRelationSource, self).__init__(spec)
+        self._connection = connection
+        from .spec import ColumnSpec
+        # self.spec.columns = [ColumnSpec(**c) for c in self._get_columns()]
+
+    @property
+    def headers(self):
+        return [x['name'] for x in self._get_columns()]
+
+    def _get_columns(self):
+        result = self._connection.execute('PRAGMA table_info(\'{}\');'.format(self.spec.url))
+
+        ret = []
+
+        for row in result:
+            position = row[0]
+            name = row[1]
+            ret.append({
+                'name': name,
+                'position': position
+            })
+        return ret
+
+    def _get_row_gen(self):
+        return self._connection.execute('SELECT * FROM {};'.format(self.spec.url))
+
+
+class MPRSource(Source):
 
     def __init__(self, spec, datafile, predicate=None, headers=None):
-        super(MPRSource, self).__init__(spec, None)
+        super(MPRSource, self).__init__(spec)
 
         if not (not spec.start_line or spec.start_line == 1):
             raise SourceError("For MPRSource, the start line must be 1 or unspecified; got '{}' "
@@ -213,7 +259,6 @@ class FixedSource(SourceFile):
 
         super(FixedSource, self).__init__(spec, fstor)
 
-
         if not (spec.start_line is None or spec.start_line == 1):
             raise SourceError("For FixedSource, the start line must be 1 or unspecified; got '{}' "
                               .format(spec.start_line))
@@ -264,9 +309,10 @@ class FixedSource(SourceFile):
 
 
 class PartitionSource(SourceFile):
-    """Generate rows from an excel file"""
-    def _get_row_gen(self):
+    """Generate rows from a partition. """
 
+    def _get_row_gen(self):
+        # TODO: Where is self.bundle definition?
         for row in self.bundle.library.partition(self.spec.url).stream():
             yield row
 
@@ -360,12 +406,12 @@ class ExcelSource(SourceFile):
 
 
 class GoogleSource(SourceFile):
-    """Generate rows from a CSV source
+    """Generate rows from a Google spreadsheet source
 
     To read a GoogleSpreadsheet, you'll need to have an account entry for google_spreadsheets, and the
     spreadsheet must be shared with the client email defined in the credentials.
 
-    Visit http://gspread.readthedocs.org/en/latest/oauth2.html to learn how to generate the cerdential file, then
+    Visit http://gspread.readthedocs.org/en/latest/oauth2.html to learn how to generate the credential file, then
     copy the entire contents of the file into the a 'google_spreadsheets' key in the accounts file.
 
     Them share the google spreadsheet document with the email addressed defined in the 'client_email' entry of

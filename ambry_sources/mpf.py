@@ -493,8 +493,8 @@ class MPRowsFile(object):
 
         return self
 
-    def _load_rows(self, source,  intuit_rows=None, intuit_type=True, run_stats=True,
-                   callback=None, limit = None):
+    def _load_rows(self, source, intuit_rows=None, intuit_type=True, run_stats=True,
+                   callback=None, limit=None):
         from .exceptions import RowIntuitError
 
         if self.n_rows:
@@ -526,7 +526,6 @@ class MPRowsFile(object):
                 if spec:
                     w.set_source_spec(spec)
 
-
             if intuit_rows:
                 try:
                     self.run_row_intuiter()
@@ -540,8 +539,6 @@ class MPRowsFile(object):
                 with self.writer as w:
                     w.set_row_spec(spec)
                     assert w.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
-
-
 
             if intuit_type:
                 self.run_type_intuiter()
@@ -835,7 +832,7 @@ class MPRWriter(object):
     def load_rows(self, source, callback=None, limit=None):
         """Load rows from an iterator"""
 
-        for i,row in enumerate(iter(source), 1):
+        for i, row in enumerate(iter(source), 1):
             self.insert_row(row)
             if callback:
                 callback(i)
@@ -843,7 +840,6 @@ class MPRWriter(object):
                 break
 
         self._write_rows()
-
 
         # If the source has a headers property, and it's defined, then
         # use it for the headers. This often has to be called after iteration, because

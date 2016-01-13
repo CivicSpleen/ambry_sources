@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import hashlib
 
-from six import string_types, binary_type, text_type
+from six import string_types, text_type
 
 
 class ColumnSpec(object):
@@ -28,6 +28,7 @@ class ColumnSpec(object):
         return 'ColumnSpec({})'.format(','.join('{}={}'.format(k, v if not isinstance(v, string_types)
                                                 else '"{}"'.format(v))
                                                 for k, v in self.__dict__.items()))
+
 
 class SourceSpec(object):
 

@@ -161,8 +161,6 @@ class DatabaseRelationSource(Source):
         """
         super(DatabaseRelationSource, self).__init__(spec)
         self._connection = connection
-        from .spec import ColumnSpec
-        # self.spec.columns = [ColumnSpec(**c) for c in self._get_columns()]
 
     @property
     def headers(self):

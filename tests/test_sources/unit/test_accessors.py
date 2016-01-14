@@ -190,6 +190,6 @@ class DatabaseRelationSourceTest(unittest.TestCase):
             .with_args('SELECT * FROM {};'.format('table1'))
         connection = AttrDict({'execute': fake_execute})
         spec = SourceSpec('table1')
-        relation_source = DatabaseRelationSource(spec, connection)
+        relation_source = DatabaseRelationSource(spec, 'sqlite', connection)
         rows = [x for x in relation_source]
         self.assertEqual(rows, [[1], [2]])

@@ -154,34 +154,53 @@ class GeneratorSource(Source):
 class DatabaseRelationSource(Source):
     """ Source for database table or view. """
 
-    def __init__(self, spec, connection):
+    def __init__(self, spec, engine_name, connection):
         """
         Args:
-            FIXME:
+            spec (ambry_sources.sources.spec.SourceSpec):
+            connection (sqlalchemy.engine.Connection):
         """
         super(DatabaseRelationSource, self).__init__(spec)
         self._connection = connection
+        self._engine_name = engine_name
 
     @property
     def headers(self):
         return [x['name'] for x in self._get_columns()]
 
     def _get_columns(self):
-        result = self._connection.execute('PRAGMA table_info(\'{}\');'.format(self.spec.url))
-
         ret = []
+        if self._engine_name == 'sqlite':
+            result = self._connection.execute('PRAGMA table_info(\'{}\');'.format(self.spec.url))
 
-        for row in result:
-            position = row[0]
-            name = row[1]
-            ret.append({
-                'name': name,
-                'position': position
-            })
+            for row in result:
+                position = row[0]
+                name = row[1]
+                ret.append({
+                    'name': name,
+                    'position': position
+                })
+        elif self._engine_name == 'postgresql':
+            query = '''
+                SELECT column_name, ordinal_position
+                FROM information_schema.columns
+                WHERE table_schema='{schema}' and table_name='{table}';
+            '''
+            result = self._connection.execute(query.format(schema='ambrylib', table=self.spec.url))
+            for row in result:
+                name = row[0]
+                position = row[1]
+                ret.append({
+                    'name': name,
+                    'position': position
+                })
         return ret
 
     def _get_row_gen(self):
-        return self._connection.execute('SELECT * FROM {};'.format(self.spec.url))
+        if self._engine_name == 'postgresql':
+            return self._connection.execute('SELECT * FROM {}.{};'.format('ambrylib', self.spec.url))
+        else:
+            return self._connection.execute('SELECT * FROM {};'.format(self.spec.url))
 
 
 class MPRSource(Source):

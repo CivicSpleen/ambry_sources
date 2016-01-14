@@ -182,17 +182,24 @@ class DatabaseRelationSource(Source):
                 })
         elif self._engine_name == 'postgresql':
             query = '''
-                SELECT column_name, ordinal_position
-                FROM information_schema.columns
-                WHERE table_schema='{schema}' and table_name='{table}';
+                SELECT attr.attname, attr.attnum
+                FROM pg_attribute AS attr
+                JOIN pg_class AS cls ON cls.oid = attr.attrelid
+                JOIN pg_namespace AS ns ON ns.oid = cls.relnamespace
+                WHERE attr.attnum > 0
+                    AND cls.relkind in ('r', 'v', 'm')
+                    AND cls.relname = '{table}'
+                    AND ns.nspname = '{schema}'
+                    AND NOT attr.attisdropped
+                ORDER BY attr.attnum;
             '''
             result = self._connection.execute(query.format(schema='ambrylib', table=self.spec.url))
             for row in result:
                 name = row[0]
                 position = row[1]
                 ret.append({
-                    'name': name,
-                    'position': position
+                    'name': row[0],
+                    'position': row[1]
                 })
         return ret
 

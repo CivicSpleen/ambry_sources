@@ -2,18 +2,20 @@
 import unittest
 from collections import OrderedDict
 
+from attrdict import AttrDict
+
 import fudge
 from fudge.inspector import arg
 
 from six import u
 
-from ambry_sources.sources import SourceSpec, ShapefileSource
+from ambry_sources.sources import SourceSpec, ShapefileSource, DatabaseRelationSource
 
 
 class TestShapefileSource(unittest.TestCase):
 
     def _get_fake_collection(self):
-        """ Returns fake collection which can be used as replaced for fiona.open(...) return value. """
+        """ Returns fake collection which could be used as replacement for fiona.open(...) return value. """
 
         class FakeCollection(object):
             schema = {
@@ -177,3 +179,17 @@ class TestShapefileSource(unittest.TestCase):
         row_gen = source._get_row_gen()
         first_row = next(row_gen)
         self.assertEqual(first_row[-1], 'I AM FAKE WKT')
+
+
+class DatabaseRelationSourceTest(unittest.TestCase):
+
+    def test_uses_url_as_table(self):
+        fake_execute = fudge.Fake() \
+            .expects_call() \
+            .returns(iter([[1], [2]])) \
+            .with_args('SELECT * FROM {};'.format('table1'))
+        connection = AttrDict({'execute': fake_execute})
+        spec = SourceSpec('table1')
+        relation_source = DatabaseRelationSource(spec, 'sqlite', connection)
+        rows = [x for x in relation_source]
+        self.assertEqual(rows, [[1], [2]])

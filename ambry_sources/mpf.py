@@ -541,8 +541,6 @@ class MPRowsFile(object):
                     w.set_row_spec(spec)
                     assert w.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
 
-
-
             if intuit_type:
                 self.run_type_intuiter()
 
@@ -602,7 +600,7 @@ class MPRowsFile(object):
                 mode = 'wb'
 
             if not self._fs.exists(dirname(self.path)):
-                self._fs.makedir(dirname(self.path), recursive=True)
+                self._fs.makedir(dirname(self.path), recursive=True, allow_recreate=True)
 
             self._writer = MPRWriter(self, self._fs.open(self.path, mode=mode), compress=self._compress)
 
@@ -741,8 +739,11 @@ class MPRWriter(object):
         assert isinstance(headers,  (tuple, list)), headers
 
         for i, row in enumerate(MPRowsFile._columns(self, len(headers))):
-            assert isinstance(headers[i], string_types)
-            row.name = headers[i] if headers[i] else 'column{}'.format(i)
+            try:
+                row.name = headers[i]
+            except KeyError:
+                row.name =  'col{}'.format(i)
+
 
         assert self.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
 

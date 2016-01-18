@@ -54,7 +54,7 @@ class DelayedOpen(object):
         from fs.errors import NoSysPathError
 
         try:
-            return self.syspath()
+            return self.syspath
         except NoSysPathError:
             return "Delayed Open: {}; {} ".format(str(self._fs), str(self._path))
 

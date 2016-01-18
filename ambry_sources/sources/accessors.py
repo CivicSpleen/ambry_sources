@@ -182,11 +182,17 @@ class CsvSource(SourceFile):
 
     def __iter__(self):
         """Iterate over all of the lines in the file"""
+        import unicodecsv as csv
+        from contextlib import closing
 
         self.start()
 
-        for i, row in enumerate(petl.io.csv.fromcsv(self._fstor, self.spec.encoding)):
-            yield row
+        encoding = self.spec.encoding or 'utf8'
+
+        with closing(self._fstor.open('rb')) as f:
+            reader = csv.reader(f, encoding=encoding)
+            for i, row in enumerate(reader):
+                yield row
 
         self.finish()
 

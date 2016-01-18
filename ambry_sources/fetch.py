@@ -42,14 +42,18 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger=None,
 
     :return: a SourceFile object.
     """
+    from fs.zipfs import ZipOpenError
+    import os
 
     # FIXME. urltype should be moved to reftype.
     url_type = spec.get_urltype()
 
+    def do_download():
+        return download(spec.url, cache_fs, account_accessor, clean=clean, logger=logger, callback=callback)
+
     if url_type != 'gs': #FIXME. Need to clean up the logic for gs types.
         try:
-            cache_path, download_time = download(spec.url, cache_fs, account_accessor,
-                                                 clean=clean, logger=logger, callback=callback)
+            cache_path, download_time = do_download()
             spec.download_time = download_time
         except HTTPError as e:
             raise DownloadError("Failed to download {}; {}".format(spec.url, e))
@@ -57,7 +61,14 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger=None,
         cache_path, download_time = None, None
 
     if url_type == 'zip':
-        fstor = extract_file_from_zip(cache_fs, cache_path, spec.url, spec.file)
+        try:
+            fstor = extract_file_from_zip(cache_fs, cache_path, spec.url, spec.file)
+        except ZipOpenError:
+            # Try it again
+            cache_fs.remove(cache_path)
+            cache_path, spec.download_time = do_download()
+            fstor = extract_file_from_zip(cache_fs, cache_path, spec.url, spec.file)
+
         file_type = spec.get_filetype(fstor.path)
     elif url_type == 'gs':
         fstor = get_gs(spec.url, spec.segment, account_accessor)
@@ -123,8 +134,8 @@ def extract_file_from_zip(cache_fs, cache_path, url, fn_pattern = None):
     from fs.zipfs import ZipOpenError
 
     # FIXME Not sure what is going on here, but in multiproccessing mode,
-    # the 'try' version of opening the file can fail with an error about the file being missing or corrupy
-    # but the second successedes. However, the second will faile in test environments that have a memory cache.
+    # the 'try' version of opening the file can fail with an error about the file being missing or corrupt
+    # but the second succeedes. However, the second will fail in test environments that have a memory cache.
     try:
         fs = ZipFS(cache_fs.open(cache_path, 'rb'))
     except ZipOpenError:
@@ -165,8 +176,6 @@ def _download(url, cache_fs, cache_path, account_accessor, logger, callback ):
     import os
     from fs.errors import ResourceNotFoundError
     import urllib
-
-    assert callback is not None
 
     if url.startswith('s3:'):
         s3 = get_s3(url, account_accessor)

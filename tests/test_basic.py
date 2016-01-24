@@ -91,7 +91,7 @@ class BasicTestSuite(TestBase):
                 if spec.name in headers:
                     self.assertEqual(headers[spec.name], r.headers)
 
-    # @unittest.skip('Useful for debugging, but doesnt add test coverage')
+    @unittest.skip('Useful for debugging, but doesnt add test coverage')
     @pytest.mark.slow
     def test_full_load(self):
         """Just check that all of the sources can be loaded without exceptions"""
@@ -102,7 +102,7 @@ class BasicTestSuite(TestBase):
 
             s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
-            # print(spec.name)
+            print(spec.name)
 
             f = MPRowsFile(cache_fs, spec.name)
 
@@ -206,7 +206,7 @@ class BasicTestSuite(TestBase):
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
-            # if source_name != 'ed_cohort': continue
+            if source_name != 'birth_profiles': continue
 
             s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
@@ -215,7 +215,10 @@ class BasicTestSuite(TestBase):
             if f.exists:
                 f.remove()
 
-            f.load_rows(s, intuit_type=False, run_stats=False)
+            print "Loading ", source_name, spec.url
+            f.load_rows(s, intuit_type=False, run_stats=False, limit=500)
+
+            print f.info
 
             self.assertEqual(f.info['data_start_row'], spec.expect_start)
 

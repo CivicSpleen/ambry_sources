@@ -550,7 +550,7 @@ class RowIntuiter(object):
 
         self.test_rows = []
 
-        self.debug = False
+        self.debug = True
 
     def picture(self, row):
         """Create a simplified character representation of the data row, which can be pattern matched
@@ -604,7 +604,7 @@ class RowIntuiter(object):
             for i, c in enumerate(self.picture(row)):
                 patterns[i].add(c)
 
-        pattern_source = ''.join("(?:{})".format('|'.join(s)) for s in patterns)
+        pattern_source = ''.join("({})".format('|'.join(s)) for s in patterns)
 
         return pattern_source, contributors, l
 
@@ -618,7 +618,7 @@ class RowIntuiter(object):
             # in subsequent rows.
             for i in range(tests):
 
-                max_changes = len(rows[0])/4
+                max_changes = len(rows[0])/4 # Data row should have fewer than 25% changes compared to next
 
                 test_rows_slice = rows[i:i+test_rows]
 
@@ -627,6 +627,7 @@ class RowIntuiter(object):
 
                 pattern_source, contributors, l = self._data_pattern_source(test_rows_slice, max_changes)
 
+                # If more the 75% of the rows contributed to the pattern, consider it good
                 if contributors > test_rows*.75:
                     return pattern_source
 
@@ -657,7 +658,11 @@ class RowIntuiter(object):
 
         data_pattern, self.data_pattern_source = self.data_pattern(head_rows[data_pattern_skip_rows:])
 
-        patterns = [('D', data_pattern)] + list(self.patterns)
+        patterns = ([('D', data_pattern),
+                     # More than 25% strings in row is header, if it isn't matched as data
+                     ('H', re.compile(r'X{{,{}}}'.format(data_pattern.groups/4))),
+                     ] +
+                    list(self.patterns) )
 
         for i, row in enumerate(head_rows):
 

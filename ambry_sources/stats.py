@@ -355,6 +355,11 @@ class Stats(object):
                 raise KeyError(
                     'Failed to find key in row. headers = "{}", code = "{}" '
                     .format(list(row.keys()), self._func_code))
+            except Exception as e:
+                raise
+                raise type(e)(
+                    'General exception in stats. headers = "{}", code = "{}": {} '
+                        .format(list(row.keys()), self._func_code, e))
 
         self._n_rows = sample_from
 
@@ -375,6 +380,7 @@ class Stats(object):
             else:
                 # If the skip is smaller than 4, just process everything.
                 for i, row in enumerate(source):
+
                     process_row(row)
 
 

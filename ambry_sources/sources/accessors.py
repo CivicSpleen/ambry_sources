@@ -259,7 +259,10 @@ class CsvSource(SourceFile):
 
         encoding = self.spec.encoding or 'utf8'
 
-        with closing(self._fstor.open('rb')) as f:
+        # FIXME. The open was 'rb', but that lead to problems in the
+        # test_row_load_intuit test for file food_bank: 'ew-line character seen in unquoted field'
+        # Removing the 'b' and adding 'U' fixes that problem, but may have broken something else
+        with closing(self._fstor.open('rU')) as f:
             reader = csv.reader(f, encoding=encoding)
             for i, row in enumerate(reader):
                 yield row

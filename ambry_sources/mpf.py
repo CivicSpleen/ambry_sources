@@ -701,7 +701,7 @@ class MPRWriter(object):
         else:
             self._zfh = self._fh
 
-        self.header_mangler = lambda name: re.sub('_+', '_', re.sub('[^\w_]', '_', name).lower()).rstrip('_')
+        self.header_mangler = lambda name: re.sub('_+', '_', re.sub('[^\w_]', '_', name.strip()).lower()).rstrip('_')
 
         if self.n_rows == 0:
             self.meta['about']['create_time'] = time.time()

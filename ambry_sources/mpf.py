@@ -851,10 +851,8 @@ class MPRWriter(object):
             if source.headers:
                 self.headers = source.headers
 
-
         except AttributeError:
             pass
-
 
     def finalize(self):
         """Mark the loading of the file as finished. """
@@ -1008,9 +1006,8 @@ class MPRWriter(object):
                 w.meta['row_spec']['data_pattern'] = None
 
                 if header_lines:
-                    set_descriptions(w, [h for h in RowIntuiter.coalesce_headers(header_lines) ])
+                    set_descriptions(w, [h for h in RowIntuiter.coalesce_headers(header_lines)])
                     w.headers = [self.header_mangler(h) for h in RowIntuiter.coalesce_headers(header_lines)]
-
 
         # Now, look for the end line.
         if False:

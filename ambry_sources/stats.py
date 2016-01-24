@@ -53,7 +53,7 @@ class StatSet(object):
     LOM.INTERVAL = 'i'  # A number, for which subtraction is defined, but not division
     LOM.RATIO = 'r'  # A number, for which division is defined and zero means "nothing". Kelvin, but not Celsius
 
-    def __init__(self, parent, name, typ, n_rows = None):
+    def __init__(self, parent, name, typ, n_rows=None):
 
         self.parent = parent
         self.n_rows = n_rows
@@ -109,7 +109,6 @@ class StatSet(object):
         return self.lom == self.LOM.INTERVAL or self.lom == self.LOM.RATIO
 
     def add(self, v):
-        from math import sqrt
 
         self.n += 1
 
@@ -134,10 +133,10 @@ class StatSet(object):
             # HACK There are probably a lot of 1-off errors in this
             float_v = _force_float(v)
 
-            if self.n < self.bin_primer_count: # Still building the counts.
+            if self.n < self.bin_primer_count:  # Still building the counts.
                 self.counts[unival] += 1
 
-            elif self.n == self.bin_primer_count: # Hit the limit, now can get the hist bins
+            elif self.n == self.bin_primer_count:  # Hit the limit, now can get the hist bins
 
                 self._build_hist_bins()
 
@@ -179,9 +178,8 @@ class StatSet(object):
                     bin_ = int((float_v - self.bin_min) / self.bin_width)
                     self.bins[bin_] += count
 
-        #self.counts = Counter()
+        # self.counts = Counter()
         self._hist_build = True
-
 
     @property
     def uniques(self):
@@ -293,7 +291,7 @@ class Stats(object):
         self._stats = {}
         self._func = None
         self._func_code = None
-        self._n_rows = n_rows # May be reset in run()
+        self._n_rows = n_rows  # May be reset in run()
 
         for col_name, col_type in schema:
             self._stats[col_name] = StatSet(self, col_name, col_type, n_rows)
@@ -383,8 +381,7 @@ class Stats(object):
 
                     process_row(row)
 
-
-        if i < 5000: # Since the hist bins aren't built until 5K row
+        if i < 5000:  # Since the hist bins aren't built until 5K row
             for k, v in self._stats.items():
                 v._build_hist_bins()
 

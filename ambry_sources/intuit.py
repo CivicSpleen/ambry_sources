@@ -4,7 +4,6 @@ import datetime
 import logging
 import re
 
-import six
 from six import string_types, iteritems, binary_type, text_type, b
 
 logger = logging.getLogger(__name__)
@@ -496,8 +495,8 @@ class ClusterHeaders(object):
         pairs = self.pairs()
 
         results = []
-        for a, b in pairs:
-            results.append((round(self.match_headers(self._headers[a], self._headers[b]), 3), a, b))
+        for a, b_ in pairs:
+            results.append((round(self.match_headers(self._headers[a], self._headers[b_]), 3), a, b_))
 
         results = sorted(results, key=lambda r: r[0])
 
@@ -540,12 +539,12 @@ class RowIntuiter(object):
         self.data_pattern_source = None
 
         self.patterns = (
-            ('B', re.compile(r'^_+$')), # Blank
-            ('C', re.compile(r'^XX_+$')), # Comment
-            ('C', re.compile(r'^X_+$')), # Comment
-            ('H', re.compile(r'^X+$')), # Header
+            ('B', re.compile(r'^_+$')),  # Blank
+            ('C', re.compile(r'^XX_+$')),  # Comment
+            ('C', re.compile(r'^X_+$')),  # Comment
+            ('H', re.compile(r'^X+$')),  # Header
             ('H', re.compile(r'^_{,6}X+$')),  # Header, A few starting blanks, the rest are strings.
-            ('H', re.compile(r"(?:X_)")), # Header
+            ('H', re.compile(r"(?:X_)")),  # Header
         )
 
         self.test_rows = []
@@ -621,7 +620,7 @@ class RowIntuiter(object):
 
                 max_changes = len(rows[0])/4 # Data row should have fewer than 25% changes compared to next
 
-                test_rows_slice = rows[i:i+test_rows]
+                test_rows_slice = rows[i: i + test_rows]
 
                 if not test_rows_slice:
                     continue
@@ -639,7 +638,7 @@ class RowIntuiter(object):
 
         if not pattern_source:
             from .exceptions import RowIntuitError
-            raise RowIntuitError("Failed to find data pattern")
+            raise RowIntuitError('Failed to find data pattern')
 
         pattern = re.compile(pattern_source)
 
@@ -653,7 +652,7 @@ class RowIntuiter(object):
 
         return False
 
-    def run(self, head_rows, tail_rows=None, n_rows = None):
+    def run(self, head_rows, tail_rows=None, n_rows=None):
 
         header_rows = []
         found_header = False
@@ -718,12 +717,10 @@ class RowIntuiter(object):
             # Count the number of lines, from the end, that are either comment or blank
             end_line = len(list(takewhile(lambda x: x == 'C' or x == 'B', labels)))
 
-
             if end_line:
                 self.end_line = n_rows-end_line-1
 
         return self
-
 
     @classmethod
     def coalesce_headers(cls, header_lines):
@@ -754,8 +751,5 @@ class RowIntuiter(object):
 
         elif len(header_lines) > 0:
             return header_lines[0]
-
         else:
             return []
-
-

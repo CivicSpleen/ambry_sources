@@ -7,15 +7,12 @@ from attrdict import AttrDict
 
 import six
 
-import fudge
-from fudge.inspector import arg
-
 try:
     # py3
-    from unittest.mock import MagicMock, patch, call, PropertyMock
+    from unittest.mock import Mock, patch, PropertyMock
 except ImportError:
     # py2
-    from mock import MagicMock, patch, call, PropertyMock
+    from mock import Mock, patch, PropertyMock
 
 from ambry_sources.med.sqlite import add_partition, _get_module_instance, Table, Cursor
 from ambry_sources.mpf import MPRowsFile
@@ -95,40 +92,39 @@ class TestCursor(unittest.TestCase):
     def test_closes_and_empties_reader(self):
         table = self._get_fake_table()
         cursor = Cursor(table)
-        with fudge.patched_context(cursor._reader, 'close', fudge.Fake('close').expects_call()):
+        with patch.object(cursor._reader, 'close') as fake_close:
             cursor.Close()
-            fudge.verify()
+            fake_close.assert_called_once_with()
         self.assertIsNone(cursor._reader)
 
 
 class AddPartitionTest(unittest.TestCase):
 
-    @fudge.patch(
-        'ambry_sources.med.sqlite._get_module_instance',
-        'ambry_sources.med.sqlite.table_name')
-    def test_creates_sqlite_module(self, fake_get, fake_table):
-        fake_get.expects_call().returns(fudge.Fake().is_a_stub())
-        fake_table.expects_call()
-        fake_create_module = fudge.Fake('createmodule').expects_call()
-        fake_connection = AttrDict({
-            'createmodule': fake_create_module,
-            'cursor': lambda: fudge.Fake().is_a_stub()})
-        fake_mprows = AttrDict()
+    @patch('ambry_sources.med.sqlite._get_module_instance')
+    @patch('ambry_sources.med.sqlite.table_name')
+    def test_creates_sqlite_module(self, fake_table, fake_get):
+        fake_connection = Mock()
+        fake_mprows = _get_fake_mprows('int')
         add_partition(fake_connection, fake_mprows, 'vid1')
+        fake_table.assert_called_once_with('vid1')
+        fake_get.assert_called_once_with()
 
-    @fudge.patch(
-        'ambry_sources.med.sqlite._get_module_instance',
-        'ambry_sources.med.sqlite.table_name')
-    def test_creates_virtual_table(self, fake_get, fake_table):
-        fake_get.expects_call().returns(fudge.Fake().is_a_stub())
-        fake_table.expects_call()
-        fake_create_module = fudge.Fake('createmodule').expects_call()
-        fake_execute = fudge.Fake().expects_call().with_args(arg.contains('CREATE VIRTUAL TABLE'))
-        fake_connection = AttrDict({
-            'createmodule': fake_create_module,
-            'cursor': lambda: AttrDict({'execute': fake_execute})})
-        fake_mprows = AttrDict()
+    @patch('ambry_sources.med.sqlite._get_module_instance')
+    @patch('ambry_sources.med.sqlite.table_name')
+    def test_creates_virtual_table(self, fake_table, fake_get):
+        fake_table.return_value = 'vid1'
+        fake_mprows = _get_fake_mprows('int')
+
+        fake_connection = Mock()
+        fake_execute = Mock()
+        fake_connection.cursor = lambda: AttrDict({'execute': fake_execute})
+
+        fake_mprows = _get_fake_mprows('int')
+
         add_partition(fake_connection, fake_mprows, 'vid1')
+        fake_table.assert_called_once_with('vid1')
+        fake_get.assert_called_once_with()
+        fake_execute.assert_called_once_with('CREATE VIRTUAL TABLE vid1 using mod_partition(/tmp, tmp);')
 
 
 class GetModuleClassTest(unittest.TestCase):
@@ -138,15 +134,8 @@ class GetModuleClassTest(unittest.TestCase):
         self.assertTrue(hasattr(mod, 'Create'))
         self.assertTrue(six.callable(mod.Create))
 
-    def _get_fake_mprows(self, type_):
-        """ Returns fake instance of the MPRowsFile. """
-        partition = AttrDict({
-            'reader': AttrDict({
-                'columns': [{'type': type_, 'name': 'column1', 'pos': 0}]})})
-        return partition
-
     def _assert_converts(self, python_type, sql_type):
-        fake_mprows = self._get_fake_mprows(python_type)
+        fake_mprows = _get_fake_mprows(python_type)
         filesystem_root = '/tmp'
         path = 'temp.mpr'
         with patch.object(MPRowsFile, 'reader', new_callable=PropertyMock) as fake_reader:
@@ -157,7 +146,7 @@ class GetModuleClassTest(unittest.TestCase):
 
     # Source.Create tests
     def test_returns_create_table_query_and_table(self):
-        fake_mprows = self._get_fake_mprows('int')
+        fake_mprows = _get_fake_mprows('int')
         filesystem_root = '/tmp'
         path = 'temp.mpr'
         with patch.object(MPRowsFile, 'reader', new_callable=PropertyMock) as fake_reader:
@@ -185,7 +174,7 @@ class GetModuleClassTest(unittest.TestCase):
         self._assert_converts('datetime', '(column1 TIMESTAMP WITHOUT TIME ZONE)')
 
     def test_raises_exception_if_type_conversion_failed(self):
-        fake_mprows = self._get_fake_mprows('unknown')
+        fake_mprows = _get_fake_mprows('unknown')
         mod = _get_module_instance()
         filesystem_root = '/tmp'
         path = 'temp.mpr'
@@ -195,3 +184,14 @@ class GetModuleClassTest(unittest.TestCase):
                 mod.Create('db', 'modulename', 'dbname', 'table1', filesystem_root, path)
             except Exception as exc:
                 self.assertIn('Do not know how to convert', str(exc))
+
+
+def _get_fake_mprows(type_):
+    """ Returns fake instance of the MPRowsFile. """
+    mprows = Mock(spec=MPRowsFile)
+    mprows.reader = AttrDict({
+        'columns': [{'type': type_, 'name': 'column1', 'pos': 0}]})
+    mprows.path = 'tmp'
+    mprows._fs = Mock()
+    mprows._fs.root_path = '/tmp'
+    return mprows

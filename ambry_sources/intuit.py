@@ -724,32 +724,31 @@ class RowIntuiter(object):
 
     @classmethod
     def coalesce_headers(cls, header_lines):
+        import re
 
         header_lines = [hl for hl in header_lines if bool(hl)]
 
-        if len(header_lines) > 1:
-
-            # If there are gaps in the values in the first header line, extend them forward
-            hl1 = []
-            last = None
-            for x in header_lines[0]:
-                if not x:
-                    x = last
-                else:
-                    last = x
-
-                hl1.append(x)
-
-                header_lines[0] = hl1
-
-            headers = [' '.join(text_type(col_val).strip() if col_val else '' for col_val in col_set)
-                       for col_set in zip(*header_lines)]
-
-            headers = [h.strip() for h in headers]
-
-            return headers
-
-        elif len(header_lines) > 0:
-            return header_lines[0]
-        else:
+        if len(header_lines) == 0:
             return []
+
+        if len(header_lines) == 1:
+            return header_lines[0]
+
+
+        # If there are gaps in the values of a line, copy them forward, so there
+        # is some value in every position
+        for hl in header_lines:
+            last = None
+            for i in range(len(hl)):
+                if not hl[i].strip():
+                    hl[i] = last
+                else:
+                    last = hl[i]
+
+
+        headers = [' '.join(text_type(col_val).strip() if col_val else '' for col_val in col_set)
+                   for col_set in zip(*header_lines)]
+
+        headers = [re.sub(r'\s+', ' ',h.strip()) for h in headers]
+
+        return headers

@@ -315,6 +315,32 @@ class BasicTestSuite(TestBase):
             self.assertEqual(spec.expect_start, f.info['data_start_row'])
             self.assertEquals([int(e) for e in spec.expect_headers.split(',')], f.info['header_rows'])
 
+    def test_header_coalesce(self):
+        from ambry_sources.intuit import RowIntuiter
+
+
+        def csplit(h):
+            return [ r.split(',') for r in h]
+
+        h = [
+            "a1,,a3,,a5,,a7",
+            "b1,,b3,,b5,,b7",
+            ",c2,,c4,,c6,",
+            "d1,d2,d3,d4,d5,d6,d7"
+        ]
+
+        hc = [u'a1 b1 d1',
+              u'a1 b1 c2 d2',
+              u'a3 b3 c2 d3',
+              u'a3 b3 c4 d4',
+              u'a5 b5 c4 d5',
+              u'a5 b5 c6 d6',
+              u'a7 b7 c6 d7']
+
+
+        self.assertEqual(hc, RowIntuiter.coalesce_headers(csplit(h)))
+
+
     @pytest.mark.slow
     def test_datafile_read_write(self):
         from fs.opener import fsopendir

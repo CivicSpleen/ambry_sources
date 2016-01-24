@@ -14,7 +14,6 @@ import ssl
 from requests import HTTPError
 
 import six
-from six import binary_type, b
 from six.moves.urllib.parse import urlparse
 from six.moves.urllib.request import urlopen
 
@@ -46,7 +45,7 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger=None,
     # FIXME. urltype should be moved to reftype.
     url_type = spec.get_urltype()
 
-    if url_type != 'gs': #FIXME. Need to clean up the logic for gs types.
+    if url_type != 'gs':  # FIXME. Need to clean up the logic for gs types.
         try:
             cache_path, download_time = download(spec.url, cache_fs, account_accessor,
                                                  clean=clean, logger=logger, callback=callback)
@@ -109,7 +108,7 @@ def import_source(spec, cache_fs,  file_path=None, account_accessor=None):
     return f
 
 
-def extract_file_from_zip(cache_fs, cache_path, url, fn_pattern = None):
+def extract_file_from_zip(cache_fs, cache_path, url, fn_pattern=None):
     """
     For a zip archive, return the first file if no file_name is specified as a fragment in the url,
      or if a file_name is specified, use it as a regex to find a file in the archive
@@ -124,7 +123,8 @@ def extract_file_from_zip(cache_fs, cache_path, url, fn_pattern = None):
 
     # FIXME Not sure what is going on here, but in multiproccessing mode,
     # the 'try' version of opening the file can fail with an error about the file being missing or corrupy
-    # but the second successedes. However, the second will faile in test environments that have a memory cache.
+    # but the second successedes. However, the second will faile in test environments that
+    # have a memory cache.
     try:
         fs = ZipFS(cache_fs.open(cache_path, 'rb'))
     except ZipOpenError:
@@ -155,16 +155,17 @@ def extract_file_from_zip(cache_fs, cache_path, url, fn_pattern = None):
                 break
 
         if not fstor:
-            raise ConfigurationError("Failed to get file for pattern '{}' from archive {}".format(fn_pattern, fs))
+            raise ConfigurationError(
+                "Failed to get file for pattern '{}' from archive {}".format(fn_pattern, fs))
 
     return fstor
 
-def _download(url, cache_fs, cache_path, account_accessor, logger, callback ):
 
-    import requests
-    import os
-    from fs.errors import ResourceNotFoundError
+def _download(url, cache_fs, cache_path, account_accessor, logger, callback):
+
     import urllib
+    import requests
+    from fs.errors import ResourceNotFoundError
 
     assert callback is not None
 
@@ -175,7 +176,7 @@ def _download(url, cache_fs, cache_path, account_accessor, logger, callback ):
         try:
             with cache_fs.open(cache_path, 'wb') as fout:
                 with s3.open(urllib.unquote_plus(pd['path']), 'rb') as fin:
-                    copy_file_or_flo(fin, fout, cb = callback)
+                    copy_file_or_flo(fin, fout, cb=callback)
         except ResourceNotFoundError:
             raise ResourceNotFoundError("Failed to find path '{}' in S3 FS '{}' ".format(pd['path'], s3))
 
@@ -198,7 +199,7 @@ def _download(url, cache_fs, cache_path, account_accessor, logger, callback ):
             r.raw.read = functools.partial(r.raw.read, decode_content=True)
 
         with cache_fs.open(cache_path, 'wb') as f:
-            copy_file_or_flo(r.raw, f, cb = callback)
+            copy_file_or_flo(r.raw, f, cb=callback)
 
         assert cache_fs.exists(cache_path)
 
@@ -235,10 +236,8 @@ def download(url, cache_fs, account_accessor=None, clean=False, logger=None, cal
     :return:
     """
     import os.path
-    import requests
-    from fs.errors import NoSysPathError, ResourceInvalidError
-
     import time
+    from fs.errors import NoSysPathError, ResourceInvalidError
 
     parsed = urlparse(url)
 
@@ -251,7 +250,7 @@ def download(url, cache_fs, account_accessor=None, clean=False, logger=None, cal
         cache_path = os.path.join(cache_path, hash)
 
     try:
-        from  filelock import FileLock
+        from filelock import FileLock
         lock = FileLock(cache_fs.getsyspath(cache_path + '.lock'))
 
     except NoSysPathError:
@@ -289,9 +288,7 @@ def download(url, cache_fs, account_accessor=None, clean=False, logger=None, cal
 
             raise
 
-    assert False, "Should never get here"
-
-
+    assert False, 'Should never get here'
 
 
 def get_s3(url, account_accessor):
@@ -343,7 +340,7 @@ def get_s3(url, account_accessor):
         raise MissingCredentials(
             'dict returned by account_accessor callable for {} must contain not empty {} key(s)'
             .format(pd['netloc'], ', '.join(missing_credentials)),
-            location=pd['netloc'],required_credentials=['access', 'secret'], )
+            location=pd['netloc'], required_credentials=['access', 'secret'], )
 
     s3 = S3FS(
         bucket=pd['netloc'],

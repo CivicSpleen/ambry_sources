@@ -58,7 +58,7 @@ def main(args=None):
         args = parser.parse_args()
 
     if isinstance(args.path[0], MPRowsFile):
-        f = args.path[0] # When it is called from the ambry cli with a remote file.
+        f = args.path[0]  # When it is called from the ambry cli with a remote file.
     else:
         f = MPRowsFile(args.path[0])
 
@@ -68,7 +68,7 @@ def main(args=None):
     schema_getter = itemgetter(*schema_fields)
 
     types_fields = ['header', 'type_count', 'length',  'floats',  'ints', 'unicode',  'strs', 'dates',
-                    'times', 'datetimes', 'nones', 'has_codes' ]
+                    'times', 'datetimes', 'nones', 'has_codes']
 
     types_getter = itemgetter(*types_fields)
 
@@ -108,21 +108,21 @@ def main(args=None):
         try:
             path = f.syspath
         except:
-            path = "{} / {}".format(f._fs, f._path)
+            path = '{} / {}'.format(f._fs, f._path)
 
-        pm("MPR File", path)
-        pm("Created",
+        pm('MPR File', path)
+        pm('Created',
            (r.meta['about']['create_time'] and datetime.fromtimestamp(r.meta['about']['create_time'])))
-        pm("version", r.info['version'])
-        pm("rows", r.info['rows'])
-        pm("cols", r.info['cols'])
-        pm("header_rows", r.info['header_rows'])
-        pm("data_row", r.info['data_start_row'])
-        pm("end_row", r.info['data_end_row'])
+        pm('version', r.info['version'])
+        pm('rows', r.info['rows'])
+        pm('cols', r.info['cols'])
+        pm('header_rows', r.info['header_rows'])
+        pm('data_row', r.info['data_start_row'])
+        pm('end_row', r.info['data_end_row'])
 
         ss = r.meta['source']
-        pm("URL", ss['url'])
-        pm("encoding", ss['encoding'])
+        pm('URL', ss['url'])
+        pm('encoding', ss['encoding'])
 
     if args.schema:
         print('\nSCHEMA')
@@ -169,7 +169,7 @@ def main(args=None):
 
             acc = []
             try:
-                for i , row in enumerate(r.rows,1):
+                for i, row in enumerate(r.rows, 1):
 
                     if i % 30 == 0:
                         print (tabulate.tabulate(acc, r.headers))

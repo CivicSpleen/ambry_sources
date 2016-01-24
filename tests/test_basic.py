@@ -206,7 +206,7 @@ class BasicTestSuite(TestBase):
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
-            if source_name != 'birth_profiles': continue
+            #if source_name != 'birth_profiles': continue
 
             s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
@@ -218,7 +218,6 @@ class BasicTestSuite(TestBase):
             print "Loading ", source_name, spec.url
             f.load_rows(s, intuit_type=False, run_stats=False, limit=500)
 
-            print f.info
 
             self.assertEqual(f.info['data_start_row'], spec.expect_start)
 

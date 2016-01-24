@@ -550,7 +550,7 @@ class RowIntuiter(object):
 
         self.test_rows = []
 
-        self.debug = True
+        self.debug = False
 
     def picture(self, row):
         """Create a simplified character representation of the data row, which can be pattern matched
@@ -604,7 +604,7 @@ class RowIntuiter(object):
             for i, c in enumerate(self.picture(row)):
                 patterns[i].add(c)
 
-        pattern_source = ''.join("({})".format('|'.join(s)) for s in patterns)
+        pattern_source = ''.join("(?:{})".format('|'.join(s)) for s in patterns)
 
         return pattern_source, contributors, l
 
@@ -612,6 +612,7 @@ class RowIntuiter(object):
 
         tests = 50
         test_rows = min(20, len(rows))
+        n_cols = None
 
         def try_tests(tests, test_rows, rows):
             # Look for the first row where you can generate a data pattern that does not have a large number of changes
@@ -627,11 +628,14 @@ class RowIntuiter(object):
 
                 pattern_source, contributors, l = self._data_pattern_source(test_rows_slice, max_changes)
 
+                ave_cols = sum( 1 for r in test_rows_slice for c in r ) / len(test_rows_slice)
+
                 # If more the 75% of the rows contributed to the pattern, consider it good
                 if contributors > test_rows*.75:
-                    return pattern_source
+                    return pattern_source, ave_cols
 
-        pattern_source = try_tests(tests, test_rows, rows)
+
+        pattern_source, ave_cols= try_tests(tests, test_rows, rows)
 
         if not pattern_source:
             from .exceptions import RowIntuitError
@@ -639,7 +643,7 @@ class RowIntuiter(object):
 
         pattern = re.compile(pattern_source)
 
-        return pattern, pattern_source
+        return pattern, pattern_source, ave_cols
 
     @staticmethod
     def match_picture(picture, patterns):
@@ -656,11 +660,11 @@ class RowIntuiter(object):
 
         data_pattern_skip_rows = min(30, len(head_rows) - 8)
 
-        data_pattern, self.data_pattern_source = self.data_pattern(head_rows[data_pattern_skip_rows:])
+        data_pattern, self.data_pattern_source, n_cols = self.data_pattern(head_rows[data_pattern_skip_rows:])
 
         patterns = ([('D', data_pattern),
                      # More than 25% strings in row is header, if it isn't matched as data
-                     ('H', re.compile(r'X{{,{}}}'.format(data_pattern.groups/4))),
+                     ('H', re.compile(r'X{{,{}}}'.format(n_cols/4))),
                      ] +
                     list(self.patterns) )
 

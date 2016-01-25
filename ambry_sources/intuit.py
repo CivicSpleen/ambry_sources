@@ -665,7 +665,7 @@ class RowIntuiter(object):
                      # More than 25% strings in row is header, if it isn't matched as data
                      ('H', re.compile(r'X{{,{}}}'.format(n_cols/4))),
                      ] +
-                    list(self.patterns) )
+                    list(self.patterns))
 
         for i, row in enumerate(head_rows):
 
@@ -726,14 +726,13 @@ class RowIntuiter(object):
     def coalesce_headers(cls, header_lines):
         import re
 
-        header_lines = [hl for hl in header_lines if bool(hl)]
+        header_lines = [list(hl) for hl in header_lines if bool(hl)]
 
         if len(header_lines) == 0:
             return []
 
         if len(header_lines) == 1:
             return header_lines[0]
-
 
         # If there are gaps in the values of a line, copy them forward, so there
         # is some value in every position
@@ -745,10 +744,9 @@ class RowIntuiter(object):
                 else:
                     last = hl[i]
 
-
         headers = [' '.join(text_type(col_val).strip() if col_val else '' for col_val in col_set)
                    for col_set in zip(*header_lines)]
 
-        headers = [re.sub(r'\s+', ' ',h.strip()) for h in headers]
+        headers = [re.sub(r'\s+', ' ', h.strip()) for h in headers]
 
         return headers

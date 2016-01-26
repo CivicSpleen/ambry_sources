@@ -206,7 +206,9 @@ class BasicTestSuite(TestBase):
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
-            #if source_name != 'birth_profiles': continue
+
+            #if source_name not in ('birth_profiles', 'namesu8', 'food_bank'):
+            #    continue
 
             s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 

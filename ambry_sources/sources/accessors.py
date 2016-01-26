@@ -252,20 +252,38 @@ class CsvSource(SourceFile):
 
     def __iter__(self):
         """Iterate over all of the lines in the file"""
-        import unicodecsv as csv
-        from contextlib import closing
+
+        import sys
+
 
         self.start()
 
         encoding = self.spec.encoding or 'utf8'
 
-        # FIXME. The open was 'rb', but that lead to problems in the
-        # test_row_load_intuit test for file food_bank: 'ew-line character seen in unquoted field'
-        # Removing the 'b' and adding 'U' fixes that problem, but may have broken something else
-        with closing(self._fstor.open('rU')) as f:
-            reader = csv.reader(f, encoding=encoding)
-            for i, row in enumerate(reader):
-                yield row
+        try:
+
+            if sys.version_info[0] >= 3:  # Python 3
+                import csv
+                f = open(self._fstor.syspath, 'rtU', encoding=encoding)
+                reader = csv.reader(f)
+            else:  # Python 2
+                import unicodecsv as csv
+                f = open(self._fstor.syspath, 'rbU')
+                reader = csv.reader(f, encoding=encoding)
+
+            i = 0
+            try:
+                for row in reader:
+                    i += 1
+                    yield row
+            except Exception as e:
+                raise
+                from ambry_sources.sources.exceptions import SourceError
+                raise SourceError(str(type(e)) + ';' + e.message + "; line={}".format(i))
+
+
+        finally:
+            f.close()
 
         self.finish()
 

@@ -725,6 +725,7 @@ class RowIntuiter(object):
     @classmethod
     def coalesce_headers(cls, header_lines):
         import re
+        import six
 
         header_lines = [list(hl) for hl in header_lines if bool(hl)]
 
@@ -739,10 +740,11 @@ class RowIntuiter(object):
         for hl in header_lines:
             last = None
             for i in range(len(hl)):
-                if not hl[i].strip():
+                hli = six.text_type(hl[i])
+                if not hli.strip():
                     hl[i] = last
                 else:
-                    last = hl[i]
+                    last = hli
 
         headers = [' '.join(text_type(col_val).strip() if col_val else '' for col_val in col_set)
                    for col_set in zip(*header_lines)]

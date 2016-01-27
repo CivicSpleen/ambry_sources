@@ -207,8 +207,8 @@ class BasicTestSuite(TestBase):
 
         for source_name, spec in sources.items():
 
-            #if source_name not in ('birth_profiles', 'namesu8', 'food_bank'):
-            #    continue
+            #if source_name not in ('immunize',):  #('birth_profiles', 'namesu8', 'food_bank'):
+            #   continue
 
             s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 

@@ -253,23 +253,32 @@ class CsvSource(SourceFile):
     def __iter__(self):
         """Iterate over all of the lines in the file"""
 
-        import sys
-
+        from contextlib import closing
+        import six
 
         self.start()
 
-        encoding = self.spec.encoding or 'utf8'
 
-        try:
 
-            if sys.version_info[0] >= 3:  # Python 3
-                import csv
-                f = open(self._fstor.syspath, 'rtU', encoding=encoding)
+        if six.PY3:
+            import csv
+            f = self._fstor.open('rtU', encoding=(self.spec.encoding or 'utf8'))
+            reader = csv.reader(f)
+        else:
+            import unicodecsv as csv
+
+            # What a mess. The 'b' option cnflicts with the 'U' open, so let's hope
+            # we never need both.
+            # BTW, the need for both may result from the file being saved on a mac. If all else fails,
+            # try loading it into a spreadsheet format and save with normal line endings.
+            if self.spec.encoding:
+                f = self._fstor.open('rb')
+                reader = csv.reader(f, encoding=self.spec.encoding)
+            else:
+                f = self._fstor.open('rU')
                 reader = csv.reader(f)
-            else:  # Python 2
-                import unicodecsv as csv
-                f = open(self._fstor.syspath, 'rbU')
-                reader = csv.reader(f, encoding=encoding)
+
+        with closing(f):
 
             i = 0
             try:
@@ -281,9 +290,6 @@ class CsvSource(SourceFile):
                 from ambry_sources.sources.exceptions import SourceError
                 raise SourceError(str(type(e)) + ';' + e.message + "; line={}".format(i))
 
-
-        finally:
-            f.close()
 
         self.finish()
 
@@ -413,7 +419,6 @@ class ExcelSource(SourceFile):
                 for col in range(s.ncols):
                     values.append(s.cell(row_num, col).value)
             except:
-                print('!!!!', row_num)
                 raise
 
             return values

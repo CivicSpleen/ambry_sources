@@ -1216,7 +1216,7 @@ class MPRReader(object):
         """
         Select rows from the reader using a predicate to select rows and and itemgetter to return a
         subset of elements
-        :param predicate: If defined, a callable that is called for each rowm and if it returns true, the
+        :param predicate: If defined, a callable that is called for each row and if it returns true, the
         row is included in the output.
         :param getter: If defined, a list or tuple of header names to return from each row
         :return: iterable of results
@@ -1227,7 +1227,7 @@ class MPRReader(object):
         be directly constructing a list, use a getter that extracts the inner row, or which converted the RowProxy
         to a dict:
 
-            list(s.datafile.select(lambda r: r.stusab == 'CA', lambda r: r.dict ))
+            list(s.datafile.select(lambda r: r.stusab == 'CA' ))
 
         """
 

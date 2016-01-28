@@ -139,7 +139,7 @@ def extract_file_from_zip(cache_fs, cache_path, url, fn_pattern=None):
     try:
         fs = ZipFS(cache_fs.open(cache_path, 'rb'))
     except ZipOpenError:
-        
+
         fs = ZipFS(cache_fs.getsyspath(cache_path))
 
     fstor = None

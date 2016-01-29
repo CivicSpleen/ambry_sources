@@ -48,6 +48,7 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger=None,
     url_type = spec.get_urltype()
 
     def do_download():
+
         return download(spec.url, cache_fs, account_accessor, clean=clean, logger=logger, callback=callback)
 
     if url_type != 'gs': #FIXME. Need to clean up the logic for gs types.
@@ -195,8 +196,22 @@ def _download(url, cache_fs, cache_path, account_accessor, logger, callback):
         from contextlib import closing
 
         with closing(urlopen(url)) as fin:
+
             with cache_fs.open(cache_path, 'wb') as fout:
-                shutil.copyfileobj(fin, fout)
+
+                read_len = 16 * 1024
+                total_len = 0
+                while 1:
+                    buf = fin.read(read_len)
+                    if not buf:
+                        break
+                    fout.write(buf)
+                    total_len += len(buf)
+
+                    if callback:
+                        callback(len(buf), total_len)
+
+
     else:
 
         r = requests.get(url, stream=True)

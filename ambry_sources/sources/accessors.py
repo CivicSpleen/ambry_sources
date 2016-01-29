@@ -89,6 +89,8 @@ class SourceFile(Source):
     def coalesce_headers(self, header_lines):
         """Collect multiple header lines from the preamble and assemble them into a single header line"""
 
+        raise Exception("Not used?")
+
         if len(header_lines) > 1:
 
             # If there are gaps in the values in the first header line, extend them forward
@@ -556,6 +558,7 @@ class ShapefileSource(GeoSourceBase):
     def headers(self):
         """Return headers. This must be run after iteration, since the value that is returned is
         set in iteration """
+
         return self._headers
 
     def __iter__(self):
@@ -596,7 +599,9 @@ class ShapefileSource(GeoSourceBase):
                     row = [int(s['id'])]
                     for col_name, elem in six.iteritems(row_data):
                         row.append(elem)
+
                     row.append(wkt)
+
                     yield row
 
         self.finish()

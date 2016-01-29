@@ -526,6 +526,7 @@ class MPRowsFile(object):
                 if spec:
                     w.set_source_spec(spec)
 
+
             if intuit_rows:
                 try:
                     self.run_row_intuiter()
@@ -849,7 +850,7 @@ class MPRWriter(object):
         # the source may have the header as the first row
         try:
             if source.headers:
-                self.headers = source.headers
+                self.headers = [self.header_mangler(h) for h in source.headers ]
 
         except AttributeError:
             pass

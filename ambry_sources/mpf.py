@@ -17,7 +17,7 @@ import time
 import zlib
 
 import six
-from six import string_types, iteritems, text_type
+from six import iteritems, text_type
 
 import msgpack
 
@@ -239,8 +239,7 @@ class MPRowsFile(object):
             o.magic, o.version, o.n_rows, o.n_cols, o.meta_start, o.data_start_row, o.data_end_row = \
                 cls.FILE_HEADER_FORMAT.unpack(fh.read(cls.FILE_HEADER_FORMAT_SIZE))
         except struct.error as e:
-
-            raise IOError("Failed to read file header; {}; path = {}".format(e, o.parent.path))
+            raise IOError('Failed to read file header; {}; path = {}'.format(e, o.parent.path))
 
     @classmethod
     def write_file_header(cls, o, fh):
@@ -526,7 +525,6 @@ class MPRowsFile(object):
                 if spec:
                     w.set_source_spec(spec)
 
-
             if intuit_rows:
                 try:
                     self.run_row_intuiter()
@@ -559,11 +557,11 @@ class MPRowsFile(object):
 
         return self
 
-    def open(self,  mode='rb'):
+    def open(self, mode='rb'):
         """Open the file, and return a file-like pyfilesystem object"""
         return self._fs.open(self.path, mode=mode)
 
-    def set_contents(self,  data='',  errors=None, chunk_size=65536):
+    def set_contents(self, data='', errors=None, chunk_size=65536):
         """Pass-though to the PySilesystem setcontents function"""
         return self._fs.setcontents(self.path,  data,  errors=errors, chunk_size=chunk_size)
 
@@ -615,7 +613,7 @@ class MPRowsFile(object):
         >>> f = MPRowsFile('tmp://foobar')
         >>> def handler(signum, frame):
         >>>     print "Loading: %s, %s rows" % f.report_progress()
-        >>> f.load_rows( [i,i,i] for i in range(1000))
+        >>> f.load_rows([i,i,i] for i in range(1000))
 
         :return: Tuple: (process description, #records, #total records, #rate)
         """
@@ -742,8 +740,7 @@ class MPRWriter(object):
             try:
                 row.name = headers[i]
             except KeyError:
-                row.name =  'col{}'.format(i)
-
+                row.name = 'col{}'.format(i)
 
         assert self.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
 
@@ -850,7 +847,7 @@ class MPRWriter(object):
         # the source may have the header as the first row
         try:
             if source.headers:
-                self.headers = [self.header_mangler(h) for h in source.headers ]
+                self.headers = [self.header_mangler(h) for h in source.headers]
 
         except AttributeError:
             pass
@@ -939,7 +936,8 @@ class MPRWriter(object):
                 c = self.column(i)
 
                 if c.name:
-                    assert sc.name == c.name
+                    assert self.header_mangler(sc.name) == c.name, \
+                        '`{}` column name from spec does not match to `{}` column'.format(sc.name, c.name)
 
                 c.start = sc.start
                 c.width = sc.width
@@ -1202,7 +1200,6 @@ class MPRReader(object):
         to a dict.
 
         """
-
 
         self._fh.seek(self.data_start)
 

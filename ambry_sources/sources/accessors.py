@@ -311,11 +311,18 @@ class FixedSource(SourceFile):
     """Generate rows from a fixed-width source"""
 
     def __init__(self, spec, fstor):
+        """
+
+        Args:
+            spec (sources.SourceSpec): specification of the source.
+            fstor (sources.util.DelayedOpen):
+
+        """
         from .exceptions import SourceError
 
         super(FixedSource, self).__init__(spec, fstor)
 
-        if not (spec.start_line is None or spec.start_line == 1):
+        if not (spec.start_line is None or spec.start_line == 0):
             raise SourceError("For FixedSource, the start line must be 1 or unspecified; got '{}' "
                               .format(spec.start_line))
 
@@ -347,7 +354,6 @@ class FixedSource(SourceFile):
 
     @property
     def headers(self):
-
         return [c.name if c.name else i for i, c in enumerate(self.spec.columns)]
 
     def __iter__(self):

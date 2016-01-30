@@ -260,8 +260,6 @@ class CsvSource(SourceFile):
 
         self.start()
 
-
-
         if six.PY3:
             import csv
             f = self._fstor.open('rtU', encoding=(self.spec.encoding or 'utf8'))
@@ -291,7 +289,6 @@ class CsvSource(SourceFile):
                 raise
                 from ambry_sources.sources.exceptions import SourceError
                 raise SourceError(str(type(e)) + ';' + e.message + "; line={}".format(i))
-
 
         self.finish()
 

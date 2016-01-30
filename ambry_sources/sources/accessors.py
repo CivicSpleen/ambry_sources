@@ -323,11 +323,11 @@ class FixedSource(SourceFile):
         super(FixedSource, self).__init__(spec, fstor)
 
         if not (spec.start_line is None or spec.start_line == 0):
-            raise SourceError("For FixedSource, the start line must be 1 or unspecified; got '{}' "
+            raise SourceError("For FixedSource, the start line must be 0 or unspecified; got '{}' "
                               .format(spec.start_line))
 
         if not (not spec.header_lines or spec.header_lines == [0] or spec.header_lines == []):
-            raise SourceError("For FixedSource, the header_lines must be [0] or unspecified; got '{}'"
+            raise SourceError("For FixedSource, the header_lines must be [0], [] or unspecified; got '{}'"
                               .format(spec.header_lines))
 
     def make_fw_row_parser(self):

@@ -161,3 +161,24 @@ class RowProxy(object):
 
     def __repr__(self):
         return self.dict.__repr__()
+
+
+class GeoRowProxy(RowProxy):
+
+    @property
+    def __geo_interface__(self):
+        from shapely.wkt import loads
+
+        g = loads(self.geometry)
+        gi = g.__geo_interface__
+
+        d = dict(self)
+        del d['geometry']
+
+        gi['properties'] = d
+
+        return gi
+
+
+
+

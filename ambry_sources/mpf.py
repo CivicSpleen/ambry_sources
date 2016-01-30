@@ -1183,6 +1183,15 @@ class MPRReader(object):
         finally:
             self._in_iteration = False
 
+    def _get_row_proxy(self):
+        from ambry_sources.sources import RowProxy, GeoRowProxy
+        if 'geometry' in self.headers:
+            rp = GeoRowProxy(self.headers)
+        else:
+            rp = RowProxy(self.headers)
+
+        return rp
+
     def __iter__(self):
         """Iterator for reading rows as RowProxy objects
 
@@ -1193,11 +1202,11 @@ class MPRReader(object):
         to a dict.
 
         """
-        from ambry_sources.sources import RowProxy
+
 
         self._fh.seek(self.data_start)
 
-        rp = RowProxy(self.headers)
+        rp = self._get_row_proxy()
 
         try:
             self._in_iteration = True
@@ -1235,10 +1244,10 @@ class MPRReader(object):
         if headers:
 
             from operator import itemgetter
-            from .sources import RowProxy
 
             ig = itemgetter(*headers)
-            rp = RowProxy(headers)
+
+            rp = self._get_row_proxy()
 
             getter = lambda r: rp.set_row(ig(r.dict))
 

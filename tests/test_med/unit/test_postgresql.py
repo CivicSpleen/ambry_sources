@@ -26,7 +26,7 @@ class AddPartitionTest(TestBase):
         cursor = AttrDict({
             'execute': lambda q: None})
         mprows = _get_fake_partition()
-        add_partition(cursor, mprows, 'vid1')
+        add_partition(cursor, mprows, 'table1')
         self.assertEqual(fake_create.call_count, 1)
 
     @patch('ambry_sources.med.postgresql._create_if_not_exists')
@@ -37,7 +37,7 @@ class AddPartitionTest(TestBase):
         cursor = AttrDict({
             'execute': fake_execute})
         mprows = _get_fake_partition()
-        add_partition(cursor, mprows, 'vid1')
+        add_partition(cursor, mprows, 'table1')
         self.assertEqual(fake_execute.call_count, 1)
         self.assertIn('CREATE FOREIGN TABLE', str(fake_execute.mock_calls[0]))
 
@@ -48,7 +48,7 @@ class AddPartitionTest(TestBase):
         mprows = _get_fake_partition()
         raises = False
         try:
-            add_partition(cursor, mprows, 'vid1')
+            add_partition(cursor, mprows, 'table1')
         except AssertionError as exc:
             raises = True
             self.assertIn('postgres user does not have permission to read mpr file.', str(exc))
@@ -58,32 +58,32 @@ class AddPartitionTest(TestBase):
 class GetCreateQueryTest(TestBase):
     def test_converts_int_to_postgresql_type(self):
         mprows = _get_fake_partition(type_='int')
-        query = _get_create_query(mprows, 'vid1')
+        query = _get_create_query(mprows, 'table1')
         self.assertIn('column1 INTEGER', query)
 
     def test_converts_float_to_postgresql_type(self):
         mprows = _get_fake_partition(type_='float')
-        query = _get_create_query(mprows, 'vid1')
+        query = _get_create_query(mprows, 'table1')
         self.assertIn('column1 NUMERIC', query)
 
     def test_converts_str_to_postgresql_type(self):
         mprows = _get_fake_partition(type_='str')
-        query = _get_create_query(mprows, 'vid1')
+        query = _get_create_query(mprows, 'table1')
         self.assertIn('column1 TEXT', query)
 
     def test_converts_date_to_postgresql_type(self):
         mprows = _get_fake_partition(type_='date')
-        query = _get_create_query(mprows, 'vid1')
+        query = _get_create_query(mprows, 'table1')
         self.assertIn('column1 DATE', query)
 
     def test_converts_datetime_to_postgresql_type(self):
         mprows = _get_fake_partition(type_='datetime')
-        query = _get_create_query(mprows, 'vid1')
+        query = _get_create_query(mprows, 'table1')
         self.assertIn('column1 TIMESTAMP WITHOUT TIME ZONE', query)
 
     def test_return_foreign_table_create_query(self):
         mprows = _get_fake_partition(type_='str')
-        query = _get_create_query(mprows, 'vid1')
+        query = _get_create_query(mprows, 'table1')
         self.assertIn('CREATE FOREIGN TABLE', query)
 
 

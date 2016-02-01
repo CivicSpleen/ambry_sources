@@ -29,13 +29,13 @@ TYPE_MAP = {
 }
 
 
-def add_partition(cursor, mprows, vid):
+def add_partition(cursor, mprows, table):
     """ Creates foreign table for given partition.
 
     Args:
         cursor (psycopg2.cursor):
         mprows (mpf.MPRowsFile):
-        vid (str): vid of the partition.
+        table (str): table name who'll contain mprows data.
     """
     if not _postgres_shares_group():
         details_link = 'https://github.com/CivicKnowledge/ambry_sources#making-mpr-files-readable-by-postgres-user'
@@ -44,21 +44,23 @@ def add_partition(cursor, mprows, vid):
             'Hint: postgres user should share group with user who executes ambry. See {} for details.'
             .format(details_link))
     _create_if_not_exists(cursor, FOREIGN_SERVER_NAME)
-    query = _get_create_query(mprows, vid)
+    query = _get_create_query(mprows, table)
     logger.debug('Create foreign table for {} mprows. Query:\n{}.'.format(mprows.path, query))
     cursor.execute(query)
 
 
-def _get_create_query(mprows, vid):
+def _get_create_query(mprows, table):
     """ Returns query to create foreign table.
 
     Args:
         mprows (mpf.MPRowsFile):
-        vid (str): vid of the partition.
+        table (str): name of the table who'll contain mprows data.
 
     Returns:
-        str: sql query to craete foreign table.
+        str: sql query to create foreign table.
     """
+    table = '{schema}.{table}'.format(schema=POSTGRES_PARTITION_SCHEMA_NAME, table=table)
+
     columns = []
     for column in sorted(mprows.reader.columns, key=lambda x: x['pos']):
         postgres_type = TYPE_MAP.get(column['type'])
@@ -73,7 +75,7 @@ def _get_create_query(mprows, vid):
             filesystem '{filesystem}',
             path '{path}'
         );
-    """.format(table=table_name(vid),
+    """.format(table=table,
                columns=',\n'.join(columns), server_name=FOREIGN_SERVER_NAME,
                filesystem=mprows._fs.root_path,
                path=mprows.path)
@@ -102,19 +104,6 @@ def _create_if_not_exists(cursor, server_name):
         cursor.execute(query)
     else:
         logger.debug('{} foreign server already exists. Do nothing.'.format(server_name))
-
-
-def table_name(vid):
-    """ Returns foreign table name for the given partition.
-
-    Args:
-        vid (str): vid of the partition
-
-    Returns:
-        str: name of the table associated with partition.
-
-    """
-    return '{schema}.p_{vid}_ft'.format(schema=POSTGRES_PARTITION_SCHEMA_NAME, vid=vid)
 
 
 def _like_op(a, b):
@@ -260,11 +249,10 @@ def _postgres_shares_group():
         bool:
 
     """
-
-    user = 'postgres'
     import getpass
     import grp
     import pwd
+    user = 'postgres'
     current_user_group_id = pwd.getpwnam(getpass.getuser()).pw_gid
     current_user_group = grp.getgrgid(current_user_group_id).gr_name
 

@@ -260,8 +260,6 @@ class CsvSource(SourceFile):
 
         self.start()
 
-
-
         if six.PY3:
             import csv
             f = self._fstor.open('rtU', encoding=(self.spec.encoding or 'utf8'))
@@ -292,7 +290,6 @@ class CsvSource(SourceFile):
                 from ambry_sources.sources.exceptions import SourceError
                 raise SourceError(str(type(e)) + ';' + e.message + "; line={}".format(i))
 
-
         self.finish()
 
 
@@ -314,16 +311,23 @@ class FixedSource(SourceFile):
     """Generate rows from a fixed-width source"""
 
     def __init__(self, spec, fstor):
+        """
+
+        Args:
+            spec (sources.SourceSpec): specification of the source.
+            fstor (sources.util.DelayedOpen):
+
+        """
         from .exceptions import SourceError
 
         super(FixedSource, self).__init__(spec, fstor)
 
-        if not (spec.start_line is None or spec.start_line == 1):
-            raise SourceError("For FixedSource, the start line must be 1 or unspecified; got '{}' "
+        if not (spec.start_line is None or spec.start_line == 0):
+            raise SourceError("For FixedSource, the start line must be 0 or unspecified; got '{}' "
                               .format(spec.start_line))
 
         if not (not spec.header_lines or spec.header_lines == [0] or spec.header_lines == []):
-            raise SourceError("For FixedSource, the header_lines must be [0] or unspecified; got '{}'"
+            raise SourceError("For FixedSource, the header_lines must be [0], [] or unspecified; got '{}'"
                               .format(spec.header_lines))
 
     def make_fw_row_parser(self):
@@ -350,7 +354,6 @@ class FixedSource(SourceFile):
 
     @property
     def headers(self):
-
         return [c.name if c.name else i for i, c in enumerate(self.spec.columns)]
 
     def __iter__(self):

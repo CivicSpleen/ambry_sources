@@ -9,7 +9,7 @@ class DelayedOpen(object):
     """A Lightweight wrapper to delay opening a PyFilesystem object until is it used. It is needed because
     The open() command on a filesystem directory, to produce the file object, also opens the file
     """
-    def __init__(self, fs, path, mode='r', container=None,  account_accessor=None):
+    def __init__(self, fs, path, mode='r', container=None, account_accessor=None):
 
         self._fs = fs
         self._path = path
@@ -110,10 +110,9 @@ class RowProxy(object):
                     return self.__row[self.__pos_map[key]]
                 except IndexError:
                     raise IndexError("Failed to get value for non-int key '{}', resolved to position {} "
-                                   .format(key, self.__pos_map[key]))
+                                     .format(key, self.__pos_map[key]))
                 except KeyError:
                     raise KeyError("Failed to get value for non-int key '{}' ".format(key))
-
 
     def __setattr__(self, key, value):
 
@@ -178,7 +177,3 @@ class GeoRowProxy(RowProxy):
         gi['properties'] = d
 
         return gi
-
-
-
-

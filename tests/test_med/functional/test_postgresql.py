@@ -15,7 +15,7 @@ from six import binary_type
 from fs.opener import fsopendir
 
 from ambry_sources import get_source
-from ambry_sources.med.postgresql import add_partition, table_name, _postgres_shares_group
+from ambry_sources.med.postgresql import add_partition, _postgres_shares_group, POSTGRES_PARTITION_SCHEMA_NAME
 from ambry_sources.mpf import MPRowsFile
 
 from tests import PostgreSQLTestBase, TestBase
@@ -48,20 +48,22 @@ class Test(TestBase):
                 with conn.cursor() as cursor:
                     # we have to close opened transaction.
                     cursor.execute('COMMIT;')
-                    add_partition(cursor, mprows, 'vid1')
+                    add_partition(cursor, mprows, 'table1')
 
                 # try to query just added partition foreign data table.
                 with conn.cursor() as cursor:
-                    table = table_name('vid1')
+                    table = 'table1'
 
                     # count all rows
-                    query = 'SELECT count(*) FROM {};'.format(table)
+                    query = 'SELECT count(*) FROM {}.{};'.format(POSTGRES_PARTITION_SCHEMA_NAME, table)
                     cursor.execute(query)
                     result = cursor.fetchall()
                     self.assertEqual(result, [(10000,)])
 
                     # check first row
-                    cursor.execute('SELECT id, uuid, int, float FROM {} LIMIT 1;'.format(table))
+                    cursor.execute(
+                        'SELECT id, uuid, int, float FROM {}.{} LIMIT 1;'
+                        .format(POSTGRES_PARTITION_SCHEMA_NAME, table))
                     result = cursor.fetchall()
                     self.assertEqual(len(result), 1)
                     expected_first_row = (

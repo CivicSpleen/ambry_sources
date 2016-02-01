@@ -109,12 +109,13 @@ def install_mpr_module(connection):
         pass
 
 
-def add_partition(connection, mprows, vid):
+def add_partition(connection, mprows, table):
     """ Creates virtual table for partition.
 
     Args:
         connection (apsw.Connection):
         mprows (mpf.MPRowsFile):
+        table (str): name of the partition table
 
     """
     install_mpr_module(connection)
@@ -129,26 +130,13 @@ def add_partition(connection, mprows, vid):
         path = path[:-4]
 
     query = 'CREATE VIRTUAL TABLE {table} using {module}({filesystem}, {path});'\
-            .format(table=table_name(vid), module=MODULE_NAME,
+            .format(table=table, module=MODULE_NAME,
                     filesystem=mprows._fs.root_path, path=path)
     try:
         cursor.execute(query)
     except Exception as e:
         logger.warn("While adding a partition to sqlite warehouse, failed to exec '{}' ".format(query))
         raise
-
-
-def table_name(vid):
-    """ Returns virtual table name for the given partition.
-
-    Args:
-        vid (str): vid of the partition
-
-    Returns:
-        str: name of the table associated with the partition.
-
-    """
-    return 'p_{vid}_vt'.format(vid=vid)
 
 
 def _get_module_instance():

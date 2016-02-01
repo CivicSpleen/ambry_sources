@@ -2,7 +2,6 @@
 
 from ambry_sources import get_source
 
-
 from fs.opener import fsopendir
 from ambry_sources.mpf import MPRowsFile
 from tests import TestBase

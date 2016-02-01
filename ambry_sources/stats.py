@@ -123,7 +123,10 @@ class StatSet(object):
             if self.is_time or self.is_date:
                 self.counts[unival] += 1
             else:
-                self.counts[unival] += 1
+                if len(unival) > 100:
+                    self.counts[unival[:100]] += 1
+                else:
+                    self.counts[unival] += 1
 
         elif self.is_numeric:
 

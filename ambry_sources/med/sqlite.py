@@ -7,6 +7,10 @@ from six import binary_type, text_type
 
 from ambry_sources.mpf import MPRowsFile
 
+from ambry.util import get_logger
+import logging
+logger = get_logger(__name__, level=logging.INFO, propagate=False)
+
 # Documents used to implement module and function:
 # Module: http://apidoc.apsw.googlecode.com/hg/vtable.html
 # Functions: http://www.drdobbs.com/database/query-anything-with-sqlite/202802959?pgno=3
@@ -22,6 +26,7 @@ TYPE_MAP = {
 }
 
 MODULE_NAME = 'mod_partition'
+
 
 
 class Table:
@@ -126,7 +131,11 @@ def add_partition(connection, mprows, vid):
     query = 'CREATE VIRTUAL TABLE {table} using {module}({filesystem}, {path});'\
             .format(table=table_name(vid), module=MODULE_NAME,
                     filesystem=mprows._fs.root_path, path=path)
-    cursor.execute(query)
+    try:
+        cursor.execute(query)
+    except Exception as e:
+        logger.warn("While adding a partition to sqlite warehouse, failed to exec '{}' ".format(query))
+        raise
 
 
 def table_name(vid):
@@ -164,6 +173,8 @@ def _get_module_instance():
                 column_names.append(column['name'])
             columns_types_str = ',\n'.join(columns_types)
             schema = 'CREATE TABLE {}({});'.format(tablename, columns_types_str)
+
             return schema, Table(column_names, mprows)
         Connect = Create
+
     return Source()

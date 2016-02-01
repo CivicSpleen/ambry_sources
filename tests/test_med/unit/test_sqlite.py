@@ -101,18 +101,14 @@ class TestCursor(unittest.TestCase):
 class AddPartitionTest(unittest.TestCase):
 
     @patch('ambry_sources.med.sqlite._get_module_instance')
-    @patch('ambry_sources.med.sqlite.table_name')
-    def test_creates_sqlite_module(self, fake_table, fake_get):
+    def test_creates_sqlite_module(self, fake_get):
         fake_connection = Mock()
         fake_mprows = _get_fake_mprows('int')
         add_partition(fake_connection, fake_mprows, 'vid1')
-        fake_table.assert_called_once_with('vid1')
         fake_get.assert_called_once_with()
 
     @patch('ambry_sources.med.sqlite._get_module_instance')
-    @patch('ambry_sources.med.sqlite.table_name')
-    def test_creates_virtual_table(self, fake_table, fake_get):
-        fake_table.return_value = 'vid1'
+    def test_creates_virtual_table(self, fake_get):
         fake_mprows = _get_fake_mprows('int')
 
         fake_connection = Mock()
@@ -122,7 +118,6 @@ class AddPartitionTest(unittest.TestCase):
         fake_mprows = _get_fake_mprows('int')
 
         add_partition(fake_connection, fake_mprows, 'vid1')
-        fake_table.assert_called_once_with('vid1')
         fake_get.assert_called_once_with()
         fake_execute.assert_called_once_with('CREATE VIRTUAL TABLE vid1 using mod_partition(/tmp, tmp);')
 

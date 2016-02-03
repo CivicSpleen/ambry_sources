@@ -478,6 +478,9 @@ class BasicTestSuite(TestBase):
 
         f = MPRowsFile(cache_fs, s.spec.name).load_rows(s, run_stats=True)
 
+        # order of fields in the tuples.
+        stat_names = ['stat_count', 'min', 'mean', 'max', 'nuniques']
+
         vals = {u('str_a'):   (30, None, None, None, 10),
                 u('str_b'):   (30, None, None, None, 10),
                 u('float_a'): (30, 1.0, 5.5, 10.0, 10),
@@ -492,8 +495,10 @@ class BasicTestSuite(TestBase):
                 stats = (col.stat_count, col.min, round(col.mean, 1) if col.mean else None,
                          col.max,
                          col.nuniques)
-                for a, b in zip(vals[col.name], stats):
-                    self.assertEqual(a, b, col.name)
+                for i, (expected, observed) in enumerate(zip(vals[col.name], stats)):
+                    msg = '{stat} stat mismatch for {col} column. Expected {stat}: {e}, observed {stat}: {o}' \
+                        .format(stat=stat_names[i], col=col.name, e=expected, o=observed)
+                    self.assertEqual(expected, observed, msg)
 
     def test_datafile(self):
         """

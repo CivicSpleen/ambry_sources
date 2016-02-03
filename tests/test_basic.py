@@ -102,8 +102,6 @@ class BasicTestSuite(TestBase):
 
             s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
-            print(spec.name)
-
             f = MPRowsFile(cache_fs, spec.name)
 
             if f.exists:
@@ -164,9 +162,17 @@ class BasicTestSuite(TestBase):
         with f.writer as w:
             w.set_types(ti)
 
+        columns = []
         with f.reader as w:
             for col in w.columns:
-                print(col.pos, col.name, col.type)
+                columns.append((col.pos, col.name, col.type))
+        expected_columns = [
+            (1, u'id', u'int'),
+            (2, u'uuid', u'str'),
+            (3, u'int', u'int'),
+            (4, u'float', u'float')
+        ]
+        self.assertEqual(columns, expected_columns)
 
     @pytest.mark.slow
     def test_row_intuit(self):

@@ -77,7 +77,7 @@ class BasicTestSuite(TestBase):
         }
 
         for source_name, spec in self.sources.items():
-
+            print(source_name)
             s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
             f = MPRowsFile(cache_fs, spec.name)
@@ -181,13 +181,22 @@ class BasicTestSuite(TestBase):
         sources = self.load_sources('sources-non-std-headers.csv')
 
         for source_name, spec in sources.items():
+
             s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
-            ri = RowIntuiter().run(s)
+
+            rows = list(s)
+            l = len(rows)
+
+            # the files are short, so the head and tail overlap
+            ri = RowIntuiter(debug=False).run(rows[:int(l*.75)], rows[int(l*.25):], len(rows))
+
+            print source_name, ri.start_line, ri.header_lines
 
             self.assertEqual(
                 spec.expect_headers,
                 ','.join(str(e) for e in ri.header_lines),
                 'Headers of {} source does not match to row intuiter'.format(spec.name))
+
             self.assertEqual(
                 spec.expect_start, ri.start_line,
                 'Start line of {} source does not match to row intuiter start line.'.format(spec.name))
@@ -207,8 +216,6 @@ class BasicTestSuite(TestBase):
 
         for source_name, spec in sources.items():
 
-            if source_name not in ('immunize','birth_profiles', 'namesu8', 'food_bank'):
-               continue
 
             s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
@@ -299,6 +306,7 @@ class BasicTestSuite(TestBase):
 
             with f.reader as r:
                 last = list(r.rows)[-1]  # islice isn't working on the reader.
+                print source_name, last
                 self.assertEqual(11999, int(last[0]))
                 self.assertEqual('2q080z003Cg2', last[1])
 
@@ -468,29 +476,44 @@ class BasicTestSuite(TestBase):
         """Check that the sources can be loaded and analyzed without exceptions and that the
         guesses for headers and start are as expected"""
 
-        cache_fs = fsopendir('temp://')
-        # cache_fs = fsopendir('/tmp/ritest/')
+        #cache_fs = fsopendir('temp://')
+        from shutil import rmtree
+        from os import makedirs
+
+        tp = '/tmp/mpr-test'
+        rmtree(tp, ignore_errors=True)
+        makedirs(tp)
+        cache_fs = fsopendir(tp)
 
         s = get_source(self.sources['simple_stats'], cache_fs, callback=lambda x, y: (x, y))
 
         f = MPRowsFile(cache_fs, s.spec.name).load_rows(s, run_stats=True)
 
+        print 'File saved to ', f.syspath
+
+        stat_names = ('count','min','mean','max','nuniques')
+
         vals = {u('str_a'):   (30, None, None, None, 10),
                 u('str_b'):   (30, None, None, None, 10),
                 u('float_a'): (30, 1.0, 5.5, 10.0, 10),
                 u('float_b'): (30, 1.1, 5.5, 9.9, 10),
-                u('float_c'): (30, 1.1, 5.5, 9.9, 10),
-                u('int_b'):   (30, 1.0, 5.0, 9.0, 10),
+                u('float_c'): (30, None, None, None, 10),
+                u('int_b'):   (30, None, None, None, 10),
                 u('int_a'):   (30, 1.0, 5.5, 10.0, 10)}
 
         with f.reader as r:
 
             for col in r.columns:
-                stats = (col.stat_count, col.min, round(col.mean, 1) if col.mean else None,
+                stats = (col.stat_count,
+                         col.min,
+                         round(col.mean, 1) if col.mean else None,
                          col.max,
                          col.nuniques)
-                for a, b in zip(vals[col.name], stats):
-                    self.assertEqual(a, b, col.name)
+
+
+
+                for a, b, stat_name in zip(vals[col.name], stats, stat_names):
+                    self.assertEqual(a, b, "{} failed for stat {}: {} != {}".format(col.name, stat_name, a, b))
 
     def test_datafile(self):
         """

@@ -22,4 +22,3 @@
 "active",,,,,0,1,,,"http://public.source.civicknowledge.com/example.com/complex_headers/active1.csv"
 "heath_care_facilities",,,,,0,1,,,"http://public.source.civicknowledge.com/example.com/complex_headers/Licensed_Facility_Cross_Walk.csv"
 "integers",,,,,0,1,,,"http://public.source.civicknowledge.com/example.com/basics/integers.csv"
-"namesu8",,,,"utf8",0,1,0,1,"http://public.source.civicknowledge.com/example.com/sources/unicode-utf8.csv"

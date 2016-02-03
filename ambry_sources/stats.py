@@ -140,10 +140,9 @@ class StatSet(object):
                 self.counts[unival] += 1
 
             elif self.n == self.bin_primer_count:  # Hit the limit, now can get the hist bins
-
                 self._build_hist_bins()
 
-            elif self.n > self.bin_primer_count and float_v >= self.bin_min and float_v <= self.bin_max:
+            elif self.n > self.bin_primer_count and self.bin_min <= float_v <= self.bin_max:
                 bin_ = int((float_v - self.bin_min) / self.bin_width)
                 self.bins[bin_] += 1
             try:

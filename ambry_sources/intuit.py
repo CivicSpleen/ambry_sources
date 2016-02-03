@@ -530,7 +530,7 @@ class RowIntuiter(object):
         text_type: binary_type,
         float: int}
 
-    def __init__(self):
+    def __init__(self, debug = False):
         self.comment_lines = []
         self.header_lines = []
         self.start_line = 0
@@ -549,7 +549,10 @@ class RowIntuiter(object):
 
         self.test_rows = []
 
-        self.debug = False
+        self.debug = debug
+
+        self._logger = logging.getLogger('rowintuit')
+        self._logger.setLevel(logging.DEBUG if self.debug else logging.INFO)
 
     def picture(self, row):
         """Create a simplified character representation of the data row, which can be pattern matched
@@ -633,6 +636,8 @@ class RowIntuiter(object):
                 if contributors > test_rows*.75:
                     return pattern_source, ave_cols
 
+            return (None, None)
+
 
         pattern_source, ave_cols= try_tests(tests, test_rows, rows)
 
@@ -663,9 +668,15 @@ class RowIntuiter(object):
 
         patterns = ([('D', data_pattern),
                      # More than 25% strings in row is header, if it isn't matched as data
-                     ('H', re.compile(r'X{{,{}}}'.format(n_cols/4))),
+                     ('H', re.compile(r'X{{{},{}}}'.format(max(3, n_cols/8),max(3,n_cols/4)))),
                      ] +
                     list(self.patterns))
+
+        if self.debug:
+
+            self._logger.debug("--- Patterns")
+            for e in patterns:
+                self._logger.debug("    {} {}".format(e[0], e[1].pattern))
 
         for i, row in enumerate(head_rows):
 
@@ -694,7 +705,7 @@ class RowIntuiter(object):
                     label = 'H'
 
             if self.debug:
-                print(i, label, picture, row)
+                self._logger.debug("HEAD: {:<5} {} {} {}".format(i, label, picture, row))
 
             if label == 'C':
                 self.comment_lines.append(i)
@@ -709,13 +720,18 @@ class RowIntuiter(object):
                 break
 
         if tail_rows:
-            from itertools import takewhile
+            from itertools import takewhile, islice
+
+            for i, row in enumerate(islice(reversed(tail_rows), 0, 10)):
+                picture = self.picture(row)
+                label = self.match_picture(picture, patterns)
+                self._logger.debug("TAIL: {:<5} {} {} {}".format(i, label, picture, row))
 
             # Compute the data label for the end line, then reverse them.
             labels = reversed(list(self.match_picture(self.picture(row), patterns) for row in tail_rows))
 
             # Count the number of lines, from the end, that are either comment or blank
-            end_line = len(list(takewhile(lambda x: x == 'C' or x == 'B', labels)))
+            end_line = len(list(takewhile(lambda x: x == 'C' or x == 'B' or x == 'H', labels)))
 
             if end_line:
                 self.end_line = n_rows-end_line-1

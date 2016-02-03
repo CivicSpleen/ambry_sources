@@ -188,7 +188,7 @@ class BasicTestSuite(TestBase):
 
         for source_name, spec in sources.items():
             s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
-            ri = RowIntuiter().run(s)
+            ri = RowIntuiter().run(list(s))
 
             self.assertEqual(
                 spec.expect_headers,

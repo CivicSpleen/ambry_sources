@@ -213,8 +213,8 @@ class BasicTestSuite(TestBase):
 
         for source_name, spec in sources.items():
 
-            if source_name not in ('immunize','birth_profiles', 'namesu8', 'food_bank'):
-               continue
+            if source_name not in ('immunize', 'birth_profiles', 'namesu8', 'food_bank'):
+                continue
 
             s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
@@ -223,7 +223,6 @@ class BasicTestSuite(TestBase):
             if f.exists:
                 f.remove()
 
-            print "Loading ", source_name, spec.url
             f.load_rows(s, intuit_type=False, run_stats=False, limit=500)
 
             self.assertEqual(f.info['data_start_row'], spec.expect_start)
@@ -300,7 +299,7 @@ class BasicTestSuite(TestBase):
             cache_fs = fsopendir(self.setup_temp_dir())
 
             spec = sources[source_name]
-            f = MPRowsFile(cache_fs, spec.name)\
+            f = MPRowsFile(cache_fs, spec.name) \
                 .load_rows(get_source(spec, cache_fs, callback=lambda x, y: (x, y)))
 
             with f.reader as r:
@@ -315,25 +314,25 @@ class BasicTestSuite(TestBase):
             cache_fs = fsopendir(self.setup_temp_dir())
 
             spec = sources[source_name]
-            # print '-----', source_name
-            f = MPRowsFile(cache_fs, spec.name)\
+            f = MPRowsFile(cache_fs, spec.name) \
                 .load_rows(get_source(spec, cache_fs, callback=lambda x, y: (x, y)))
 
             self.assertEqual(spec.expect_start, f.info['data_start_row'])
-            self.assertEquals([int(e) for e in spec.expect_headers.split(',')], f.info['header_rows'])
+            self.assertEqual(
+                [int(e) for e in spec.expect_headers.split(',')],
+                f.info['header_rows'])
 
     def test_header_coalesce(self):
         from ambry_sources.intuit import RowIntuiter
 
-
         def csplit(h):
-            return [ r.split(',') for r in h]
+            return [r.split(',') for r in h]
 
         h = [
-            "a1,,a3,,a5,,a7",
-            "b1,,b3,,b5,,b7",
-            ",c2,,c4,,c6,",
-            "d1,d2,d3,d4,d5,d6,d7"
+            'a1,,a3,,a5,,a7',
+            'b1,,b3,,b5,,b7',
+            ',c2,,c4,,c6,',
+            'd1,d2,d3,d4,d5,d6,d7'
         ]
 
         hc = [u'a1 b1 d1',
@@ -344,9 +343,7 @@ class BasicTestSuite(TestBase):
               u'a5 b5 c6 d6',
               u'a7 b7 c6 d7']
 
-
         self.assertEqual(hc, RowIntuiter.coalesce_headers(csplit(h)))
-
 
     @pytest.mark.slow
     def test_datafile_read_write(self):

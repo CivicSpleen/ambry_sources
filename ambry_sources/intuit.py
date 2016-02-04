@@ -1,4 +1,3 @@
-
 from collections import deque, OrderedDict
 import datetime
 import logging
@@ -614,14 +613,13 @@ class RowIntuiter(object):
 
         tests = 50
         test_rows = min(20, len(rows))
-        n_cols = None
 
         def try_tests(tests, test_rows, rows):
-            # Look for the first row where you can generate a data pattern that does not have a large number of changes
-            # in subsequent rows.
+            # Look for the first row where you can generate a data pattern that does
+            # not have a large number of changes in subsequent rows.
             for i in range(tests):
 
-                max_changes = len(rows[0])/4 # Data row should have fewer than 25% changes compared to next
+                max_changes = len(rows[0]) / 4  # Data row should have fewer than 25% changes compared to next
 
                 test_rows_slice = rows[i: i + test_rows]
 
@@ -630,16 +628,16 @@ class RowIntuiter(object):
 
                 pattern_source, contributors, l = self._data_pattern_source(test_rows_slice, max_changes)
 
-                ave_cols = sum( 1 for r in test_rows_slice for c in r ) / len(test_rows_slice)
+                ave_cols = sum(1 for r in test_rows_slice for c in r) / len(test_rows_slice)
 
                 # If more the 75% of the rows contributed to the pattern, consider it good
-                if contributors > test_rows*.75:
+                if contributors > test_rows * .75:
                     return pattern_source, ave_cols
 
             return (None, None)
 
 
-        pattern_source, ave_cols= try_tests(tests, test_rows, rows)
+        pattern_source, ave_cols = try_tests(tests, test_rows, rows)
 
         if not pattern_source:
             from .exceptions import RowIntuitError

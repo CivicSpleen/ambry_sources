@@ -102,8 +102,6 @@ class BasicTestSuite(TestBase):
 
             s = get_source(spec, cache_fs, callback=lambda x, y: (x, y))
 
-            print(spec.name)
-
             f = MPRowsFile(cache_fs, spec.name)
 
             if f.exists:
@@ -164,9 +162,17 @@ class BasicTestSuite(TestBase):
         with f.writer as w:
             w.set_types(ti)
 
+        columns = []
         with f.reader as w:
             for col in w.columns:
-                print(col.pos, col.name, col.type)
+                columns.append((col.pos, col.name, col.type))
+        expected_columns = [
+            (1, u'id', u'int'),
+            (2, u'uuid', u'str'),
+            (3, u'int', u'int'),
+            (4, u'float', u'float')
+        ]
+        self.assertEqual(columns, expected_columns)
 
     @pytest.mark.slow
     def test_row_intuit(self):
@@ -224,7 +230,6 @@ class BasicTestSuite(TestBase):
             if f.exists:
                 f.remove()
 
-            print "Loading ", source_name, spec.url
             f.load_rows(s, intuit_type=False, run_stats=False, limit=500)
 
             self.assertEqual(f.info['data_start_row'], spec.expect_start)
@@ -301,7 +306,7 @@ class BasicTestSuite(TestBase):
             cache_fs = fsopendir(self.setup_temp_dir())
 
             spec = sources[source_name]
-            f = MPRowsFile(cache_fs, spec.name)\
+            f = MPRowsFile(cache_fs, spec.name) \
                 .load_rows(get_source(spec, cache_fs, callback=lambda x, y: (x, y)))
 
             with f.reader as r:
@@ -317,25 +322,25 @@ class BasicTestSuite(TestBase):
             cache_fs = fsopendir(self.setup_temp_dir())
 
             spec = sources[source_name]
-            # print '-----', source_name
-            f = MPRowsFile(cache_fs, spec.name)\
+            f = MPRowsFile(cache_fs, spec.name) \
                 .load_rows(get_source(spec, cache_fs, callback=lambda x, y: (x, y)))
 
             self.assertEqual(spec.expect_start, f.info['data_start_row'])
-            self.assertEquals([int(e) for e in spec.expect_headers.split(',')], f.info['header_rows'])
+            self.assertEqual(
+                [int(e) for e in spec.expect_headers.split(',')],
+                f.info['header_rows'])
 
     def test_header_coalesce(self):
         from ambry_sources.intuit import RowIntuiter
 
-
         def csplit(h):
-            return [ r.split(',') for r in h]
+            return [r.split(',') for r in h]
 
         h = [
-            "a1,,a3,,a5,,a7",
-            "b1,,b3,,b5,,b7",
-            ",c2,,c4,,c6,",
-            "d1,d2,d3,d4,d5,d6,d7"
+            'a1,,a3,,a5,,a7',
+            'b1,,b3,,b5,,b7',
+            ',c2,,c4,,c6,',
+            'd1,d2,d3,d4,d5,d6,d7'
         ]
 
         hc = [u'a1 b1 d1',
@@ -346,9 +351,7 @@ class BasicTestSuite(TestBase):
               u'a5 b5 c6 d6',
               u'a7 b7 c6 d7']
 
-
         self.assertEqual(hc, RowIntuiter.coalesce_headers(csplit(h)))
-
 
     @pytest.mark.slow
     def test_datafile_read_write(self):
@@ -489,9 +492,7 @@ class BasicTestSuite(TestBase):
 
         f = MPRowsFile(cache_fs, s.spec.name).load_rows(s, run_stats=True)
 
-        print 'File saved to ', f.syspath
-
-        stat_names = ('count','min','mean','max','nuniques')
+        stat_names = ('count', 'min', 'mean', 'max', 'nuniques')
 
         vals = {u('str_a'):   (30, None, None, None, 10),
                 u('str_b'):   (30, None, None, None, 10),
@@ -509,8 +510,6 @@ class BasicTestSuite(TestBase):
                          round(col.mean, 1) if col.mean else None,
                          col.max,
                          col.nuniques)
-
-
 
                 for a, b, stat_name in zip(vals[col.name], stats, stat_names):
                     self.assertEqual(a, b, "{} failed for stat {}: {} != {}".format(col.name, stat_name, a, b))

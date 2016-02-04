@@ -46,14 +46,13 @@ class Test(TestBase):
         columns = [x[NAME_INDEX] for x in mpr.meta['schema'][1:]]
         self.assertIn('id', columns)
         self.assertIn('geometry', columns)
-        self.assertIn('LENGTH', columns)  # column from shape file.
+        self.assertIn('length', columns)  # column from shape file.
 
         # Is first row valid?
         first_row = next(iter(mpr.reader))
         self.assertEqual(len(first_row), 68)
         self.assertEqual(first_row['id'], 0)
         self.assertIn('LINESTRING', first_row['geometry'])
-
 
         return
 

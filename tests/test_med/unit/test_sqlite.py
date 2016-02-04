@@ -150,23 +150,23 @@ class GetModuleClassTest(unittest.TestCase):
             ret = mod.Create('db', 'modulename', 'dbname', 'table1', filesystem_root, path)
             self.assertEqual(len(ret), 2)
             query, table = ret
-            self.assertEqual('CREATE TABLE table1(column1 INTEGER);', query)
+            self.assertEqual('CREATE TABLE table1("column1" INTEGER);', query)
             self.assertTrue(hasattr(table, 'Open'))
 
     def test_converts_int_to_integer_sqlite_type(self):
-        self._assert_converts('int', '(column1 INTEGER)')
+        self._assert_converts('int', '("column1" INTEGER)')
 
     def test_converts_float_to_real_sqlite_type(self):
-        self._assert_converts('float', '(column1 REAL)')
+        self._assert_converts('float', '("column1" REAL)')
 
     def test_converts_str_to_text_sqlite_type(self):
-        self._assert_converts('str', '(column1 TEXT)')
+        self._assert_converts('str', '("column1" TEXT)')
 
     def test_converts_date_to_date_sqlite_type(self):
-        self._assert_converts('date', '(column1 DATE)')
+        self._assert_converts('date', '("column1" DATE)')
 
     def test_converts_datetime_to_timestamp_sqlite_type(self):
-        self._assert_converts('datetime', '(column1 TIMESTAMP WITHOUT TIME ZONE)')
+        self._assert_converts('datetime', '("column1" TIMESTAMP WITHOUT TIME ZONE)')
 
     def test_raises_exception_if_type_conversion_failed(self):
         fake_mprows = _get_fake_mprows('unknown')

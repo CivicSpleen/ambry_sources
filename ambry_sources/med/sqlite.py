@@ -28,7 +28,6 @@ TYPE_MAP = {
 MODULE_NAME = 'mod_partition'
 
 
-
 class Table:
     """ Represents a table """
     def __init__(self, columns, mprows):
@@ -157,8 +156,9 @@ def _get_module_instance():
                 sqlite_type = TYPE_MAP.get(column['type'])
                 if not sqlite_type:
                     raise Exception('Do not know how to convert {} to sql column.'.format(column['type']))
-                columns_types.append('{} {}'.format(column['name'], sqlite_type))
+                columns_types.append('"{}" {}'.format(column['name'], sqlite_type))
                 column_names.append(column['name'])
+
             columns_types_str = ',\n'.join(columns_types)
             schema = 'CREATE TABLE {}({});'.format(tablename, columns_types_str)
 

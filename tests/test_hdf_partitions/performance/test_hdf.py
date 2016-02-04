@@ -53,7 +53,7 @@ class Test(TestBase):
                     column[type_index] = type(rows[0][column[pos_index] - 1]).__name__
                 w.insert_rows(rows)
 
-            print('HDF write ', float(N) / t.elapsed, w.n_rows)
+            print('HDF write large', float(N) / t.elapsed, w.n_rows)
 
         def write_small_blocks():
             df = HDFPartition(fs, path='foobar')
@@ -70,7 +70,7 @@ class Test(TestBase):
                     column[type_index] = type(rows[0][column[pos_index] - 1]).__name__
                 for i in range(N):
                     w.insert_row(rows[i])
-            print('HDF write ', float(N) / t.elapsed, w.n_rows)
+            print('HDF write small', float(N) / t.elapsed, w.n_rows)
 
         write_large_blocks()
 
@@ -88,7 +88,7 @@ class Test(TestBase):
                 count += 1
             r.close()
 
-        print('HDFPartition read  ', float(N) / t.elapsed, i, count, s)
+        print('HDFPartition iter  ', float(N) / t.elapsed, i, count, s)
 
         with Timer() as t:
             count = 0

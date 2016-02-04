@@ -16,9 +16,4 @@ fs>=0.5.2
 livestats==1.0
 pyOpenSSL==0.15.1
 # Geographic, moved to extras
-#Fiona==1.6.1
-#Shapely==1.5.12
 
-# Foreign Data and Virtual Tables. Moved to extras
-#psycopg2
-#apsw

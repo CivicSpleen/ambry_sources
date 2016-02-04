@@ -1001,6 +1001,7 @@ def _serialize(col_type, value):
 
     if force and col_type in TYPE_MAP:
         return TYPE_MAP[col_type]
+
     return value
 
 

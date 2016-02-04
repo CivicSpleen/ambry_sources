@@ -203,6 +203,16 @@ class MPRowsFile(object):
         else:
             return None
 
+    @property
+    def url(self):
+        from fs.errors import NoPathURLError
+
+        try:
+            self._fs.getpathurl(self.path)
+        except NoPathURLError:
+            return self._fs.getsyspath(self.path)
+
+
     @staticmethod
     def encode_obj(obj):
 

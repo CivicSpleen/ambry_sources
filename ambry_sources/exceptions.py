@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
 
+class VirtualTableError(Exception):
+    pass
+
 class ConfigurationError(Exception):
     pass
 

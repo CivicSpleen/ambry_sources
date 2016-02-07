@@ -4,12 +4,17 @@ from collections import OrderedDict
 
 from attrdict import AttrDict
 
-import fudge
-from fudge.inspector import arg
+try:
+    # py3
+    from unittest.mock import Mock, MagicMock, patch, call, PropertyMock
+except ImportError:
+    # py2
+    from mock import Mock, MagicMock, patch, call, PropertyMock
 
 from six import u
 
 from ambry_sources.sources import SourceSpec, ShapefileSource, DatabaseRelationSource
+from ambry_sources.sources.util import DelayedOpen
 
 
 class TestShapefileSource(unittest.TestCase):
@@ -34,10 +39,10 @@ class TestShapefileSource(unittest.TestCase):
 
     # _convert_column tests
     def test_converts_shapefile_column(self):
-        spec = fudge.Fake().is_a_stub()
+        spec = Mock()
         spec.start_line = 0
         spec.header_lines = []
-        fstor = fudge.Fake().is_a_stub()
+        fstor = Mock(DelayedOpen)
         source = ShapefileSource(spec, fstor)
         expected_column = {'name': 'name1', 'type': 'int'}
         self.assertEqual(
@@ -46,10 +51,10 @@ class TestShapefileSource(unittest.TestCase):
 
     # _get_columns tests
     def test_converts_given_columns(self):
-        spec = fudge.Fake().is_a_stub()
+        spec = Mock()
         spec.start_line = 0
         spec.header_lines = []
-        fstor = fudge.Fake().is_a_stub()
+        fstor = Mock(spec=DelayedOpen)
         source = ShapefileSource(spec, fstor)
         column1 = ('name1', 'int:10')
         column2 = ('name2', 'str:10')
@@ -61,10 +66,10 @@ class TestShapefileSource(unittest.TestCase):
         self.assertIn(converted_column2, ret)
 
     def test_extends_with_id_and_geometry(self):
-        spec = fudge.Fake().is_a_stub()
+        spec = Mock()
         spec.start_line = 0
         spec.header_lines = []
-        fstor = fudge.Fake().is_a_stub()
+        fstor = Mock(spec=DelayedOpen)
         source = ShapefileSource(spec, fstor)
         shapefile_columns = OrderedDict()
         ret = source._get_columns(shapefile_columns)
@@ -76,120 +81,128 @@ class TestShapefileSource(unittest.TestCase):
         types = [x['type'] for x in ret]
         self.assertIn('geometry_type', types)
 
-    @fudge.patch(
-        'fiona.open',
-        'shapely.geometry.shape',
-        'shapely.wkt.dumps')
+    @patch('shapely.wkt.dumps')
+    @patch('shapely.geometry.shape')
+    @patch('fiona.open')
     def test_reads_first_layer_if_spec_segment_is_empty(self, fake_open, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
-        fake_open.expects_call().with_args(arg.any(), vfs=arg.any(), layer=0).returns(fake_collection)
-        fake_shape.is_a_stub()
-        fake_dumps.is_a_stub()
+        fake_open.return_value = fake_collection
 
         spec = SourceSpec('http://example.com')
         assert spec.segment is None
-        fstor = fudge.Fake().is_a_stub()
+        fstor = Mock(spec=DelayedOpen)
+        fstor._fs = Mock()
         source = ShapefileSource(spec, fstor)
         next(source._get_row_gen())
+        self.assertEqual(len(fake_open.mock_calls), 1)
+        self.assertEqual(
+            fake_open.call_args_list[0][1]['layer'],
+            0,
+            'open function was called with wrong layer.')
 
-    @fudge.patch(
-        'fiona.open',
-        'shapely.geometry.shape',
-        'shapely.wkt.dumps')
+    @patch('shapely.wkt.dumps')
+    @patch('shapely.geometry.shape')
+    @patch('fiona.open')
     def test_reads_layer_specified_by_segment(self, fake_open, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
-        fake_open.expects_call().with_args(arg.any(), vfs=arg.any(), layer=5).returns(fake_collection)
-        fake_shape.is_a_stub()
-        fake_dumps.is_a_stub()
+        fake_open.return_value = fake_collection
         spec = SourceSpec('http://example.com', segment=5)
-        fstor = fudge.Fake().is_a_stub()
+        fstor = Mock(spec=DelayedOpen)
+        fstor._fs = Mock()
         source = ShapefileSource(spec, fstor)
         next(source._get_row_gen())
+        self.assertEqual(len(fake_open.mock_calls), 1)
+        self.assertEqual(
+            fake_open.call_args_list[0][1]['layer'],
+            5,
+            'open function was called with wrong layer.')
 
-    @fudge.patch(
-        'fiona.open',
-        'ambry_sources.sources.accessors.ShapefileSource._get_columns',
-        'shapely.geometry.shape',
-        'shapely.wkt.dumps')
+    @patch('shapely.wkt.dumps')
+    @patch('shapely.geometry.shape')
+    @patch('ambry_sources.sources.accessors.ShapefileSource._get_columns')
+    @patch('fiona.open')
     def test_populates_columns_of_the_spec(self, fake_open, fake_get, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
-        fake_open.expects_call().returns(fake_collection)
-        fake_get.expects_call().returns([{'name': 'col1', 'type': 'int'}])
-        fake_shape.is_a_stub()
-        fake_dumps.is_a_stub()
+        fake_open.return_value = fake_collection
+        fake_get.return_value = [{'name': 'col1', 'type': 'int'}]
         spec = SourceSpec('http://example.com')
-        fstor = fudge.Fake().is_a_stub()
+        fstor = Mock(spec=DelayedOpen)
+        fstor._fs = Mock()
         source = ShapefileSource(spec, fstor)
         next(source._get_row_gen())
         self.assertEqual(len(source.spec.columns), 1)
         self.assertEqual(source.spec.columns[0].name, 'col1')
+        self.assertEqual(len(fake_open.mock_calls), 1)
+        self.assertEqual(len(fake_get.mock_calls), 2)
 
-    @fudge.patch(
-        'fiona.open',
-        'ambry_sources.sources.accessors.ShapefileSource._get_columns',
-        'shapely.geometry.shape',
-        'shapely.wkt.dumps')
+    @patch('shapely.wkt.dumps')
+    @patch('shapely.geometry.shape')
+    @patch('ambry_sources.sources.accessors.ShapefileSource._get_columns')
+    @patch('fiona.open')
     def test_converts_row_id_to_integer(self, fake_open, fake_get, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
-        fake_open.expects_call().returns(fake_collection)
+        fake_open.return_value = fake_collection
         fake_shape.expects_call().is_a_stub()
         fake_dumps.expects_call().is_a_stub()
-        fake_get.expects_call().returns([{'name': 'col1', 'type': 'int'}])
+        fake_get.return_value = [{'name': 'col1', 'type': 'int'}]
         spec = SourceSpec('http://example.com')
-        fstor = fudge.Fake().is_a_stub()
+        fstor = Mock(spec=DelayedOpen)
+        fstor._fs = Mock()
         source = ShapefileSource(spec, fstor)
         row_gen = source._get_row_gen()
         first_row = next(row_gen)
         self.assertEqual(first_row[0], 0)
+        self.assertEqual(len(fake_open.mock_calls), 1)
+        self.assertEqual(len(fake_get.mock_calls), 2)
 
-    @fudge.patch(
-        'fiona.open',
-        'ambry_sources.sources.accessors.ShapefileSource._get_columns',
-        'shapely.geometry.shape',
-        'shapely.wkt.dumps')
+    @patch('shapely.wkt.dumps')
+    @patch('shapely.geometry.shape')
+    @patch('ambry_sources.sources.accessors.ShapefileSource._get_columns')
+    @patch('fiona.open')
     def test_saves_header(self, fake_open, fake_get, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
-        fake_open.expects_call().returns(fake_collection)
-        fake_get.expects_call().returns([
+        fake_open.return_value = fake_collection
+        fake_get.return_value = [
             {'name': 'id', 'type': 'int'},
             {'name': 'col1', 'type': 'int'},
-            {'name': 'geometry', 'type': 'geometry_type'}])
-        fake_shape.expects_call().is_a_stub()
-        fake_dumps.expects_call().is_a_stub()
+            {'name': 'geometry', 'type': 'geometry_type'}]
         spec = SourceSpec('http://example.com')
-        fstor = fudge.Fake().is_a_stub()
+        fstor = Mock(spec=DelayedOpen)
+        fstor._fs = Mock()
         source = ShapefileSource(spec, fstor)
         next(source._get_row_gen())
         self.assertEqual(source._headers, ['id', 'col1', 'geometry'])
+        self.assertEqual(len(fake_open.mock_calls), 1)
+        self.assertEqual(len(fake_get.mock_calls), 2)
 
-    @fudge.patch(
-        'fiona.open',
-        'ambry_sources.sources.accessors.ShapefileSource._get_columns',
-        'shapely.geometry.shape',
-        'shapely.wkt.dumps')
+    @patch('shapely.wkt.dumps')
+    @patch('shapely.geometry.shape')
+    @patch('ambry_sources.sources.accessors.ShapefileSource._get_columns')
+    @patch('fiona.open')
     def test_last_element_in_the_row_is_wkt(self, fake_open, fake_get, fake_shape, fake_dumps):
         fake_collection = self._get_fake_collection()
-        fake_open.expects_call().returns(fake_collection)
+        fake_open.return_value = fake_collection
         fake_shape.expects_call().is_a_stub()
-        fake_dumps.expects_call().returns('I AM FAKE WKT')
-        fake_get.expects_call().returns([{'name': 'col1', 'type': 'int'}])
+        fake_dumps.return_value = 'I AM FAKE WKT'
+        fake_get.return_value = [{'name': 'col1', 'type': 'int'}]
         spec = SourceSpec('http://example.com')
-        fstor = fudge.Fake().is_a_stub()
+        fstor = Mock(spec=DelayedOpen)
+        fstor._fs = Mock()
         source = ShapefileSource(spec, fstor)
         row_gen = source._get_row_gen()
         first_row = next(row_gen)
         self.assertEqual(first_row[-1], 'I AM FAKE WKT')
+        self.assertEqual(len(fake_open.mock_calls), 1)
+        self.assertEqual(len(fake_get.mock_calls), 2)
 
 
 class DatabaseRelationSourceTest(unittest.TestCase):
 
     def test_uses_url_as_table(self):
-        fake_execute = fudge.Fake() \
-            .expects_call() \
-            .returns(iter([[1], [2]])) \
-            .with_args('SELECT * FROM {};'.format('table1'))
+        fake_execute = Mock(return_value=iter([[1], [2]]))
         connection = AttrDict({'execute': fake_execute})
         spec = SourceSpec('table1')
         relation_source = DatabaseRelationSource(spec, 'sqlite', connection)
         rows = [x for x in relation_source]
         self.assertEqual(rows, [[1], [2]])
+        fake_execute.assert_called_once_with('SELECT * FROM {};'.format('table1'))

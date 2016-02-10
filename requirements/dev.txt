@@ -3,5 +3,4 @@
 -r base.txt
 contexttimer==0.3.1
 coverage==3.7.1
-fudge==1.1.0
 pytest==2.7.2

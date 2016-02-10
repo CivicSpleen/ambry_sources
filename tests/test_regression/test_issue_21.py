@@ -4,7 +4,7 @@ import apsw
 
 from fs.opener import fsopendir
 
-from ambry_sources.med.sqlite import add_partition, table_name
+from ambry_sources.med.sqlite import add_partition
 from ambry_sources.mpf import MPRowsFile
 from ambry_sources.sources import GeneratorSource, SourceSpec
 
@@ -62,18 +62,18 @@ class Test(TestBase):
 
         # check rows of the first file.
         #
-        query = query_tmpl.format(table_name('vid1'))
+        query = query_tmpl.format('vid1')
         result = cursor.execute(query).fetchall()
         self.assertEqual(result, rows1)
 
         # check rows of the second mprows file.
         #
-        query = query_tmpl.format(table_name('vid2'))
+        query = query_tmpl.format('vid2')
         result = cursor.execute(query).fetchall()
         self.assertEqual(result, rows2)
 
         # check rows of the third mprows file.
         #
-        query = query_tmpl.format(table_name('vid3'))
+        query = query_tmpl.format('vid3')
         result = cursor.execute(query).fetchall()
         self.assertEqual(result, rows3)

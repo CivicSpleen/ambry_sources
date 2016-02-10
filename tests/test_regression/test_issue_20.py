@@ -13,7 +13,7 @@ from fs.opener import fsopendir
 
 from ambry_sources import MPRowsFile
 from ambry_sources.sources import GeneratorSource, SourceSpec
-from ambry_sources.med.postgresql import add_partition, table_name
+from ambry_sources.med.postgresql import add_partition
 
 from tests import PostgreSQLTestBase, TestBase
 
@@ -49,7 +49,7 @@ class Test(TestBase):
 
             # query just created foreign table.
             with connection.cursor() as cursor:
-                cursor.execute('SELECT * FROM {};'.format(table_name('vid1')))
+                cursor.execute('SELECT * FROM partitions.vid1;')
         finally:
             if connection:
                 connection.close()

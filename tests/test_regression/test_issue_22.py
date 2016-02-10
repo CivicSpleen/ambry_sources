@@ -4,7 +4,7 @@ import apsw
 
 from fs.opener import fsopendir
 
-from ambry_sources.med.sqlite import add_partition, table_name
+from ambry_sources.med.sqlite import add_partition
 from ambry_sources.mpf import MPRowsFile
 from ambry_sources.sources import GeneratorSource, SourceSpec
 
@@ -41,5 +41,5 @@ class Test(TestBase):
         # check selected rows
         #
         cursor = connection.cursor()
-        result = cursor.execute('SELECT * FROM {}'.format(table_name('vid1'))).fetchall()
+        result = cursor.execute('SELECT * FROM {}'.format('vid1')).fetchall()
         self.assertEqual(result, [(0, 0), (1, 1)])

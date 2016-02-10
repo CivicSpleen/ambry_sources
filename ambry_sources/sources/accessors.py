@@ -77,6 +77,7 @@ class SourceFile(Source):
 
         self._fstor = fstor
         self._headers = None  # Reserved for subclasses that extract headers from data stream
+        self._datatypes = None # If set, an array of the datatypes for each column, derived from the source
 
     @property
     def path(self):
@@ -153,8 +154,8 @@ class GeneratorSource(Source):
         self.finish()
 
 
-class DatabaseRelationSource(Source):
-    """ Source for database table or view. """
+class BundleWarehouseSource(Source):
+    """ Source for a Sqlite database associated with a bundle """
 
     def __init__(self, spec, engine_name, connection):
         """
@@ -162,55 +163,61 @@ class DatabaseRelationSource(Source):
             spec (ambry_sources.sources.spec.SourceSpec):
             connection (sqlalchemy.engine.Connection):
         """
-        super(DatabaseRelationSource, self).__init__(spec)
+        super(BundleWarehouseSource, self).__init__(spec)
         self._connection = connection
         self._engine_name = engine_name
 
-    @property
-    def headers(self):
-        return [x['name'] for x in self._get_columns()]
+class AspwCursorSource(Source):
+    """Iterates a ASPW cursor, also extracting the header and type information  """
 
-    def _get_columns(self):
-        ret = []
-        if self._engine_name == 'sqlite':
-            result = self._connection.execute('PRAGMA table_info(\'{}\');'.format(self.spec.url))
+    def __init__(self, spec, cursor):
 
-            for row in result:
-                position = row[0]
-                name = row[1]
-                ret.append({
-                    'name': name,
-                    'position': position
-                })
-        elif self._engine_name == 'postgresql':
-            query = '''
-                SELECT attr.attname, attr.attnum
-                FROM pg_attribute AS attr
-                JOIN pg_class AS cls ON cls.oid = attr.attrelid
-                JOIN pg_namespace AS ns ON ns.oid = cls.relnamespace
-                WHERE attr.attnum > 0
-                    AND cls.relkind in ('r', 'v', 'm')
-                    AND cls.relname = '{table}'
-                    AND ns.nspname = '{schema}'
-                    AND NOT attr.attisdropped
-                ORDER BY attr.attnum;
-            '''
-            result = self._connection.execute(query.format(schema='ambrylib', table=self.spec.url))
-            for row in result:
-                name = row[0]
-                position = row[1]
-                ret.append({
-                    'name': row[0],
-                    'position': row[1]
-                })
-        return ret
+        super(AspwCursorSource, self).__init__(spec)
 
-    def _get_row_gen(self):
-        if self._engine_name == 'postgresql':
-            return self._connection.execute('SELECT * FROM {}.{};'.format('ambrylib', self.spec.url))
-        else:
-            return self._connection.execute('SELECT * FROM {};'.format(self.spec.url))
+        self._cursor = cursor
 
+        self._datatypes = []
+
+    def __iter__(self):
+        import os
+
+        self.start()
+
+        for i, row in enumerate(self._cursor):
+
+            if i == 0:
+                self._headers = [ e[0] for e in self._cursor.getdescription()]
+
+                yield self._headers
+
+            yield row
+
+        self.finish()
+
+class PandasDataframeSource(Source):
+    """Iterates a pandas dataframe  """
+
+    def __init__(self, spec, df):
+
+        super(PandasDataframeSource, self).__init__(spec)
+
+        self._df = df
+
+
+    def __iter__(self):
+        import os
+
+        self.start()
+
+        df = self._df.reset_index()
+
+        yield ['id'] + list(df.columns)
+
+        for index, row in df.iterrows():
+
+            yield [index] + list(row)
+
+        self.finish()
 
 class MPRSource(Source):
 

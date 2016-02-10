@@ -792,7 +792,7 @@ class MPRWriter(object):
         try:
             self._zfh.write(msgpack.packb(rows, default=MPRowsFile.encode_obj, encoding='utf-8'))
         except IOError as e:
-            raise IOError("Can't write row to file: {}".format(e))
+            raise IOError("Can't write row to file '{}': {}".format(self.syspath, e))
 
         # Hope that the max # of cols is found in the first 100 rows
         # FIXME! This won't work if rows is an interator.

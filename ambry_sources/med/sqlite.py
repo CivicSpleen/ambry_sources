@@ -9,7 +9,8 @@ from ambry_sources.mpf import MPRowsFile
 
 from ambry.util import get_logger
 import logging
-logger = get_logger(__name__, level=logging.DEBUG, propagate=False)
+
+logger = get_logger(__name__, level=logging.INFO, propagate=False)
 
 # Documents used to implement module and function:
 # Module: http://apidoc.apsw.googlecode.com/hg/vtable.html
@@ -110,8 +111,25 @@ def install_mpr_module(connection):
         pass
 
 
+def _relation_exists(connection, relation):
+    """ Returns True if relation (table or view) exists in the sqlite db. Otherwise returns False.
+
+    Args:
+        connection (apsw.Connection): connection to sqlite database who stores mpr data.
+        partition (orm.Partition):
+
+    Returns:
+        boolean: True if relation exists, False otherwise.
+
+    """
+    query = 'SELECT 1 FROM sqlite_master WHERE (type=\'table\' OR type=\'view\') AND name=?;'
+    cursor = connection.cursor()
+    cursor.execute(query, [relation])
+    result = cursor.fetchall()
+    return result == [(1,)]
+
 def add_partition(connection, mprows, table):
-    """ Creates virtual table for partition.
+    """ Installs the module and reates virtual table for partition.
 
     Args:
         connection (apsw.Connection):
@@ -120,6 +138,10 @@ def add_partition(connection, mprows, table):
 
     """
     install_mpr_module(connection)
+
+    if _relation_exists(connection, table):
+        return
+
 
     # create a virtual table.
     cursor = connection.cursor()

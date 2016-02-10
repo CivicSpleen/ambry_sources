@@ -383,6 +383,7 @@ def get_gs(url, segment, account_acessor):
 
     import gspread
     from oauth2client.client import SignedJwtAssertionCredentials
+    from gspread.exceptions import WorksheetNotFound
 
     json_key = account_acessor('google_spreadsheets')
 
@@ -396,4 +397,10 @@ def get_gs(url, segment, account_acessor):
 
     sh = gc.open_by_key(spreadsheet_key)
 
-    return sh.worksheet(segment)
+    try:
+        return sh.worksheet(segment)
+    except WorksheetNotFound:
+        raise SourceError("Failed to find worksheet specified by segment='{}' Spreadsheet has: {} ".format(
+            segment, [ e.title  for e in sh.worksheets() ]))
+
+

@@ -40,6 +40,10 @@ class Source(object):
     def headers(self, v):
         raise NotImplementedError
 
+    @property
+    def meta(self):
+        return {}
+
     def __iter__(self):
         """Iterate over all of the lines in the file"""
 
@@ -121,6 +125,8 @@ class SourceFile(Source):
             return []
 
 
+
+
 class GeneratorSource(Source):
 
     def __init__(self, spec, generator):
@@ -167,6 +173,7 @@ class BundleWarehouseSource(Source):
         self._connection = connection
         self._engine_name = engine_name
 
+
 class AspwCursorSource(Source):
     """Iterates a ASPW cursor, also extracting the header and type information  """
 
@@ -194,6 +201,85 @@ class AspwCursorSource(Source):
 
         self.finish()
 
+
+class SocrataSource(Source):
+    """Iterates a CSV soruce from the JSON produced by Socrata  """
+
+    def __init__(self, spec, fstor):
+
+        super(SocrataSource, self).__init__(spec)
+
+        self._socrata_meta = None
+
+        self._download_url = spec.url+'/rows.csv'
+
+        self._csv_source = CsvSource(spec, fstor)
+
+    @classmethod
+    def download_url(cls, spec):
+        return spec.url + '/rows.csv'
+
+
+    @property
+    def _meta(self):
+        """Return the Socrata meta data, as a nested dict"""
+        import requests
+
+        if not self._socrata_meta:
+            r = requests.get(self.spec.url)
+
+            r.raise_for_status()
+
+            self._socrata_meta = r.json()
+
+        return self._socrata_meta
+
+
+    @property
+    def headers(self):
+        """Return headers.  """
+
+        return [ c['fieldName'] for c in self._meta['columns'] ]
+
+    datatype_map = {
+        'text': 'str',
+        'number': 'float',
+    }
+
+    @property
+    def meta(self):
+        """Return metadata """
+
+        return {
+            'title': self._meta.get('name'),
+            'summary': self._meta.get('description'),
+            'columns': [
+                {
+                    'name': c.get('fieldName'),
+                    'position': c.get('position'),
+                    'description': c.get('name') + '.' + c.get('description'),
+
+                }
+                for c in self._meta.get('columns')
+            ]
+
+        }
+
+    def __iter__(self):
+        import os
+
+        self.start()
+
+        for i, row in enumerate(self._csv_source):
+
+            #if i == 0:
+            #    yield self.headers
+
+            yield row
+
+        self.finish()
+
+
 class PandasDataframeSource(Source):
     """Iterates a pandas dataframe  """
 
@@ -218,6 +304,7 @@ class PandasDataframeSource(Source):
             yield [index] + list(row)
 
         self.finish()
+
 
 class MPRSource(Source):
 
@@ -417,6 +504,7 @@ class ExcelSource(SourceFile):
 
             spath = sub_file.getsyspath(self.spec.name)
 
+
             return self.excel_iter(spath, self.spec.segment)
 
     def excel_iter(self, file_name, segment):
@@ -440,6 +528,7 @@ class ExcelSource(SourceFile):
         s = wb.sheets()[int(segment) if segment else 0]
 
         for i in range(0, s.nrows):
+
             row = srow_to_list(i, s)
             yield row
 

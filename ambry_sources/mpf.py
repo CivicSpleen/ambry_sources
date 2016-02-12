@@ -549,6 +549,19 @@ class MPRowsFile(object):
                     w.set_row_spec(spec)
                     assert w.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
 
+
+            if source.meta:
+                with self.writer as w:
+                    for c, m in zip(w.columns, source.meta['columns']):
+                        assert c.pos == m['position']
+
+                        #assert c.name == m['name'] # True for SocrataSource, maybe not if there are others in the future
+
+                        col = w.column(c.name)
+
+                        col.description = m['description']
+
+
             if intuit_type:
                 self.run_type_intuiter()
 

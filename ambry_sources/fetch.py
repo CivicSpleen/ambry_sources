@@ -25,8 +25,7 @@ from ambry_sources.mpf import MPRowsFile
 from ambry_sources.util import copy_file_or_flo, parse_url_to_dict
 
 from .sources import GoogleSource, CsvSource, TsvSource, FixedSource, ExcelSource, PartitionSource,\
-    SourceError, DelayedOpen, ShapefileSource
-
+    SourceError, DelayedOpen, DelayedDownload, ShapefileSource, SocrataSource
 
 def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger=None, callback=None):
     """
@@ -51,7 +50,7 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger=None,
 
         return download(spec.url, cache_fs, account_accessor, clean=clean, logger=logger, callback=callback)
 
-    if url_type != 'gs': #FIXME. Need to clean up the logic for gs types.
+    if url_type not in ('gs', 'socrata'): #FIXME. Need to clean up the logic for gs types.
         try:
             cache_path, download_time = do_download()
             spec.download_time = download_time
@@ -70,9 +69,19 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger=None,
             fstor = extract_file_from_zip(cache_fs, cache_path, spec.url, spec.file)
 
         file_type = spec.get_filetype(fstor.path)
+
     elif url_type == 'gs':
         fstor = get_gs(spec.url, spec.segment, account_accessor)
         file_type = 'gs'
+
+    elif url_type == 'socrata':
+        spec.encoding = 'utf8'
+        spec.header_lines = [0]
+        spec.start_line = 1
+        url = SocrataSource.download_url(spec)
+        fstor = DelayedDownload(url, cache_fs)
+        file_type = 'socrata'
+
     else:
         fstor = DelayedOpen(cache_fs, cache_path, 'rb')
         file_type = spec.get_filetype(fstor.path)
@@ -88,7 +97,9 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger=None,
         'xls': ExcelSource,
         'xlsx': ExcelSource,
         'partition': PartitionSource,
-        'shape': ShapefileSource}
+        'shape': ShapefileSource,
+        'socrata': SocrataSource
+    }
 
     cls = TYPE_TO_SOURCE_MAP.get(file_type)
     if cls is None:

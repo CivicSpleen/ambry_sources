@@ -59,6 +59,29 @@ class DelayedOpen(object):
             return "Delayed Open: {}; {} ".format(str(self._fs), str(self._path))
 
 
+
+class DelayedDownload(DelayedOpen):
+    """An extension of DelayedOpen that also delays downloading the file"""
+
+    def __init__(self, url, fs,  mode='r', logger = None, container=None, account_accessor=None):
+
+        self._url = url
+        self._logger = logger
+        self._fs = fs
+        self._mode = mode
+        self._container = container
+        self._account_accessor = account_accessor
+
+    def _download(self):
+        from ambry_sources.fetch import download
+
+        self._path , _ = download(self._url, self._fs, self._account_accessor, logger=self._logger)
+
+    def open(self, mode=None, encoding=None):
+        self._download()
+        return super(DelayedDownload, self).open(mode=mode, encoding=encoding)
+
+
 class RowProxy(object):
     '''
     A dict-like accessor for rows which holds a constant header for the keys. Allows for faster access than

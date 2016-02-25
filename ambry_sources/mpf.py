@@ -363,10 +363,13 @@ class MPRowsFile(object):
     @property
     def exists(self):
         """ Returns True if mpr file (self.path) exists in the filesystem (self._fs). False otherwise. """
+
         return self._fs.exists(self.path)
 
     def remove(self):
         if self.exists:
+            from fs.s3fs import S3FS
+            assert not isinstance(self._fs, S3FS) # Let's not be deleteing from remotes.
             self._fs.remove(self.path)
             self.close()
 

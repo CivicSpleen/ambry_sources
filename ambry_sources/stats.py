@@ -164,6 +164,7 @@ class StatSet(object):
             self.lom = self.LOM.ORDINAL
             self.stats = livestats.LiveStats()
         else:
+
             self.bin_min = self.stats.mean() - sqrt(self.stats.variance()) * 2
             self.bin_max = self.stats.mean() + sqrt(self.stats.variance()) * 2
             self.bin_width = (self.bin_max - self.bin_min) / self.num_bins
@@ -174,11 +175,27 @@ class StatSet(object):
                 return
 
             # Puts the saved entries into the hist bins.
-            for v, count in iteritems(self.counts):
-                float_v = _force_float(v)
-                if float_v >= self.bin_min and float_v <= self.bin_max and self.bin_width != 0:
-                    bin_ = int((float_v - self.bin_min) / self.bin_width)
-                    self.bins[bin_] += count
+            def fill_bins():
+                bins = [0] * self.num_bins
+                for v, count in iteritems(self.counts):
+                    float_v = _force_float(v)
+                    if float_v >= self.bin_min and float_v <= self.bin_max and self.bin_width != 0:
+                        bin_ = int((float_v - self.bin_min) / self.bin_width)
+                        bins[bin_] += count
+                return bins
+
+            bins = fill_bins()
+
+            # No, strip off all of the leftmost bins that have no value. This makes for prettier power
+            # and exponential distributions, where the left skew of the mean leaves the left side of the
+            # chart empty.
+            first_non_zero = next((index for index, value in enumerate(bins) if value != 0), None)
+
+            if first_non_zero:
+                self.bin_min = self.bin_min + self.bin_width*first_non_zero
+                self.bin_width = (self.bin_max - self.bin_min) / self.num_bins
+
+            self.bins = fill_bins()
 
         # self.counts = Counter()
         self._hist_build = True

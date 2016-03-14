@@ -139,6 +139,9 @@ class SourceSpec(object):
         if self.url and self.url.startswith('gs://'):
             return 'gs'  # Google spreadsheet
 
+        if self.url and self.url.startswith('file://'):
+            return 'file'  # Google spreadsheet
+
         if self.url:
 
             if '#' in self.url:

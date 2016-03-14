@@ -378,6 +378,7 @@ class CsvSource(SourceFile):
             try:
                 for row in reader:
                     i += 1
+
                     yield row
             except Exception as e:
                 raise

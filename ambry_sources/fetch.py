@@ -27,10 +27,11 @@ from ambry_sources.util import copy_file_or_flo, parse_url_to_dict
 from .sources import GoogleSource, CsvSource, TsvSource, FixedSource, ExcelSource, PartitionSource,\
     SourceError, DelayedOpen, DelayedDownload, ShapefileSource, SocrataSource
 
-def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger=None, callback=None):
+def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger=None, cwd=None, callback=None):
     """
     Download a file from a URL and return it wrapped in a row-generating acessor object.
 
+    :param cwd: Current working directory, for relative file:: urls.
     :param spec: A SourceSpec that describes the source to fetch.
     :param cache_fs: A pyfilesystem filesystem to use for caching downloaded files.
     :param account_accessor: A callable to return the username and password to use for access FTP and S3 URLs.
@@ -50,7 +51,21 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger=None,
 
         return download(spec.url, cache_fs, account_accessor, clean=clean, logger=logger, callback=callback)
 
-    if url_type not in ('gs', 'socrata'): #FIXME. Need to clean up the logic for gs types.
+    if url_type == 'file':
+
+        from fs.opener import  fsopen
+
+        syspath = spec.url.replace('file://','')
+        cache_path = syspath.replace('/','_').strip('_')
+
+        fs_path = os.path.join(cwd, syspath)
+
+        print '!!!!', fs_path
+
+        contents = fsopen(fs_path).read()
+        cache_fs.setcontents(cache_path, contents)
+
+    elif url_type not in ('gs', 'socrata'): #FIXME. Need to clean up the logic for gs types.
         try:
             cache_path, download_time = do_download()
             spec.download_time = download_time
@@ -100,6 +115,8 @@ def get_source(spec, cache_fs,  account_accessor=None, clean=False, logger=None,
         'shape': ShapefileSource,
         'socrata': SocrataSource
     }
+
+
 
     cls = TYPE_TO_SOURCE_MAP.get(file_type)
     if cls is None:

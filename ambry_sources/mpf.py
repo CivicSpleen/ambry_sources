@@ -163,7 +163,8 @@ class MPRowsFile(object):
         },
         'process': {
             'finalized': False
-        }
+        },
+        'warnings': []
     }
 
     def __init__(self, url_or_fs, path=None):
@@ -542,8 +543,9 @@ class MPRowsFile(object):
                 try:
                     self.run_row_intuiter()
                 except RowIntuitError:
-                    # FIXME Need to report this, but there is currently no way to get
-                    # the higher level logger.
+                    with self.writer as w:
+                        w.meta['warnings'].append('Failed to intuit rows. Should set row classifications manually. ')
+
                     pass
 
             elif spec:
@@ -551,7 +553,6 @@ class MPRowsFile(object):
                 with self.writer as w:
                     w.set_row_spec(spec)
                     assert w.meta['schema'][0] == MPRowsFile.SCHEMA_TEMPLATE
-
 
             if source.meta:
                 with self.writer as w:

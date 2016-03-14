@@ -662,7 +662,11 @@ class RowIntuiter(object):
 
         data_pattern_skip_rows = min(30, len(head_rows) - 8)
 
-        data_pattern, self.data_pattern_source, n_cols = self.data_pattern(head_rows[data_pattern_skip_rows:])
+        try:
+            data_pattern, self.data_pattern_source, n_cols = self.data_pattern(head_rows[data_pattern_skip_rows:])
+        except Exception as e:
+            self._logger.debug("Failed to find data pattern")
+            raise
 
         patterns = ([('D', data_pattern),
                      # More than 25% strings in row is header, if it isn't matched as data

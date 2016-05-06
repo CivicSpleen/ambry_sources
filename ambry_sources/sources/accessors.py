@@ -26,6 +26,9 @@ class Source(object):
         except TypeError:
             pass
 
+        self.limit = None # Set externallt to limit number of rows produced
+
+
     @property
     def headers(self):
         """Return a list of the names of the columns of this file, or None if the header is not defined.
@@ -49,8 +52,16 @@ class Source(object):
 
         self.start()
 
-        for row in self._get_row_gen():
-            yield row
+        if self.limit:
+            for i,row in enumerate(self._get_row_gen()):
+
+                if  i > self.limit:
+                    break
+
+                yield row
+        else:
+            for row in self._get_row_gen():
+                yield row
 
         self.finish()
 
@@ -299,6 +310,7 @@ class PandasDataframeSource(Source):
 
         yield ['id'] + list(df.columns)
 
+
         for index, row in df.iterrows():
 
             yield [index] + list(row)
@@ -358,32 +370,63 @@ class CsvSource(SourceFile):
             import csv
             f = self._fstor.open('rtU', encoding=(self.spec.encoding or 'utf8'))
             reader = csv.reader(f)
+
+            with closing(f):
+
+                i = 0
+                try:
+                    for row in reader:
+                        i += 1
+
+                        yield row
+                except Exception as e:
+                    raise
+                    from ambry_sources.sources.exceptions import SourceError
+                    raise SourceError(str(type(e)) + ';' + e.message + "; line={}".format(i))
+
         else:
             import unicodecsv as csv
 
-            # What a mess. The 'b' option cnflicts with the 'U' open, so let's hope
-            # we never need both.
+            # What a mess. In the PyFS interface, The 'b' option conflicts with the 'U' open,and
+            # readline is hardcoded to use '\n' anyway.
             # BTW, the need for both may result from the file being saved on a mac. If all else fails,
             # try loading it into a spreadsheet format and save with normal line endings.
-            if self.spec.encoding:
-                f = self._fstor.open('rb')
-                reader = csv.reader(f, encoding=self.spec.encoding)
-            else:
-                f = self._fstor.open('rU')
-                reader = csv.reader(f)
 
-        with closing(f):
+            # Need to copy the file, since it may be in a Zip file
 
-            i = 0
-            try:
-                for row in reader:
-                    i += 1
+            import tempfile
+            from ambry_sources.util import copy_file_or_flo
 
-                    yield row
-            except Exception as e:
-                raise
-                from ambry_sources.sources.exceptions import SourceError
-                raise SourceError(str(type(e)) + ';' + e.message + "; line={}".format(i))
+            fout = tempfile.NamedTemporaryFile(delete=False)
+
+            with self._fstor.open('rb') as fin:
+                copy_file_or_flo(fin, fout)
+
+            fout.close()
+
+            with open(fout.name, 'rbU') as f:
+
+                if self.spec.encoding:
+                    reader = csv.reader(f, encoding=self.spec.encoding)
+                else:
+                    reader = csv.reader(f)
+
+                i = 0
+                try:
+                    for row in reader:
+                        i += 1
+
+                        yield row
+                except Exception as e:
+                    raise
+                    from ambry_sources.sources.exceptions import SourceError
+                    raise SourceError(str(type(e)) + ';' + e.message + "; line={}".format(i))
+
+                finally:
+                    import os
+                    os.remove(fout.name)
+
+
 
         self.finish()
 

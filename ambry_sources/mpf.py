@@ -797,7 +797,8 @@ class MPRWriter(object):
             if name_or_pos == h.pos or name_or_pos == h.name:
                 return h
 
-        raise KeyError("Didn't find '{}' as either a name nor a position ".format(name_or_pos))
+        raise KeyError("Didn't find '{}' as either a name nor a position in file '{}' "
+                       .format(name_or_pos, self.path))
 
     def _write_rows(self, rows=None):
 
@@ -1090,9 +1091,13 @@ class MPRReader(object):
 
         MPRowsFile.read_file_header(self, self._fh)
 
-        self.data_start = int(self._fh.tell())
+        try:
+            self.data_start = int(self._fh.tell())
 
-        assert self.data_start == self.FILE_HEADER_FORMAT_SIZE
+            assert self.data_start == self.FILE_HEADER_FORMAT_SIZE
+        except AttributeError:
+            # The pyfs HTTP filesystem doesn't have tell()
+            self.data_start = self.FILE_HEADER_FORMAT_SIZE
 
         if self._compress:
             self._zfh = GzipFile(fileobj=self._fh, end_of_data=self.meta_start)

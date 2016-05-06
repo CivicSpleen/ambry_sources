@@ -181,7 +181,8 @@ class StatSet(object):
                     float_v = _force_float(v)
                     if float_v >= self.bin_min and float_v <= self.bin_max and self.bin_width != 0:
                         bin_ = int((float_v - self.bin_min) / self.bin_width)
-                        bins[bin_] += count
+                        if bin_ < len(bins):
+                            bins[bin_] += count
                 return bins
 
             bins = fill_bins()
@@ -420,7 +421,8 @@ class Stats(object):
 
             rows.append(list(stats_dict.values()))
         if rows:
-            return 'Statistics \n' + binary_type(tabulate(rows[1:], rows[0], tablefmt='pipe'))
+            table = tabulate(rows[1:], rows[0], tablefmt='pipe')
+            return u'Statistics \n' + table
         else:
             return 'Statistics: None \n'
 

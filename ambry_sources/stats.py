@@ -96,7 +96,6 @@ class StatSet(object):
         self.bin_min = None
         self.bin_max = None
         self.bin_width = None
-
         self.bin_primer_count = 5000  # how many points to collect before creating hist bins
 
         self._hist_built = False
@@ -113,11 +112,15 @@ class StatSet(object):
         self.n += 1
 
         try:
-            unival = u('{}').format(v)
-        except UnicodeError:
-            unival = v.decode('ascii', 'ignore')
+            if v is None:
+                unival = u''
+            else:
+                unival = u('{}').format(v)
 
-        self.size = max(self.size or 0, len(unival))
+        except UnicodeError:
+            unival = v.decode('ascii', 'replace')
+
+        self.size = max(self.size or 0, len(unival.encode('utf-8'))) # NOTE length in bytes, not characters
 
         if self.lom == self.LOM.NOMINAL or self.lom == self.LOM.ORDINAL:
             if self.is_time or self.is_date:
@@ -125,6 +128,8 @@ class StatSet(object):
             else:
                 if len(unival) > 100:
                     self.counts[unival[:100]] += 1
+                elif v is None:
+                    self.counts['NULL'] += 1
                 else:
                     self.counts[unival] += 1
 
@@ -137,7 +142,10 @@ class StatSet(object):
             float_v = _force_float(v)
 
             if self.n < self.bin_primer_count:  # Still building the counts.
-                self.counts[unival] += 1
+                if v is None:
+                    self.counts['NULL'] += 1
+                else:
+                    self.counts[unival] += 1
 
             elif self.n == self.bin_primer_count:  # Hit the limit, now can get the hist bins
                 self._build_hist_bins()
@@ -149,7 +157,10 @@ class StatSet(object):
 
                 self.stats.add(float(v))
             except (ValueError, TypeError):
-                self.counts[unival] += 1
+                if v is None:
+                    self.counts['NULL'] += 1
+                else:
+                    self.counts[unival] += 1
         else:
             assert False, 'Really should be one or the other ... '
 
@@ -267,6 +278,10 @@ class StatSet(object):
         return text_hist(self.bins) if self.is_numeric else None
 
     @property
+    def width(self):
+        return self.max_width if self.is_numeric else None
+
+    @property
     def dict(self):
         """Return a  dict that can be passed into the ColumnStats constructor"""
 
@@ -289,6 +304,7 @@ class StatSet(object):
             ('p50', self.p50),
             ('p75', self.p75),
             ('max', self.max),
+            ('width', self.size),
             ('skewness', skewness),
             ('kurtosis', kurtosis),
             ('hist', self.bins),

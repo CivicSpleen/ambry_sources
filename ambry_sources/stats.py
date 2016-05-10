@@ -69,6 +69,7 @@ class StatSet(object):
         from datetime import date, time, datetime
 
         self.is_gvid = bool('gvid' in name)  # A special name in Ambry
+        self.is_geoid= bool('geoid' in name)  # A special name in Ambry
         self.is_year = bool('year' in name)
         self.is_time = typ == time
         self.is_date = typ == date or typ == datetime

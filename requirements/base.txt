@@ -5,7 +5,7 @@ requests>=2.6.0
 msgpack-python==0.4.6
 numpy==1.9.2
 six==1.9.0
-tables==3.2.2
+
 gspread
 oauth2client
 filelock==2.0.4

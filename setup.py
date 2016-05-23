@@ -92,6 +92,7 @@ setup(
     classifiers=classifiers,
     extras_require={
         'fdw': ['apsw==3.8.8.2-post1','psycopg2==2.6'],
-        'geo': ['Fiona==1.6.1','Shapely==1.5.12']
+        'geo': ['Fiona>=1.6.1','Shapely>=1.5.12'],
+        'hdf': ['tables>=3.2.2']
     }
 )

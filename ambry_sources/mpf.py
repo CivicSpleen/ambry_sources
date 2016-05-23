@@ -217,13 +217,24 @@ class MPRowsFile(object):
     @staticmethod
     def encode_obj(obj):
 
-        if isinstance(obj, datetime.datetime):
-            return {'__datetime__': True, 'value': tuple(obj.timetuple()[:6])}
-        elif isinstance(obj, datetime.date):
-            return {'__date__': True, 'value': (obj.year, obj.month, obj.day)}
-        elif isinstance(obj, datetime.time):
-            return {'__time__': True, 'value': (obj.hour, obj.minute, obj.second)}
-        elif hasattr(obj, 'render'):
+        try:
+            if isinstance(obj, datetime.datetime):
+                return {'__datetime__': True, 'value': tuple(obj.timetuple()[:6])}
+            elif isinstance(obj, datetime.date):
+                return {'__date__': True, 'value': (obj.year, obj.month, obj.day)}
+            elif isinstance(obj, datetime.time):
+                return {'__time__': True, 'value': (obj.hour, obj.minute, obj.second)}
+        except ValueError as e:
+            # Pandas time series can have a "Not A Time" value of 'NaT', but I don't want to have this
+            # module depend on pandas
+
+            if str(obj) == 'NaT':
+                return None
+            else:
+                raise
+
+
+        if hasattr(obj, 'render'):
             return obj.render()
         elif hasattr(obj, '__str__'):
             return str(obj)

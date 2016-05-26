@@ -16,5 +16,4 @@ unicodecsv==0.12.0
 fs>=0.5.2
 livestats==1.0
 pyOpenSSL==0.15.1
-# Geographic, moved to extras
 
